@@ -1,0 +1,17 @@
+[project]
+name = "bbf"
+version = "0.1.0"
+description = "Compiler for BBF-Lang written in Python"
+readme = "README.md"
+authors = [
+    { name = "Aaron Bittel", email = "aaron@bittels.de" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+bbf = "bbf:main.main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
