@@ -1,7 +1,9 @@
+#!/usr/bin/env python3
+
 import argparse
-from contextlib import suppress
-from dataclasses import dataclass
+from difflib import SequenceMatcher
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from bbf.generation import CodeGenerator
@@ -9,11 +11,13 @@ from bbf.lexer import Lexer, Token, TokenType
 from bbf.parser import (
     Parser,
 )
-from bbf.utils import green, red
-
+from bbf.utils import blue, green, red
 
 SNAPSHOTS_DIR = Path("./tests/snapshots/")
+SNAPSHOTS_DIR.mkdir(exist_ok=True, parents=True)
 EXAMPLES_DIR = Path("./examples/")
+EXAMPLES_DIR.mkdir(exist_ok=True, parents=True)
+
 
 parser = argparse.ArgumentParser(
     description="BBF Language Snapshot Tester and Recorder",
@@ -109,20 +113,6 @@ clean_parser = subparsers.add_parser(
 )
 
 
-def handle_diff(path: Path, expected_lines: list[str], actual_lines: list[str]) -> None:
-    diff_lines = format_diff_lines(expected_lines, actual_lines)
-    if diff_lines:
-        print()
-        for diff in diff_lines:
-            print(f"LINE {diff.line}: '{diff.actual}'")
-            print(f"LINE {diff.line}: '{diff.expected}'")
-        path_actual = path.with_suffix(".actual")
-        path_actual.write_text("\n".join(actual_lines))
-        print(f"[INFO] Saved actual gen output to {path_actual}")
-    else:
-        print(green("[SUCCESS]"))
-
-
 @dataclass
 class DiffLine:
     line: int
@@ -130,47 +120,71 @@ class DiffLine:
     actual: str
 
 
-def format_diff_lines(
+def print_diff_lines(diff_lines: list[DiffLine]) -> None:
+    for diff in diff_lines:
+        print(f"LINE {diff.line}: {diff.actual}")
+        print(f"LINE {diff.line}: {diff.expected}")
+
+
+def calculate_diff_lines(
     expected_lines: list[str], actual_lines: list[str]
 ) -> list[DiffLine]:
-    """Return a list of colorized diff lines between expected and actual text."""
-    diffed_lines: list[DiffLine] = []
-
-    for line_nr, (expected_line, actual_line) in enumerate(
-        zip(expected_lines, actual_lines), start=1
+    diff_lines: list[DiffLine] = []
+    for line, (expected_line, actual_line) in enumerate(
+        zip(expected_lines, actual_lines)
     ):
-        if expected_line == actual_line:
+        exp_out, act_out = highlight_diff_line(expected_line, actual_line)
+        if exp_out == act_out:
             continue
 
-        diff_indices: list[int] = [
-            i
-            for i, (exp_ch, act_ch) in enumerate(zip(expected_line, actual_line))
-            if exp_ch != act_ch
-        ]
+        diff_lines.append(DiffLine(line=line, expected=exp_out, actual=act_out))
+        # print(f"LINE: {line}: '{act_out}'")
+        # print(f"LINE: {line}: '{exp_out}'")
+    return diff_lines
 
-        actual_colored = "".join(
-            red(ch) if i in diff_indices else ch for i, ch in enumerate(actual_line)
-        )
-        expected_colored = "".join(
-            green(ch) if i in diff_indices else ch for i, ch in enumerate(expected_line)
-        )
 
-        diffed_lines.append(
-            DiffLine(line=line_nr, actual=actual_colored, expected=expected_colored)
-        )
+def highlight_diff_line(expected: str, actual: str) -> tuple[str, str]:
+    """Return color-highlighted versions of expected and actual strings."""
+    matcher = SequenceMatcher(None, expected, actual)
+    exp_out, act_out = [], []
 
-    return diffed_lines
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        exp_seg = expected[i1:i2]
+        act_seg = actual[j1:j2]
+
+        if tag == "equal":
+            exp_out.append(exp_seg)
+            act_out.append(act_seg)
+        elif tag == "replace":
+            exp_out.append(green(exp_seg))
+            act_out.append(red(act_seg))
+        elif tag == "delete":
+            exp_out.append(green(exp_seg))
+        elif tag == "insert":
+            act_out.append(red(act_seg))
+
+    return "".join(exp_out), "".join(act_out)
+
+
+def tokenize(path: Path, src: str) -> list[Token]:
+    lexer = Lexer(path, src)
+    tokens: list[Token] = []
+    while token := lexer.next_token():
+        tokens.append(token)
+        if token.ttype == TokenType.EOF:
+            break
+    return tokens
 
 
 def lexer_snapshot_path(path: Path) -> Path:
     return (SNAPSHOTS_DIR / path.stem).with_suffix(".tok.snap")
 
 
-def parser_snapshot_path(name: str) -> Path:
+def parser_snapshot_path(path: Path) -> Path:
     return (SNAPSHOTS_DIR / path.stem).with_suffix(".ast.snap")
 
 
-def gen_snapshot_path(name: str) -> Path:
+def gen_snapshot_path(path: Path) -> Path:
     return (SNAPSHOTS_DIR / path.stem).with_suffix(".gen.snap")
 
 
@@ -178,32 +192,32 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.command == "record":
-        path = args.filepath
-        assert isinstance(path, Path)
+        steps: list[str] = (
+            ["lexer", "parser", "gen"] if "all" in args.step else args.step
+        )
+        path: Path = args.filepath
+
         if path.parent != EXAMPLES_DIR or not path.exists():
             print(red(f"ERROR: file {path} does not exist in {EXAMPLES_DIR}"))
             sys.exit(1)
+
         src = path.read_text()
-        lexer = Lexer(path, src)
-        tokens: list[Token] = []
-        while token := lexer.next_token():
-            tokens.append(token)
-            if token.ttype == TokenType.EOF:
-                break
-        steps: list[str] = args.step
-        if "lexer" in steps or "all" in steps:
+        tokens = tokenize(path, src)
+
+        if "lexer" in steps:
             lexer_snapshot = lexer_snapshot_path(path)
             lexer_snapshot.write_text("\n".join(repr(token) for token in tokens))
             print(f"[INFO] Recorded `token` output for {path} into {lexer_snapshot}")
 
         parser = Parser(tokens)
         prog = parser.parse_program()
-        if "parser" in steps or "all" in steps:
+
+        if "parser" in steps:
             parser_snapshot = parser_snapshot_path(path)
             parser_snapshot.write_text("\n".join(str(stmt) for stmt in prog.stmts))
             print(f"[INFO] Recorded `parser` output for {path} into {parser_snapshot}")
 
-        if "gen" in steps or "all" in steps:
+        if "gen" in steps:
             code_gen = CodeGenerator(prog)
             code_gen.gen_prog()
             gen_snapshot = gen_snapshot_path(path)
@@ -218,23 +232,36 @@ if __name__ == "__main__":
 
         missing_snapshots: list[tuple[Path, str]] = []
         for path in files_to_run:
+            steps: list[str] = (
+                ["lexer", "parser", "gen"] if "all" in args.step else args.step
+            )
+
             src = path.read_text()
-            lexer = Lexer(path, src)
-            tokens: list[Token] = []
-            while token := lexer.next_token():
-                tokens.append(token)
-                if token.ttype == TokenType.EOF:
-                    break
+            tokens = tokenize(path, src)
 
             lexer_snapshot = lexer_snapshot_path(path)
             if not lexer_snapshot.exists():
                 missing_snapshots.append((path, "lexer"))
             else:
-                if "lexer" in args.step or "all" in args.step:
-                    print(f"[INFO] Running lexer snapshot for `{path.name}`", end=" ")
+                if "lexer" in steps:
+                    print(f"[INFO] Running lexer snapshot for `{path.name}`", end="")
                     expected_lines = lexer_snapshot.read_text().splitlines()
-                    actual_lines = [repr(token) for token in tokens]
-                    handle_diff(lexer_snapshot, expected_lines, actual_lines)
+                    actual_lexer_lines = [repr(token) for token in tokens]
+                    diff_lines = calculate_diff_lines(
+                        expected_lines, actual_lexer_lines
+                    )
+                    if len(diff_lines) == 0:
+                        print(green("[SUCCESS]"))
+                    else:
+                        print(red("[FAIL]"))
+                        print_diff_lines(diff_lines)
+                        lexer_actual_path = lexer_snapshot.with_suffix(".actual")
+                        lexer_actual_path.write_text("\n".join(actual_lexer_lines))
+                        print(
+                            blue(
+                                f"[INFO] Saved actual `lexer` output to {lexer_actual_path}"
+                            )
+                        )
 
             parser_snapshot = parser_snapshot_path(path)
             if not parser_snapshot.exists():
@@ -243,35 +270,62 @@ if __name__ == "__main__":
                 parser = Parser(tokens)
                 prog = parser.parse_program()
 
-                if "parser" in args.step or "all" in args.step:
+                if "parser" in steps:
                     print(f"[INFO] Running parser snapshot for `{path.name}`", end=" ")
                     expected_lines = parser_snapshot.read_text().splitlines()
-                    actual_lines = [str(stmt) for stmt in prog.stmts]
-                    handle_diff(parser_snapshot, expected_lines, actual_lines)
+                    actual_parser_lines = [str(stmt) for stmt in prog.stmts]
+                    diff_lines = calculate_diff_lines(
+                        expected_lines, actual_parser_lines
+                    )
+                    if len(diff_lines) == 0:
+                        print(green("[SUCCESS]"))
+                    else:
+                        print(red("[FAIL]"))
+                        print_diff_lines(diff_lines)
+                        parser_actual_path = parser_snapshot.with_suffix(".actual")
+                        parser_actual_path.write_text("\n".join(actual_parser_lines))
+                        print(
+                            blue(
+                                f"[INFO] Saved actual `parser` output to {parser_actual_path}"
+                            )
+                        )
 
             gen_snapshot = gen_snapshot_path(path)
             if not gen_snapshot.exists():
                 missing_snapshots.append((path, "gen"))
             else:
-                if "gen" in args.step or "all" in args.step:
+                if "gen" in steps:
                     print(f"[INFO] Running gen snapshot for `{path.name}`", end=" ")
                     code_gen = CodeGenerator(prog)
                     code_gen.gen_prog()
 
                     expected_lines = gen_snapshot.read_text().splitlines()
-                    actual_lines = code_gen.emitter.lines
-                    handle_diff(gen_snapshot, expected_lines, actual_lines)
+                    actual_gen_lines = code_gen.emitter.lines
+                    diff_lines = calculate_diff_lines(expected_lines, actual_gen_lines)
+                    if len(diff_lines) == 0:
+                        print(green("[SUCCESS]"))
+                    else:
+                        print(red("[FAIL]"))
+                        print_diff_lines(diff_lines)
+                        gen_actual_path = gen_snapshot.with_suffix(".actual")
+                        gen_actual_path.write_text("\n".join(actual_gen_lines))
+                        print(
+                            blue(
+                                f"[INFO] Saved actual `gen` output to {gen_actual_path}"
+                            )
+                        )
 
         for snap, step in missing_snapshots:
             print(
                 red(f"[INFO]: `{step}` snapshot for file {snap.name} does not exist.")
             )
+
     elif args.command == "clean":
         actual_files = list(SNAPSHOTS_DIR.glob("*.actual"))
         if not actual_files:
-            print(green("[INFO] No .actual snapshot files to remove."))
+            print(blue("[INFO] No .actual snapshot files to remove."))
         else:
             for f in actual_files:
                 f.unlink()
                 print(f"[INFO] Removed {f}")
-            print(green(f"[SUCCESS] Removed {len(actual_files)} .actual files."))
+            print(blue(f"[INFO] Removed {len(actual_files)} .actual files."))
