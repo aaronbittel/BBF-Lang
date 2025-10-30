@@ -6,17 +6,22 @@ from pathlib import Path
 
 from bbf.utils import eprint
 
+BUILTINS = {"exit"}
+
 
 class TokenType(StrEnum):
     Integer = auto()
     Identifier = auto()
     String = auto()
 
+    # Builtins
+    Exit = auto()
+
     # Double Char Tokens
 
     # Single Char Tokens
-    Lparen = auto()
-    Rparen = auto()
+    OpenParen = auto()
+    CloseParen = auto()
     Assign = auto()
     Plus = auto()
     Minus = auto()
@@ -43,7 +48,7 @@ class Token:
     position: Position
 
     def __str__(self) -> str:
-        return f"{self.ttype.value.capitalize()}[{self.position.line}:{self.position.column}] => {self.value}"
+        return f"{self.ttype.value.capitalize()}[{self.position}] => {self.value}"
 
 
 class Lexer:
@@ -59,7 +64,7 @@ class Lexer:
         self.skip_whitespace()
 
         if self.index >= len(self.src):
-            return self._create_token(ttype=TokenType.EOF, value="")
+            return self._create_token(ttype=TokenType.EOF, value="EOF")
 
         ch = self.char
 
@@ -68,10 +73,10 @@ class Lexer:
             return self.next_token()
 
         if ch == "(":
-            tok = self._create_token(ttype=TokenType.Lparen, value="(")
+            tok = self._create_token(ttype=TokenType.OpenParen, value="(")
             self.advance()
         elif ch == ")":
-            tok = self._create_token(ttype=TokenType.Rparen, value=")")
+            tok = self._create_token(ttype=TokenType.CloseParen, value=")")
             self.advance()
         elif ch == "=":
             tok = self._create_token(ttype=TokenType.Assign, value="=")
@@ -117,7 +122,8 @@ class Lexer:
         while self.char.isalnum() or self.char == "_":
             self.advance()
         identifier = self.src[start : self.index]
-        return self._create_token(ttype=TokenType.Identifier, value=identifier)
+        ttype = TokenType.Exit if identifier == "exit" else TokenType.Identifier
+        return self._create_token(ttype=ttype, value=identifier)
 
     def read_string(self) -> Token:
         self.advance()  # advance '"'
@@ -150,7 +156,8 @@ class Lexer:
 
     def _create_token(self, ttype: TokenType, value: str) -> Token:
         position = self.position
-        self.column += len(value)
+        if ttype != TokenType.EOF:
+            self.column += len(value)
         return Token(ttype=ttype, value=value, position=position)
 
     def skip_whitespace(self) -> None:

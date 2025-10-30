@@ -8,14 +8,15 @@ from tests.bbf.helpers import (
     assign,
     div,
     eof,
+    fn_exit,
     ident,
     integer,
-    lparen,
+    openp,
     minus,
     mult,
     p,
     plus,
-    rparen,
+    closep,
     string,
 )
 
@@ -32,8 +33,8 @@ def make_lexer() -> Callable[[str], Lexer]:
     "src, expected",
     [
         ("", eof()),
-        ("(", lparen()),
-        (")", rparen()),
+        ("(", openp()),
+        (")", closep()),
         ("15352", integer(value=15352)),
         ("+", plus()),
         ("-", minus()),
@@ -57,10 +58,10 @@ def test_single_token(make_lexer: Callable[[str], Lexer], src: str, expected: To
         (
             "exit(52)",
             [
-                ident(value="exit", column=1),
-                lparen(column=5),
+                fn_exit(column=1),
+                openp(column=5),
                 integer(value=52, column=6),
-                rparen(column=8),
+                closep(column=8),
             ],
         ),
         (
@@ -69,10 +70,10 @@ def test_single_token(make_lexer: Callable[[str], Lexer], src: str, expected: To
                 ident(value="x", column=1),
                 assign(column=3),
                 integer(value=5, column=5),
-                ident(value="exit", line=2, column=1),
-                lparen(line=2, column=5),
+                fn_exit(line=2, column=1),
+                openp(line=2, column=5),
                 ident(value="x", line=2, column=6),
-                rparen(line=2, column=7),
+                closep(line=2, column=7),
             ],
         ),
         (
@@ -84,9 +85,9 @@ def test_single_token(make_lexer: Callable[[str], Lexer], src: str, expected: To
                 minus(column=8),
                 integer(value=12, column=10),
                 plus(column=13),
-                lparen(column=15),
+                openp(column=15),
                 mult(column=16),
-                rparen(column=17),
+                closep(column=17),
                 div(column=19),
             ],
         ),
@@ -119,7 +120,6 @@ def test_multi_token(
     lexer = make_lexer(src)
     index = 0
     while (token := lexer.next_token()) and token.ttype != TokenType.EOF:
-        print("got", token, "index", index)
         expected = expected_tokens[index]
         assert token == expected
         index += 1

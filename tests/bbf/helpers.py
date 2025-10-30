@@ -1,12 +1,19 @@
 from pathlib import Path
-from typing import Callable
 
-import pytest
 
-from bbf.lexer import Lexer, Position, Token, TokenType
+from bbf.lexer import Position, Token, TokenType
+from bbf.parser import (
+    NodeExpr,
+    NodeExprIdent,
+    NodeExprIntLit,
+    NodeStmtAssign,
+    NodeStmtExit,
+)
 
 
 TEST_PATH = Path("testing.bbf")
+
+# TOKEN HELPERS
 
 
 def p(line: int = 1, column: int = 1) -> Position:
@@ -33,16 +40,16 @@ def div(line: int = 1, column: int = 1) -> Token:
     return t(ttype=TokenType.Division, value="/", line=line, column=column)
 
 
-def lparen(line: int = 1, column: int = 1) -> Token:
-    return t(ttype=TokenType.Lparen, value="(", line=line, column=column)
+def openp(line: int = 1, column: int = 1) -> Token:
+    return t(ttype=TokenType.OpenParen, value="(", line=line, column=column)
 
 
-def rparen(line: int = 1, column: int = 1) -> Token:
-    return t(ttype=TokenType.Rparen, value=")", line=line, column=column)
+def closep(line: int = 1, column: int = 1) -> Token:
+    return t(ttype=TokenType.CloseParen, value=")", line=line, column=column)
 
 
 def eof(line: int = 1, column: int = 1) -> Token:
-    return t(ttype=TokenType.EOF, value="", line=line, column=column)
+    return t(ttype=TokenType.EOF, value="EOF", line=line, column=column)
 
 
 def integer(value: int, line: int = 1, column: int = 1) -> Token:
@@ -59,3 +66,26 @@ def ident(value: str, line: int = 1, column: int = 1) -> Token:
 
 def assign(line: int = 1, column: int = 1) -> Token:
     return t(ttype=TokenType.Assign, value="=", line=line, column=column)
+
+
+def fn_exit(line: int = 1, column: int = 1) -> Token:
+    return t(ttype=TokenType.Exit, value="exit", line=line, column=column)
+
+
+# AST HELPERS
+
+
+def int_lit(value: int):
+    return NodeExpr(var=NodeExprIntLit(integer(value)))
+
+
+def ident_expr(name: str):
+    return NodeExpr(var=NodeExprIdent(ident(name)))
+
+
+def assign_stmt(name: str, expr: NodeExpr):
+    return NodeStmtAssign(ident=ident(name), expr=expr)
+
+
+def exit_stmt(expr: NodeExpr):
+    return NodeStmtExit(expr=expr)

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass, field
-from enum import StrEnum, auto
+import sys
 
-from bbf.lexer import Lexer, Position, Token, TokenType
+from bbf.lexer import Position, Token, TokenType
 from bbf.utils import eprint
 
 
@@ -24,60 +23,76 @@ class Parser:
         self.tokens = tokens
         self.index = 0
 
-    def peek(self) -> Token:
-        if self.index + 1 >= len(self.tokens):
-            return Token(
-                TokenType.EOF, value="", position=Position(Path(), line=-1, column=-1)
-            )
-        return self.tokens[self.index + 1]
+    def parse_program(self) -> NodeProgram:
+        stmts: list[NodeStmt] = []
+        while (tok := self.peek()) and tok.ttype != TokenType.EOF:
+            stmts.append(self.parse_stmt())
+        return NodeProgram(stmts)
 
-    def advance(self) -> Token:
-        if self.index >= len(self.tokens):
-            return Token(
-                TokenType.EOF, value="", position=Position(Path(), line=-1, column=-1)
-            )
-        self.index += 1
-        return (
-            self.tokens[self.index]
-            if self.index < len(self.tokens)
-            else Token(
-                TokenType.EOF, value="", position=Position(Path(), line=-1, column=-1)
-            )
-        )
-
-    def parse(self) -> FunctionCallNode:
-        return self.parse_function_call()
-
-    def parse_function_call(self) -> FunctionCallNode:
-        if (
-            self.current_token.ttype != TokenType.Identifier
-            and self.current_token.value != "exit"
+    def parse_stmt(self) -> NodeStmt:
+        if self.check(TokenType.Exit) and self.check(TokenType.OpenParen, offset=1):
+            return NodeStmt(self.parse_exit_expr())
+        elif self.check(TokenType.Identifier) and self.check(
+            TokenType.Assign, offset=1
         ):
-            raise ValueError(
-                f"expected 'exit' function, but got {self.current_token.value}"
-            )
-        name = self.current_token.value
-        self.advance()
+            return NodeStmt(self.parse_assign_stmt())
+        else:
+            eprint(f"ERROR: {tok.position} unexpected token {tok.value}")
+            sys.exit(1)
 
-        self.expect(TokenType.Lparen)
-        self.advance()
+    def parse_assign_stmt(self) -> NodeStmtAssign:
+        ident = self.expect(TokenType.Identifier)
+        self.expect(TokenType.Assign)
+        expr = self.parse_expr()
+        return NodeStmtAssign(ident, expr)
 
-        self.expect(TokenType.Integer)
-        value = int(self.current_token.value)
-        self.advance()
+    def parse_exit_expr(self) -> NodeStmtExit:
+        self.expect(TokenType.Exit)
+        self.expect(TokenType.OpenParen)
+        expr = self.parse_expr()
+        self.expect(TokenType.CloseParen)
+        return NodeStmtExit(expr)
 
-        self.expect(TokenType.Rparen)
-        self.advance()
+    def parse_expr(self) -> NodeExpr:
+        if self.check(TokenType.Integer):
+            token = self.consume()
+            return NodeExpr(NodeExprIntLit(token))
+        if self.check(TokenType.Identifier):
+            token = self.consume()
+            return NodeExpr(NodeExprIdent(token))
+        # self.error(f"Expected expression, found {self.peek()}")
+        token = self.peek()
+        if token is None:
+            eprint("ERROR: expected expression, found End of file")
+        else:
+            eprint(f"ERROR: {token.position} expected expression, found {token.value}")
+        sys.exit(1)
 
-        return FunctionCallNode(name=name, args=[value])
+    def peek(self, offset: int = 0) -> Token | None:
+        if self.index + offset >= len(self.tokens):
+            return None
+        return self.tokens[self.index + offset]
 
-    def expect(self, ttype: TokenType) -> None:
-        if self.current_token.ttype != ttype:
-            raise ParserExpectError(
-                got=self.current_token.ttype,
-                expected=ttype,
-                pos=self.current_token.position,
-            )
+    def consume(self) -> Token:
+        """First check with peek() that there is a valid Token."""
+        tok = self.peek()
+        if tok is None:
+            eprint("ERROR: unexpected end of input")
+            sys.exit(1)
+        self.index += 1
+        return tok
+
+    def check(self, ttype: TokenType, offset: int = 0) -> bool:
+        token = self.peek(offset)
+        return token is not None and token.ttype == ttype
+
+    def expect(self, ttype: TokenType) -> Token:
+        token = self.peek()
+        if token is None or token.ttype != ttype:
+            # self.error(f"Expected {token_type}, found {token}")
+            eprint(f"Expected {ttype}, found {token.ttype if token else None}")
+            sys.exit(1)
+        return self.consume()
 
     @property
     def current_token(self) -> Token:
@@ -85,6 +100,57 @@ class Parser:
 
 
 @dataclass
-class FunctionCallNode:
-    name: str
-    args: list[str]
+class NodeProgram:
+    stmts: list[NodeStmt] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        return "\n".join(str(s) for s in self.stmts)
+
+
+@dataclass
+class NodeStmt:
+    stmt: NodeStmtExit | NodeStmtAssign
+
+    def __str__(self) -> str:
+        return str(self.stmt)
+
+
+@dataclass
+class NodeStmtExit:
+    expr: NodeExpr
+
+    def __str__(self) -> str:
+        return f"exit({self.expr})"
+
+
+@dataclass
+class NodeStmtAssign:
+    ident: Token
+    expr: NodeExpr
+
+    def __str__(self) -> str:
+        return f"Assign({self.ident.value} = {self.expr})"
+
+
+@dataclass
+class NodeExpr:
+    var: NodeExprIntLit | NodeExprIdent
+
+    def __str__(self) -> str:
+        return str(self.var)
+
+
+@dataclass
+class NodeExprIntLit:
+    int_lit: Token
+
+    def __str__(self) -> str:
+        return self.int_lit.value
+
+
+@dataclass
+class NodeExprIdent:
+    ident: Token
+
+    def __str__(self) -> str:
+        return self.ident.value

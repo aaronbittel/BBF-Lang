@@ -1,19 +1,18 @@
-all: build run
+all: generation
 
 BIN_DIR = ./bin
 FILENAME = test01
 
-run: compile p
-	@$(BIN_DIR)/$(FILENAME)
+generation:
+	@uv run bbf generation $(FILENAME).bbf
 
-p: p.o
-	@ld -o $(BIN_DIR)/$(FILENAME) $(BIN_DIR)/$(FILENAME).o
+parser:
+	@uv run bbf parser $(FILENAME).bbf
 
-p.o:
-	@nasm -f elf64 -g -F dwarf -o $(BIN_DIR)/$(FILENAME).o $(BIN_DIR)/$(FILENAME).asm
+lexer:
+	@uv run bbf lexer $(FILENAME).bbf
 
-compile:
-	@uv run bbf com $(FILENAME).bbf
+debug: generation
+	@gdb -q $(BIN_DIR)/$(FILENAME)
 
-tokenize:
-	@uv run bbf tok $(FILENAME).bbf
+.PHONY = generation parser lexer debug

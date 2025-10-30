@@ -1,37 +1,25 @@
 import sys
 from pathlib import Path
 import subprocess
+from typing import Literal
 
-from bbf import parser
+from bbf.generation import CodeGenerator
 from bbf.lexer import Lexer, Token, TokenType, dump_tokens
-from bbf.parser import FunctionCallNode, Parser
-from bbf.utils import eprint
+from bbf.parser import Parser
+from bbf.utils import eprint, green, red
 
 
-def write_asm_file(output_path: Path, program: FunctionCallNode) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open(mode="w") as f:
-        f.write("global _start\n")
-        f.write("_start:\n\n")
-
-        if program.name == "exit":
-            f.write(f"    mov rdi, {program.args[0]}\n")
-            f.write("    call __bulitin_exit\n")
-
-        f.write("\n")
-        f.write("__bulitin_exit:\n")
-        f.write("    mov rax, 60\n")
-        f.write("    syscall\n")
+type Step = Literal["lexer", "parser", "generation"]
 
 
 def main() -> None:
     if len(sys.argv) == 1:
-        eprint("usage: uv run bbf [mode=com] <input.bbf>")
+        eprint("usage: uv run bbf [mode=generation] <input.bbf>")
         sys.exit(1)
 
-    mode = "com"
+    step: Step = "generation"
     if len(sys.argv) == 3:
-        mode, input_path = sys.argv[1], Path(sys.argv[2])
+        step, input_path = sys.argv[1], Path(sys.argv[2])
     else:
         input_path = Path(sys.argv[1])
 
@@ -53,29 +41,39 @@ def main() -> None:
     dump_tokens(tokens)
     print("=====================")
 
-    if mode == "com":
-        print("[INFO] Parsed into FunctionCall:")
+    if step == "parser" or step == "generation":
+        print("[INFO] Parsed into:")
         parser = Parser(tokens)
-        program = parser.parse()
-        print(program)
+        prog = parser.parse_program()
+        print(prog)
         print("=====================")
 
-        output_path = Path(f"./bin/{input_path.stem}.asm")
-        print(f"[INFO] Writing assembly output to {output_path}")
-        write_asm_file(output_path, program)
+        if step == "generation":
+            output_path = Path(f"./bin/{input_path.stem}.asm")
+            code_gen = CodeGenerator(prog=prog, output_path=output_path)
+            print(f"[INFO] Writing assembly output to {output_path}")
+            code_gen.gen_prog()
 
-        output_dir = output_path.parent
-        out_filename = output_path.stem
-        output_o = output_dir / f"{out_filename}.o"
+            output_dir = output_path.parent
+            out_filename = output_path.stem
+            output_o = output_dir / f"{out_filename}.o"
 
-        nasm = f"nasm -f elf64 -g -F dwarf -o {output_o} {output_path}"
-        ld = f"ld -o {output_dir / out_filename} {output_o}"
+            nasm = f"nasm -f elf64 -g -F dwarf -o {output_o} {output_path}"
+            ld = f"ld -o {output_dir / out_filename} {output_o}"
 
-        subprocess.run(args=nasm.split())
-        print(f"[INFO] {nasm}")
+            nasm_res = subprocess.run(args=nasm.split())
+            print(f"[INFO] {nasm}")
+            if nasm_res.returncode != 0:
+                eprint(red("[ERROR] nasm Failed"))
+                sys.exit(1)
 
-        subprocess.run(args=ld.split())
-        print(f"[INFO] {ld}")
+            ld_res = subprocess.run(args=ld.split())
+            print(f"[INFO] {ld}")
+            if ld_res.returncode != 0:
+                eprint(red("[ERROR] ld Failed"))
+                sys.exit(1)
+
+            print(green("[INFO] Successfully compiled!"))
 
 
 if __name__ == "__main__":
