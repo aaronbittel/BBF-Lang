@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import sys
+from dataclasses import dataclass, field
 
 from bbf.lexer import Position, Token, TokenType
 from bbf.utils import eprint
@@ -25,7 +25,7 @@ class Parser:
 
     def parse_program(self) -> NodeProgram:
         stmts: list[NodeStmt] = []
-        while (tok := self.peek()) and tok.ttype != TokenType.EOF:
+        while (token := self.peek()) and token.ttype != TokenType.EOF:
             stmts.append(self.parse_stmt())
         return NodeProgram(stmts)
 
@@ -37,7 +37,9 @@ class Parser:
         ):
             return NodeStmt(self.parse_assign_stmt())
         else:
-            eprint(f"ERROR: {tok.position} unexpected token {tok.value}")
+            token = self.peek()
+            assert token is not None, "checke in `parse_program` that there is a token"
+            eprint(f"ERROR: {token.position} unexpected token {token.value}")
             sys.exit(1)
 
     def parse_assign_stmt(self) -> NodeStmtAssign:
@@ -75,12 +77,12 @@ class Parser:
 
     def consume(self) -> Token:
         """First check with peek() that there is a valid Token."""
-        tok = self.peek()
-        if tok is None:
+        token = self.peek()
+        if token is None:
             eprint("ERROR: unexpected end of input")
             sys.exit(1)
         self.index += 1
-        return tok
+        return token
 
     def check(self, ttype: TokenType, offset: int = 0) -> bool:
         token = self.peek(offset)
@@ -93,10 +95,6 @@ class Parser:
             eprint(f"Expected {ttype}, found {token.ttype if token else None}")
             sys.exit(1)
         return self.consume()
-
-    @property
-    def current_token(self) -> Token:
-        return self.tokens[self.index]
 
 
 @dataclass

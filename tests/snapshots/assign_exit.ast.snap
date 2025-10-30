@@ -1,0 +1,2 @@
+assign(x = 123)
+exit(x)

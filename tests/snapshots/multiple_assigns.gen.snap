@@ -1,0 +1,40 @@
+global _start
+
+_start:
+    ; init base pointer
+    push rbp
+    mov rbp, rsp
+    
+    ; assign(x = 12)
+    mov rax, 12
+    push rax
+    
+    ; assign(y = x)
+    mov rax, [rbp-8] ; retrieve value from variable x
+    push rax
+    
+    ; assign(z = x)
+    mov rax, [rbp-8] ; retrieve value from variable x
+    push rax
+    
+    ; assign(z = y)
+    mov rax, [rbp-16] ; retrieve value from variable y
+    mov [rbp-24], rax
+    
+    ; assign(y = x)
+    mov rax, [rbp-8] ; retrieve value from variable x
+    mov [rbp-16], rax
+    
+    ; exit(x)
+    mov rax, [rbp-8] ; retrieve value from variable x
+    mov rdi, rax
+    call __builtin_exit
+    
+    ; default exit 0
+    mov rdi, 0
+    call __builtin_exit
+    
+; BUILTIN FUNCTIONS
+__builtin_exit:
+    mov rax, 60
+    syscall

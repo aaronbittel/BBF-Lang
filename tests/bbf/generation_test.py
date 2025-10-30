@@ -1,5 +1,4 @@
 from io import StringIO
-from typing import TextIO
 
 from bbf.generation import CodeGenerator
 from bbf.parser import NodeProgram

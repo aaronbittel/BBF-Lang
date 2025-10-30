@@ -1,0 +1,20 @@
+global _start
+
+_start:
+    ; init base pointer
+    push rbp
+    mov rbp, rsp
+    
+    ; exit(43)
+    mov rax, 43
+    mov rdi, rax
+    call __builtin_exit
+    
+    ; default exit 0
+    mov rdi, 0
+    call __builtin_exit
+    
+; BUILTIN FUNCTIONS
+__builtin_exit:
+    mov rax, 60
+    syscall

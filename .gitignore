@@ -11,3 +11,6 @@ wheels/
 
 bin/
 *.bbf
+
+# snapshot tester
+tests/snapshots/*.actual

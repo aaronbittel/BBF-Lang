@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from enum import StrEnum, auto
 from pathlib import Path
 
-from bbf.utils import eprint
-
 BUILTINS = {"exit"}
 
 
@@ -73,40 +71,40 @@ class Lexer:
             return self.next_token()
 
         if ch == "(":
-            tok = self._create_token(ttype=TokenType.OpenParen, value="(")
+            token = self._create_token(ttype=TokenType.OpenParen, value="(")
             self.advance()
         elif ch == ")":
-            tok = self._create_token(ttype=TokenType.CloseParen, value=")")
+            token = self._create_token(ttype=TokenType.CloseParen, value=")")
             self.advance()
         elif ch == "=":
-            tok = self._create_token(ttype=TokenType.Assign, value="=")
+            token = self._create_token(ttype=TokenType.Assign, value="=")
             self.advance()
         elif ch == "+":
-            tok = self._create_token(ttype=TokenType.Plus, value="+")
+            token = self._create_token(ttype=TokenType.Plus, value="+")
             self.advance()
         elif ch == "-":
-            tok = self._create_token(ttype=TokenType.Minus, value="-")
+            token = self._create_token(ttype=TokenType.Minus, value="-")
             self.advance()
         elif ch == "*":
-            tok = self._create_token(ttype=TokenType.Multiplication, value="*")
+            token = self._create_token(ttype=TokenType.Multiplication, value="*")
             self.advance()
         elif ch == "/":
-            tok = self._create_token(ttype=TokenType.Division, value="/")
+            token = self._create_token(ttype=TokenType.Division, value="/")
             self.advance()
         elif ch.isnumeric():
-            tok = self.read_number()
+            token = self.read_number()
             if self.char.isalpha():
                 raise LexerError(msg="invalid integer literal", position=self.position)
         elif ch.isalpha():
-            tok = self.read_identifier()
+            token = self.read_identifier()
         elif ch == '"':
-            tok = self.read_string()
+            token = self.read_string()
         else:
-            tok = self._create_token(ttype=TokenType.Illegal, value="")
+            token = self._create_token(ttype=TokenType.Illegal, value="")
 
-        if tok.ttype == TokenType.Illegal:
+        if token.ttype == TokenType.Illegal:
             raise LexerError(msg=f"invalid character {ch}", position=self.position)
-        return tok
+        return token
 
     def read_number(self) -> Token:
         start = self.index
@@ -134,14 +132,14 @@ class Lexer:
         if self.char == "":  # EOF
             raise LexerError(msg="unterminated string literal", position=self.position)
         string = self.src[start : self.index]
-        tok = Token(
+        token = Token(
             ttype=TokenType.String,
             value=string,
             position=Position(path=self.path, line=self.line, column=start),
         )
         self.column += len(string) + 2  # 2 for "
         self.advance()  # advance '"'
-        return tok
+        return token
 
     def peek(self) -> str:
         if self.index + 1 >= len(self.src):
@@ -201,5 +199,5 @@ class Position:
 
 
 def dump_tokens(tokens: list[Token]) -> None:
-    for tok in tokens:
-        print(tok)
+    for token in tokens:
+        print(token)

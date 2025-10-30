@@ -6,17 +6,17 @@ from bbf.lexer import Lexer, LexerError, Token, TokenType
 from tests.bbf.helpers import (
     TEST_PATH,
     assign,
+    closep,
     div,
     eof,
     fn_exit,
     ident,
     integer,
-    openp,
     minus,
     mult,
+    openp,
     p,
     plus,
-    closep,
     string,
 )
 

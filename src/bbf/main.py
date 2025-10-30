@@ -1,6 +1,6 @@
+import subprocess
 import sys
 from pathlib import Path
-import subprocess
 from typing import Literal
 
 from bbf.generation import CodeGenerator
@@ -33,8 +33,8 @@ def main() -> None:
 
     lexer = Lexer(path=input_path, src=input_content)
     tokens: list[Token] = []
-    while (tok := lexer.next_token()) and tok.ttype != TokenType.EOF:
-        tokens.append(tok)
+    while (token := lexer.next_token()) and token.ttype != TokenType.EOF:
+        tokens.append(token)
 
     tokens.append(lexer.next_token())
     assert tokens[-1].ttype == TokenType.EOF

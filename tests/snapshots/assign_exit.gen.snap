@@ -1,0 +1,24 @@
+global _start
+
+_start:
+    ; init base pointer
+    push rbp
+    mov rbp, rsp
+    
+    ; assign(x = 123)
+    mov rax, 123
+    push rax
+    
+    ; exit(x)
+    mov rax, [rbp-8] ; retrieve value from variable x
+    mov rdi, rax
+    call __builtin_exit
+    
+    ; default exit 0
+    mov rdi, 0
+    call __builtin_exit
+    
+; BUILTIN FUNCTIONS
+__builtin_exit:
+    mov rax, 60
+    syscall

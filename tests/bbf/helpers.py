@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 from bbf.lexer import Position, Token, TokenType
 from bbf.parser import (
     NodeExpr,
@@ -9,7 +8,6 @@ from bbf.parser import (
     NodeStmtAssign,
     NodeStmtExit,
 )
-
 
 TEST_PATH = Path("testing.bbf")
 

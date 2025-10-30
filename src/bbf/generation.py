@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
 from typing import TextIO
+
 from bbf.parser import (
     NodeExpr,
     NodeExprIdent,
@@ -12,7 +11,6 @@ from bbf.parser import (
     NodeStmtAssign,
     NodeStmtExit,
 )
-from bbf.utils import eprint
 
 
 class CodeGenerator:
@@ -90,11 +88,13 @@ class CodeGenerator:
             )
 
     def program_prologue(self) -> None:
-        self.emitter.emit("global _start\n", indent=0)
+        self.emitter.emit("global _start", indent=0)
+        self.emitter.emit("", indent=0)
         self.emitter.emit("_start:", indent=0)
         self.emitter.emit("; init base pointer")
         self.emitter.emit("push rbp")
-        self.emitter.emit("mov rbp, rsp\n")
+        self.emitter.emit("mov rbp, rsp")
+        self.emitter.emit("")
 
     def program_epilogue(self):
         self.emitter.emit("; default exit 0")

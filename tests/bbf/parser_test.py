@@ -1,9 +1,7 @@
 import pytest
 
-from bbf.lexer import Token, TokenType
-
-
-from bbf.parser import NodeExpr, NodeExprIntLit, NodeProgram, NodeStmtAssign, Parser
+from bbf.lexer import Token
+from bbf.parser import NodeProgram, Parser
 from tests.bbf.helpers import (
     assign,
     assign_stmt,
@@ -16,7 +14,6 @@ from tests.bbf.helpers import (
     int_lit,
     integer,
     openp,
-    t,
 )
 
 
