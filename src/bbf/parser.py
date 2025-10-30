@@ -129,7 +129,7 @@ class NodeStmtAssign:
     expr: NodeExpr
 
     def __str__(self) -> str:
-        return f"Assign({self.ident.value} = {self.expr})"
+        return f"assign({self.ident.value} = {self.expr})"
 
 
 @dataclass

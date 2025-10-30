@@ -8,6 +8,8 @@ from bbf.lexer import Lexer, Token, TokenType, dump_tokens
 from bbf.parser import Parser
 from bbf.utils import eprint, green, red
 
+# TODO: Use snapshot testing
+
 
 type Step = Literal["lexer", "parser", "generation"]
 
@@ -50,9 +52,11 @@ def main() -> None:
 
         if step == "generation":
             output_path = Path(f"./bin/{input_path.stem}.asm")
-            code_gen = CodeGenerator(prog=prog, output_path=output_path)
+            code_gen = CodeGenerator(prog=prog)
             print(f"[INFO] Writing assembly output to {output_path}")
             code_gen.gen_prog()
+            with output_path.open(mode="w") as f:
+                code_gen.write_to(f)
 
             output_dir = output_path.parent
             out_filename = output_path.stem

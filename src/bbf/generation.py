@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from pathlib import Path
 import sys
+from typing import TextIO
 from bbf.parser import (
     NodeExpr,
     NodeExprIdent,
@@ -13,39 +16,25 @@ from bbf.utils import eprint
 
 
 class CodeGenerator:
-    def __init__(self, prog: NodeProgram, output_path: Path) -> None:
+    def __init__(self, prog: NodeProgram) -> None:
         self.prog = prog
-        self.output_path = output_path
-        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+        self.emitter = Emitter()
 
-        self._locals: dict[str, int] = {}  # name => offset
-        self._next_offset = 8
-        self._file = self.output_path.open(mode="w")
+        self.symbols = SymbolTable()
+
+    def write_to(self, file: TextIO) -> None:
+        self.emitter.write_to(file)
 
     def gen_prog(self) -> None:
-        try:
-            self._file.write("global _start\n")
-            self._file.write("_start:\n")
-            self._file.write("    ; init base pointer\n\n")
-            self._file.write("    push rbp\n")
-            self._file.write("    mov rbp, rsp\n")
+        self.program_prologue()
 
-            for stmt in self.prog.stmts:
-                self.gen_stmt_node(stmt)
+        for stmt in self.prog.stmts:
+            self.gen_stmt_node(stmt)
+            self.emitter.emit("")
 
-            # deself._fileault exit 0 if no explicit exit call
-            self._file.write("\n")
-            self._file.write("; default exit 0\n")
-            self._file.write("    mov rdi, 0\n")
-            self._file.write("    call __bulitin_exit\n")
+        self.program_epilogue()
 
-            self._file.write("\n")
-            self._file.write("; BUILTIN FUNCTIONS\n")
-            self._file.write("__bulitin_exit:\n")
-            self._file.write("    mov rax, 60\n")
-            self._file.write("    syscall\n")
-        finally:
-            self._file.close()
+        self.gen_builtins()
 
     def gen_stmt_node(self, node_stmt: NodeStmt) -> None:
         # stmt: NodeStmtExit | NodeStmtAssign
@@ -54,31 +43,32 @@ class CodeGenerator:
         elif isinstance(node_stmt.stmt, NodeStmtAssign):
             self.gen_stmt_assign(node_stmt.stmt)
         else:
-            eprint(f"ERROR: unexpected NodeStmt: {node_stmt}")
-            sys.exit(1)
+            raise CodeGenError(f"ERROR: unexpected NodeStmt: {node_stmt}")
 
     def gen_stmt_exit(self, stmt: NodeStmtExit) -> None:
         expr = stmt.expr
-        self._file.write(f"    ; {stmt}\n")
+        self.emitter.emit(f"; {stmt}")
         self.gen_expr(expr)
-        self._file.write("    mov rdi, rax\n")
-        self._file.write("    call __bulitin_exit\n")
+        self.emitter.emit("mov rdi, rax")
+        self.emitter.emit("call __builtin_exit")
 
     def gen_stmt_assign(self, stmt: NodeStmtAssign) -> None:
         leftside_ident, expr = stmt.ident, stmt.expr
-        self._file.write(f"    ; NodeStmtAssign: {stmt}\n")
+        self.emitter.emit(f"; {stmt}")
         self.gen_expr(expr)  # right side value is in `rax`
 
-        leftside_offset = self._locals.get(leftside_ident.value)
+        leftside_offset = self.symbols.lookup(leftside_ident.value)
         if leftside_offset is None:
             # definition of new variable
-            self._locals[leftside_ident.value] = self._next_offset
-            self._next_offset += 8
-            self._file.write("    push rax\n")
+            self.symbols.define(leftside_ident.value)
+            self.emitter.emit("push rax")
         else:
             # redefining value of variable
-            self._file.write(f"    mov [rbp-{leftside_offset}], rax\n")
+            self.emitter.emit(f"mov [rbp-{leftside_offset}], rax")
 
+    # TODO: Make gen_stmt_* functions return values or registers
+    # When you add binary expressions or function calls, you’ll want to evaluate
+    # subexpressions into registers or stack locations.
     def gen_expr(self, expr: NodeExpr) -> None:
         """Generate code for an expression.
 
@@ -87,15 +77,63 @@ class CodeGenerator:
         if isinstance(expr.var, NodeExprIntLit):
             # NOTE: What to do when value already exists?
             int_lit = expr.var.int_lit
-            self._file.write(f"    mov rax, {int_lit.value}\n")
+            self.emitter.emit(f"mov rax, {int_lit.value}")
         elif isinstance(expr.var, NodeExprIdent):
             ident = expr.var.ident
-            offset = self._locals.get(ident.value)
+            offset = self.symbols.lookup(ident.value)
             if offset is None:
-                eprint(
+                raise CodeGenError(
                     f"ERROR: {ident.position}: identifier `{ident.value}` was not defined"
                 )
-                sys.exit(1)
-            self._file.write(
-                f"    mov rax, [rbp-{offset}]; retrieve value from variable {ident.value}\n"
+            self.emitter.emit(
+                f"mov rax, [rbp-{offset}] ; retrieve value from variable {ident.value}"
             )
+
+    def program_prologue(self) -> None:
+        self.emitter.emit("global _start\n", indent=0)
+        self.emitter.emit("_start:", indent=0)
+        self.emitter.emit("; init base pointer")
+        self.emitter.emit("push rbp")
+        self.emitter.emit("mov rbp, rsp\n")
+
+    def program_epilogue(self):
+        self.emitter.emit("; default exit 0")
+        self.emitter.emit("mov rdi, 0")
+        self.emitter.emit("call __builtin_exit")
+
+    def gen_builtins(self) -> None:
+        self.emitter.emit("")
+        self.emitter.emit("; BUILTIN FUNCTIONS", indent=0)
+        self.emitter.emit("__builtin_exit:", indent=0)
+        self.emitter.emit("mov rax, 60")
+        self.emitter.emit("syscall")
+
+
+class CodeGenError(Exception):
+    pass
+
+
+class SymbolTable:
+    def __init__(self):
+        self.offsets: dict[str, int] = {}
+        self.next_offset = 8
+
+    def define(self, name: str) -> int:
+        offset = self.next_offset
+        self.offsets[name] = offset
+        self.next_offset += 8
+        return offset
+
+    def lookup(self, name: str) -> int | None:
+        return self.offsets.get(name)
+
+
+class Emitter:
+    def __init__(self):
+        self.lines: list[str] = []
+
+    def emit(self, line: str = "", indent: int = 4) -> None:
+        self.lines.append(" " * indent + line)
+
+    def write_to(self, file: TextIO) -> None:
+        file.write("\n".join(self.lines))
