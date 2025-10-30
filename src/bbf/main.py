@@ -1,22 +1,22 @@
 import sys
 from pathlib import Path
+import subprocess
 
-from bbf.tokens import dump_tokens, tokenize
-from bbf.utils import eprint
 from bbf import parser
-from bbf.parser import ASTNode, ASTType
+from bbf.lexer import Lexer, Token, TokenType, dump_tokens
+from bbf.parser import FunctionCallNode, Parser
+from bbf.utils import eprint
 
 
-def write_asm_file(output_path: Path, ast: ASTNode) -> None:
+def write_asm_file(output_path: Path, program: FunctionCallNode) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open(mode="w") as f:
         f.write("global _start\n")
-        f.write("_start:\n")
+        f.write("_start:\n\n")
 
-        for node in ast.children:
-            if node.ttype == ASTType.FunctionCall and node.value == "exit":
-                f.write(f"    mov rdi, {node.children[0].value}\n")
-                f.write("    call __bulitin_exit\n")
+        if program.name == "exit":
+            f.write(f"    mov rdi, {program.args[0]}\n")
+            f.write("    call __bulitin_exit\n")
 
         f.write("\n")
         f.write("__bulitin_exit:\n")
@@ -36,24 +36,46 @@ def main() -> None:
         input_path = Path(sys.argv[1])
 
     with input_path.open(mode="r") as f:
-        input_file = f.read()
-    print(f"Read input file: {input_path}")
+        input_content = f.read()
+    print(f"[INFO] Read input file: {input_path}")
+    print(input_content)
     print("=====================")
 
-    tokens = tokenize(input_path, input_file)
-    print("Parsed into Tokens:")
+    lexer = Lexer(path=input_path, src=input_content)
+    tokens: list[Token] = []
+    while (tok := lexer.next_token()) and tok.ttype != TokenType.EOF:
+        tokens.append(tok)
+
+    tokens.append(lexer.next_token())
+    assert tokens[-1].ttype == TokenType.EOF
+
+    print("[INFO] Parsed into Tokens:")
     dump_tokens(tokens)
     print("=====================")
 
     if mode == "com":
-        print("Parsed into FunctionCall:")
-        program = parser.parse(tokens)
+        print("[INFO] Parsed into FunctionCall:")
+        parser = Parser(tokens)
+        program = parser.parse()
         print(program)
         print("=====================")
 
         output_path = Path(f"./bin/{input_path.stem}.asm")
-        print(f"Writing assembly output to {output_path}")
+        print(f"[INFO] Writing assembly output to {output_path}")
         write_asm_file(output_path, program)
+
+        output_dir = output_path.parent
+        out_filename = output_path.stem
+        output_o = output_dir / f"{out_filename}.o"
+
+        nasm = f"nasm -f elf64 -g -F dwarf -o {output_o} {output_path}"
+        ld = f"ld -o {output_dir / out_filename} {output_o}"
+
+        subprocess.run(args=nasm.split())
+        print(f"[INFO] {nasm}")
+
+        subprocess.run(args=ld.split())
+        print(f"[INFO] {ld}")
 
 
 if __name__ == "__main__":

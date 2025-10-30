@@ -1,73 +1,90 @@
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
-import sys
-from bbf.tokens import Token, TokenType
+
+from bbf.lexer import Lexer, Position, Token, TokenType
 from bbf.utils import eprint
 
 
-class ASTType(StrEnum):
-    Program = auto()
-    FunctionCall = auto()
+class ParserExpectError(Exception):
+    def __init__(self, got: TokenType, expected: TokenType, pos: Position) -> None:
+        self.got = got
+        self.expected = expected
+        self.pos = pos
 
-    Integer = auto()
-    String = auto()
+    def __str__(self) -> str:
+        return f"ERROR: {self.pos} Expected {self.expected}, but got {self.got}"
+
+
+class Parser:
+    # TODO: input lexer instead?
+    def __init__(self, tokens: list[Token]) -> None:
+        self.tokens = tokens
+        self.index = 0
+
+    def peek(self) -> Token:
+        if self.index + 1 >= len(self.tokens):
+            return Token(
+                TokenType.EOF, value="", position=Position(Path(), line=-1, column=-1)
+            )
+        return self.tokens[self.index + 1]
+
+    def advance(self) -> Token:
+        if self.index >= len(self.tokens):
+            return Token(
+                TokenType.EOF, value="", position=Position(Path(), line=-1, column=-1)
+            )
+        self.index += 1
+        return (
+            self.tokens[self.index]
+            if self.index < len(self.tokens)
+            else Token(
+                TokenType.EOF, value="", position=Position(Path(), line=-1, column=-1)
+            )
+        )
+
+    def parse(self) -> FunctionCallNode:
+        return self.parse_function_call()
+
+    def parse_function_call(self) -> FunctionCallNode:
+        if (
+            self.current_token.ttype != TokenType.Identifier
+            and self.current_token.value != "exit"
+        ):
+            raise ValueError(
+                f"expected 'exit' function, but got {self.current_token.value}"
+            )
+        name = self.current_token.value
+        self.advance()
+
+        self.expect(TokenType.Lparen)
+        self.advance()
+
+        self.expect(TokenType.Integer)
+        value = int(self.current_token.value)
+        self.advance()
+
+        self.expect(TokenType.Rparen)
+        self.advance()
+
+        return FunctionCallNode(name=name, args=[value])
+
+    def expect(self, ttype: TokenType) -> None:
+        if self.current_token.ttype != ttype:
+            raise ParserExpectError(
+                got=self.current_token.ttype,
+                expected=ttype,
+                pos=self.current_token.position,
+            )
+
+    @property
+    def current_token(self) -> Token:
+        return self.tokens[self.index]
 
 
 @dataclass
-class ASTNode:
-    ttype: ASTType
-    value: str
-    children: list[ASTNode] = field(default_factory=list)
-
-
-def parse(tokens: list[Token]) -> ASTNode:
-    root = ASTNode(ttype=ASTType.Program, value="")
-    index = 0
-    while index < len(tokens):
-        tok = tokens[index]
-        if tok.ttype == TokenType.BuiltinFunc:
-            node = ASTNode(ttype=ASTType.FunctionCall, value=tok.value)
-            index += 1
-            if index >= len(tokens):
-                eprint(f"Expected '(' for function call '{node.value}', but got EOF.")
-                sys.exit(1)
-            if tokens[index].ttype != TokenType.Lparen:
-                eprint(
-                    f"Expected '(' for function root '{node.value}', but got {tokens[index].ttype.value}."
-                )
-                sys.exit(1)
-
-            index += 1
-            if index >= len(tokens):
-                eprint(
-                    f"Expected 'Integer' for function root '{node.value}', but got EOF."
-                )
-                sys.exit(1)
-
-            while index < len(tokens) and tokens[index].ttype != TokenType.Rparen:
-                t = tokens[index]
-                if t.ttype == TokenType.Integer:
-                    node.children.append(ASTNode(ttype=ASTType.Integer, value=t.value))
-                elif t.ttype == TokenType.String:
-                    node.children.append(ASTNode(ttype=ASTType.String, value=t.value))
-                else:
-                    eprint(
-                        f"ERROR: unexpected token {t.ttype} for function call {node.value}"
-                    )
-                    sys.exit(1)
-                index += 1
-            if index >= len(tokens):
-                eprint(f"ERROR: expected ')', but got EOF")
-                sys.exit(1)
-            elif tokens[index].ttype == TokenType.Rparen:
-                index += 1
-            else:
-                eprint(f"ERROR: expected ')', but got {tokens[index]}")
-                sys.exit(1)
-            root.children.append(node)
-        else:
-            # eprint(f"skipping parsing of {tok!r}")
-            index += 1
-    return root
+class FunctionCallNode:
+    name: str
+    args: list[str]
