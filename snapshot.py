@@ -7,16 +7,18 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bbf.generation import CodeGenerator
-from bbf.lexer import Lexer, Token, TokenType
+from bbf.lexer import Lexer
 from bbf.parser import (
     Parser,
 )
 from bbf.utils import blue, green, red
 
+# TODO: Record exitcode and compare exitcode
+
 SNAPSHOTS_DIR = Path("./tests/snapshots/")
 SNAPSHOTS_DIR.mkdir(exist_ok=True, parents=True)
-EXAMPLES_DIR = Path("./examples/")
-EXAMPLES_DIR.mkdir(exist_ok=True, parents=True)
+CASES_DIR = Path("./tests/cases/")
+CASES_DIR.mkdir(exist_ok=True, parents=True)
 
 
 parser = argparse.ArgumentParser(
@@ -39,7 +41,7 @@ run_parser = subparsers.add_parser(
     help="Run snapshot tests for one or more BBF files.",
     description=(
         "Run all defined snapshot tests (lexer, parser, generation) "
-        f"for a specific BBF file or all files in the ./{EXAMPLES_DIR} directory."
+        f"for a specific BBF file or all files in the ./{CASES_DIR} directory."
     ),
 )
 
@@ -63,7 +65,7 @@ run_parser.add_argument(
     type=Path,
     help=(
         "Optional path to a single .bbf file. "
-        f"If omitted, all .bbf files in ./{EXAMPLES_DIR} are used."
+        f"If omitted, all .bbf files in ./{CASES_DIR} are used."
     ),
 )
 
@@ -95,7 +97,7 @@ record_parser.add_argument(
 
 record_parser.add_argument(
     "filepath",
-    help=f"Path to the BBF file to record snapshots for. Must exist in ./{EXAMPLES_DIR}.",
+    help=f"Path to the BBF file to record snapshots for. Must exist in ./{CASES_DIR}.",
     type=Path,
 )
 
@@ -166,16 +168,6 @@ def highlight_diff_line(expected: str, actual: str) -> tuple[str, str]:
     return "".join(exp_out), "".join(act_out)
 
 
-def tokenize(path: Path, src: str) -> list[Token]:
-    lexer = Lexer(path, src)
-    tokens: list[Token] = []
-    while token := lexer.next_token():
-        tokens.append(token)
-        if token.ttype == TokenType.EOF:
-            break
-    return tokens
-
-
 def lexer_snapshot_path(path: Path) -> Path:
     return (SNAPSHOTS_DIR / path.stem).with_suffix(".tok.snap")
 
@@ -197,17 +189,21 @@ if __name__ == "__main__":
         )
         path: Path = args.filepath
 
-        if path.parent != EXAMPLES_DIR or not path.exists():
-            print(red(f"ERROR: file {path} does not exist in {EXAMPLES_DIR}"))
+        if path.parent != CASES_DIR or not path.exists():
+            print(red(f"ERROR: file {path} does not exist in {CASES_DIR}"))
             sys.exit(1)
 
         src = path.read_text()
-        tokens = tokenize(path, src)
+        lexer = Lexer(path, src)
+        tokens = lexer.tokenize()
 
         if "lexer" in steps:
             lexer_snapshot = lexer_snapshot_path(path)
             lexer_snapshot.write_text("\n".join(repr(token) for token in tokens))
             print(f"[INFO] Recorded `token` output for {path} into {lexer_snapshot}")
+
+        if "parser" not in steps or "gen" not in steps:
+            sys.exit(0)
 
         parser = Parser(tokens)
         prog = parser.parse_program()
@@ -216,6 +212,9 @@ if __name__ == "__main__":
             parser_snapshot = parser_snapshot_path(path)
             parser_snapshot.write_text("\n".join(str(stmt) for stmt in prog.stmts))
             print(f"[INFO] Recorded `parser` output for {path} into {parser_snapshot}")
+
+        if "gen" not in steps:
+            sys.exit(0)
 
         if "gen" in steps:
             code_gen = CodeGenerator(prog)
@@ -227,7 +226,7 @@ if __name__ == "__main__":
 
     elif args.command == "run":
         files_to_run = (
-            [args.filepath] if args.filepath else list(EXAMPLES_DIR.glob("*.bbf"))
+            [args.filepath] if args.filepath else list(CASES_DIR.glob("*.bbf"))
         )
 
         missing_snapshots: list[tuple[Path, str]] = []
@@ -237,13 +236,14 @@ if __name__ == "__main__":
             )
 
             src = path.read_text()
-            tokens = tokenize(path, src)
+            lexer = Lexer(path, src)
+            tokens = lexer.tokenize()
 
             lexer_snapshot = lexer_snapshot_path(path)
-            if not lexer_snapshot.exists():
-                missing_snapshots.append((path, "lexer"))
-            else:
-                if "lexer" in steps:
+            if "lexer" in steps:
+                if not lexer_snapshot.exists():
+                    missing_snapshots.append((path, "lexer"))
+                else:
                     print(f"[INFO] Running lexer snapshot for `{path.name}`", end="")
                     expected_lines = lexer_snapshot.read_text().splitlines()
                     actual_lexer_lines = [repr(token) for token in tokens]
@@ -263,14 +263,16 @@ if __name__ == "__main__":
                             )
                         )
 
-            parser_snapshot = parser_snapshot_path(path)
-            if not parser_snapshot.exists():
-                missing_snapshots.append((path, "parser"))
-            else:
-                parser = Parser(tokens)
-                prog = parser.parse_program()
+            if "parser" not in steps or "gen" not in steps:
+                sys.exit(0)
 
-                if "parser" in steps:
+            parser_snapshot = parser_snapshot_path(path)
+            parser = Parser(tokens)
+            prog = parser.parse_program()
+            if "parser" in steps:
+                if not parser_snapshot.exists():
+                    missing_snapshots.append((path, "parser"))
+                else:
                     print(f"[INFO] Running parser snapshot for `{path.name}`", end=" ")
                     expected_lines = parser_snapshot.read_text().splitlines()
                     actual_parser_lines = [str(stmt) for stmt in prog.stmts]
@@ -290,11 +292,14 @@ if __name__ == "__main__":
                             )
                         )
 
+            if "gen" not in steps:
+                sys.exit(0)
+
             gen_snapshot = gen_snapshot_path(path)
-            if not gen_snapshot.exists():
-                missing_snapshots.append((path, "gen"))
-            else:
-                if "gen" in steps:
+            if "gen" in steps:
+                if not gen_snapshot.exists():
+                    missing_snapshots.append((path, "gen"))
+                else:
                     print(f"[INFO] Running gen snapshot for `{path.name}`", end=" ")
                     code_gen = CodeGenerator(prog)
                     code_gen.gen_prog()

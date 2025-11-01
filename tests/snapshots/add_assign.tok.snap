@@ -1,0 +1,6 @@
+Token(ttype=<TokenType.Identifier: 'identifier'>, value='x', position=Position(path=PosixPath('tests/cases/add_assign.bbf'), line=1, column=1))
+Token(ttype=<TokenType.Assign: 'assign'>, value='=', position=Position(path=PosixPath('tests/cases/add_assign.bbf'), line=1, column=3))
+Token(ttype=<TokenType.Integer: 'integer'>, value='4', position=Position(path=PosixPath('tests/cases/add_assign.bbf'), line=1, column=5))
+Token(ttype=<TokenType.Plus: 'plus'>, value='+', position=Position(path=PosixPath('tests/cases/add_assign.bbf'), line=1, column=7))
+Token(ttype=<TokenType.Integer: 'integer'>, value='5', position=Position(path=PosixPath('tests/cases/add_assign.bbf'), line=1, column=9))
+Token(ttype=<TokenType.EOF: 'eof'>, value='EOF', position=Position(path=PosixPath('tests/cases/add_assign.bbf'), line=2, column=1))

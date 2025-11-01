@@ -12,5 +12,7 @@ wheels/
 bin/
 *.bbf
 
+!tests/cases/**/*.bbf
+
 # snapshot tester
 tests/snapshots/*.actual

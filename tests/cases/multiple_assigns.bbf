@@ -1,0 +1,6 @@
+x = 12
+y = x
+z = x
+z = y
+y = x
+exit(x)

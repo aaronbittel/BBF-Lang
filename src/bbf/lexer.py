@@ -57,6 +57,16 @@ class Lexer:
 
         self.line = 1
         self.column = 1
+        self.errors: list[LexerError] = []
+
+    def tokenize(self) -> list[Token]:
+        """Collecting all tokens from the input, ending with Token EOF."""
+        tokens: list[Token] = []
+        while token := self.next_token():
+            tokens.append(token)
+            if token.ttype == TokenType.EOF:
+                break
+        return tokens
 
     def next_token(self) -> Token:
         self.skip_whitespace()
@@ -93,17 +103,15 @@ class Lexer:
             self.advance()
         elif ch.isnumeric():
             token = self.read_number()
-            if self.char.isalpha():
-                raise LexerError(msg="invalid integer literal", position=self.position)
         elif ch.isalpha():
             token = self.read_identifier()
         elif ch == '"':
-            token = self.read_string()
+            token = self.read_string_literal()
         else:
             token = self._create_token(ttype=TokenType.Illegal, value="")
 
-        if token.ttype == TokenType.Illegal:
-            raise LexerError(msg=f"invalid character {ch}", position=self.position)
+        # if token.ttype == TokenType.Illegal:
+        #     raise LexerError(msg=f"invalid character {ch}", position=self.position)
         return token
 
     def read_number(self) -> Token:
@@ -111,8 +119,20 @@ class Lexer:
         self.advance()  # first digit
         while self.char.isnumeric():
             self.advance()
-        num = self.src[start : self.index]
-        return self._create_token(ttype=TokenType.Integer, value=num)
+
+        # TODO: probably some edge cases here
+        if not self.char.isalpha():
+            num = self.src[start : self.index]
+            return self._create_token(ttype=TokenType.Illegal, value=value)
+
+        # illegal integer literal
+        while self.char.isalnum():
+            self.advance()
+        value = self.src[start : self.index]
+        self.errors.append(
+            LexerError(msg=f"invalid integer literal '{value}'", position=self.position)
+        )
+        return self._create_token(ttype=TokenType.Illegal, value=value)
 
     def read_identifier(self) -> Token:
         start = self.index
@@ -123,7 +143,7 @@ class Lexer:
         ttype = TokenType.Exit if identifier == "exit" else TokenType.Identifier
         return self._create_token(ttype=ttype, value=identifier)
 
-    def read_string(self) -> Token:
+    def read_string_literal(self) -> Token:
         self.advance()  # advance '"'
         start = self.index
         while self.char != "" and self.char.isascii() and not self.char == '"':
