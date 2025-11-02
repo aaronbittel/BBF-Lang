@@ -1,10 +1,10 @@
-all: generation
+all: gen
 
 BIN_DIR = ./bin
 FILENAME = test01
 
-generation:
-	@uv run bbf generation $(FILENAME).bbf
+gen:
+	@uv run bbf gen $(FILENAME).bbf
 
 parser:
 	@uv run bbf parser $(FILENAME).bbf
@@ -12,7 +12,7 @@ parser:
 lexer:
 	@uv run bbf lexer $(FILENAME).bbf
 
-debug: generation
+debug: gen
 	@gdb -q $(BIN_DIR)/$(FILENAME)
 
-.PHONY = generation parser lexer debug
+.PHONY = gen parser lexer debug

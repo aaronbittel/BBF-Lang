@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum, auto
 from pathlib import Path
 
-BUILTINS = {"exit"}
+BUILTINS = {"exit", "print"}
 
 
 class TokenType(StrEnum):
@@ -14,6 +14,7 @@ class TokenType(StrEnum):
 
     # Builtins
     Exit = auto()
+    Print = auto()
 
     # Double Char Tokens
 
@@ -47,7 +48,7 @@ class Token:
     position: Position
 
     def __str__(self) -> str:
-        return f"{self.ttype.value.capitalize()}[{self.position}] => {self.value}"
+        return f"{self.ttype.value.capitalize()}[{self.position}] => {self.value!r}"
 
 
 class Lexer:
@@ -73,7 +74,7 @@ class Lexer:
         self.skip_whitespace()
 
         if self.index >= len(self.src):
-            return self._create_token(ttype=TokenType.EOF, value="EOF")
+            return self._create_token(ttype=TokenType.EOF, value="EOF", length=0)
 
         ch = self.char
 
@@ -114,8 +115,6 @@ class Lexer:
         else:
             token = self._create_token(ttype=TokenType.Illegal, value="")
 
-        # if token.ttype == TokenType.Illegal:
-        #     raise LexerError(msg=f"invalid character {ch}", position=self.position)
         return token
 
     def read_number(self) -> Token:
@@ -127,7 +126,9 @@ class Lexer:
         # TODO: probably some edge cases here
         if not self.char.isalpha():
             num = self.src[start : self.index]
-            return self._create_token(ttype=TokenType.Integer, value=num)
+            return self._create_token(
+                ttype=TokenType.Integer, value=num, length=len(num)
+            )
 
         # illegal integer literal
         while self.char.isalnum():
@@ -136,7 +137,9 @@ class Lexer:
         self.errors.append(
             LexerError(msg=f"invalid integer literal '{value}'", position=self.position)
         )
-        return self._create_token(ttype=TokenType.Illegal, value=value)
+        return self._create_token(
+            ttype=TokenType.Illegal, value=value, length=len(value)
+        )
 
     def read_identifier(self) -> Token:
         start = self.index
@@ -144,42 +147,64 @@ class Lexer:
         while self.char.isalnum() or self.char == "_":
             self.advance()
         identifier = self.src[start : self.index]
-        ttype = TokenType.Exit if identifier == "exit" else TokenType.Identifier
-        return self._create_token(ttype=ttype, value=identifier)
+        ttype = TokenType.Identifier
+        if identifier == "exit":
+            ttype = TokenType.Exit
+        elif identifier == "print":
+            ttype = TokenType.Print
+        return self._create_token(ttype=ttype, value=identifier, length=len(identifier))
 
     def read_string_literal(self) -> Token:
-        self.advance()  # advance '"'
+        # NOTE: Handle escape sequences "\n" here?
         start = self.index
-        while self.char != "" and self.char.isascii() and not self.char == '"':
-            self.advance()
-
-        if self.char == "":  # EOF
-            raise LexerError(msg="unterminated string literal", position=self.position)
-        string = self.src[start : self.index]
-        token = Token(
-            ttype=TokenType.String,
-            value=string,
-            position=Position(path=self.path, line=self.line, column=start),
-        )
-        self.column += len(string) + 2  # 2 for "
         self.advance()  # advance '"'
-        return token
+        string = ""
+        while self.char != "" and self.char.isascii() and not self.char == '"':
+            ch = self.advance()
+            if ch == "\\":
+                next_ch = self.advance()
+                if next_ch == "n":
+                    string += "\n"
+                elif next_ch == "t":
+                    string += "\t"
+                elif next_ch == "\\":
+                    string += "\\"
+                else:
+                    raise LexerError(
+                        msg=f"invalid esacpe sequence '{ch + next_ch}'",
+                        position=self.position,
+                    )
+            else:
+                string += ch
+        print("len", len(string))
 
-    def peek(self) -> str:
-        if self.index + 1 >= len(self.src):
+        if self.is_eof():
+            raise LexerError(msg="unterminated string literal", position=self.position)
+        self.advance()  # advance '"'
+        return self._create_token(
+            ttype=TokenType.String, value=string, length=self.index - start
+        )
+
+    def peek(self, offset: int = 0) -> str:
+        if self.index + offset >= len(self.src):
             return ""
-        return self.src[self.index + 1]
+        return self.src[self.index + offset]
 
     def advance(self) -> str:
-        if self.char == "":
-            return ""
+        if self.is_eof():
+            return self.previous()
         self.index += 1
-        return self.src[self.index] if self.index < len(self.src) else ""
+        return self.previous()
 
-    def _create_token(self, ttype: TokenType, value: str) -> Token:
+    def previous(self) -> str:
+        return self.src[self.index - 1]
+
+    def is_eof(self) -> bool:
+        return self.index >= len(self.src)
+
+    def _create_token(self, ttype: TokenType, value: str, length: int = 1) -> Token:
         position = self.position
-        if ttype != TokenType.EOF:
-            self.column += len(value)
+        self.column += length
         return Token(ttype=ttype, value=value, position=position)
 
     def skip_whitespace(self) -> None:

@@ -1,0 +1,30 @@
+global _start
+
+_start:
+    ; init base pointer
+    push rbp
+    mov rbp, rsp
+    
+    ; assign(x = 2)
+    push 2; pushing 2
+    ; declaration of variable x
+    
+    ; assign(x = 5)
+    push 5; pushing 5
+    ; redefining of variable x
+    pop rax
+    mov [rbp-8], rax
+    
+    ; exit(x)
+    push QWORD [rbp-8] ; push value from variable x
+    pop rdi
+    call __builtin_exit
+    
+    ; default exit 0
+    mov rdi, 0
+    call __builtin_exit
+    
+; BUILTIN FUNCTIONS
+__builtin_exit:
+    mov rax, 60
+    syscall

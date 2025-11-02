@@ -30,28 +30,37 @@ class Parser:
         return NodeProgram(stmts)
 
     def parse_stmt(self) -> NodeStmt:
-        if self.check(TokenType.Exit) and self.check(TokenType.OpenParen, offset=1):
-            return NodeStmt(self.parse_exit_expr())
-        elif self.check(TokenType.Identifier) and self.check(TokenType.Equal, offset=1):
-            return NodeStmt(self.parse_assign_stmt())
+        if self.check(TokenType.Exit):
+            return self.parse_exit_expr()
+        elif self.check(TokenType.Identifier):
+            return self.parse_assign_stmt()
+        elif self.check(TokenType.Print):
+            return self.parse_print_stmt()
         else:
             token = self.peek()
             assert token is not None, "checke in `parse_program` that there is a token"
             eprint(f"ERROR: {token.position} unexpected token {token.value}")
             sys.exit(1)
 
-    def parse_assign_stmt(self) -> NodeStmtAssign:
+    def parse_assign_stmt(self) -> NodeStmt:
         ident = self.consume(TokenType.Identifier, "Expected identifier in assign")
         self.consume(TokenType.Equal, "Expected `=` in assign")
         expr = self.expression()
-        return NodeStmtAssign(ident, expr)
+        return NodeStmt(NodeStmtAssign(ident, expr))
 
-    def parse_exit_expr(self) -> NodeStmtExit:
+    def parse_exit_expr(self) -> NodeStmt:
         self.consume(TokenType.Exit, "Expected `exit` call")
         self.consume(TokenType.OpenParen, "Expected `(` in `exit` call`")
         expr = self.expression()
         self.consume(TokenType.CloseParen, "Expected `)` in `exit` call")
-        return NodeStmtExit(expr)
+        return NodeStmt(NodeStmtExit(expr))
+
+    def parse_print_stmt(self) -> NodeStmt:
+        self.consume(TokenType.Print, "Expected `print` call")
+        self.consume(TokenType.OpenParen, "Expected `(` in print")
+        expr = self.expression()
+        self.consume(TokenType.CloseParen, "Expected `)` in print")
+        return NodeStmt(NodeStmtPrint(expr))
 
     def expression(self) -> NodeExpr:
         expr = self.factor()
@@ -85,6 +94,8 @@ class Parser:
             expr = self.expression()
             self.consume(TokenType.CloseParen, "Expect ')' after expression.")
             return NodeExpr(NodeExprGrouping(expr))
+        if self.match(TokenType.String):
+            return NodeExpr(NodeExprStringLit(self.previous()))
         assert False, "unreachable"
 
     def peek(self, offset: int = 0) -> Token:
@@ -130,7 +141,7 @@ class NodeProgram:
 
 @dataclass
 class NodeStmt:
-    stmt: NodeStmtExit | NodeStmtAssign
+    stmt: NodeStmtExit | NodeStmtAssign | NodeStmtPrint
 
     def __str__(self) -> str:
         return str(self.stmt)
@@ -154,9 +165,18 @@ class NodeStmtAssign:
 
 
 @dataclass
+class NodeStmtPrint:
+    expr: NodeExpr
+
+    def __str__(self) -> str:
+        return f"print({self.expr})"
+
+
+@dataclass
 class NodeExpr:
     var: (
         NodeExprIntLit
+        | NodeExprStringLit
         | NodeExprIdent
         | NodeExprBinary
         | NodeExprUnary
@@ -169,10 +189,18 @@ class NodeExpr:
 
 @dataclass
 class NodeExprIntLit:
-    int_lit: Token
+    token: Token
 
     def __str__(self) -> str:
-        return self.int_lit.value
+        return self.token.value
+
+
+@dataclass
+class NodeExprStringLit:
+    token: Token
+
+    def __str__(self) -> str:
+        return f"{repr(self.token.value)}"
 
 
 @dataclass

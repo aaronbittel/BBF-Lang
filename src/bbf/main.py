@@ -1,25 +1,25 @@
 import subprocess
 import sys
 from pathlib import Path
-from typing import Literal
 
 from bbf.generation import CodeGenerator
-from bbf.lexer import Lexer, Token, TokenType, dump_tokens
-from bbf.parser import NodeStmtAssign, NodeStmtExit, Parser
+from bbf.lexer import Lexer, dump_tokens
+from bbf.parser import Parser
 from bbf.utils import eprint, green, red
 
 # TODO: Use snapshot testing
 
-
-type Step = Literal["lexer", "parser", "generation"]
+BIN_DIR = Path("./bin")
 
 
 def main() -> None:
     if len(sys.argv) == 1:
-        eprint("usage: uv run bbf [mode=generation] <input.bbf>")
+        eprint("usage: uv run bbf [mode=gen] <input.bbf>")
         sys.exit(1)
 
-    step: Step = "generation"
+    BIN_DIR.mkdir(parents=True, exist_ok=True)
+
+    step = "gen"
     if len(sys.argv) == 3:
         step, input_path = sys.argv[1], Path(sys.argv[2])
     else:
@@ -38,14 +38,14 @@ def main() -> None:
     dump_tokens(tokens)
     print("=====================")
 
-    if step == "parser" or step == "generation":
+    if step == "parser" or step == "gen":
         print("[INFO] Parsed into:")
         parser = Parser(tokens)
         prog = parser.parse_program()
         print(prog)
         print("=====================")
 
-        if step == "generation":
+        if step == "gen":
             output_path = Path(f"./bin/{input_path.stem}.asm")
             code_gen = CodeGenerator(prog=prog)
             print(f"[INFO] Writing assembly output to {output_path}")

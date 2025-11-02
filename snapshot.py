@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
-import subprocess
-import tempfile
-from bbf.utils import eprint
 import argparse
-from difflib import SequenceMatcher
+import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from bbf.generation import CodeGenerator
@@ -14,7 +13,7 @@ from bbf.lexer import Lexer
 from bbf.parser import (
     Parser,
 )
-from bbf.utils import blue, green, red
+from bbf.utils import blue, eprint, green, red
 
 # TODO: Record exitcode and compare exitcode
 
@@ -284,7 +283,7 @@ if __name__ == "__main__":
                     diff_lines = calculate_diff_lines(
                         expected_lines, actual_lexer_lines
                     )
-                    print(f"\tlexer: ", end="")
+                    print("\tlexer: ", end="")
                     if len(diff_lines) == 0:
                         print(green(" [SUCCESS]"))
                     else:
@@ -299,7 +298,7 @@ if __name__ == "__main__":
                         )
 
             if "parser" not in steps and "gen" not in steps:
-                sys.exit(0)
+                continue
 
             parser_snapshot = parser_snapshot_path(path)
             parser = Parser(tokens)
@@ -328,7 +327,7 @@ if __name__ == "__main__":
                         )
 
             if "gen" not in steps:
-                sys.exit(0)
+                continue
 
             gen_snapshot_asm = gen_snapshot_path(path)
             if "gen" in steps:
