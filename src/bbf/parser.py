@@ -57,18 +57,25 @@ class Parser:
 
     def parse_expr(self) -> NodeExpr:
         if self.check(TokenType.Integer):
-            token = self.consume()
-            return NodeExpr(NodeExprIntLit(token))
-        if self.check(TokenType.Identifier):
-            token = self.consume()
-            return NodeExpr(NodeExprIdent(token))
-        # self.error(f"Expected expression, found {self.peek()}")
-        token = self.peek()
-        if token is None:
-            eprint("ERROR: expected expression, found End of file")
+            left = NodeExpr(NodeExprIntLit(self.consume()))
+        elif self.check(TokenType.Identifier):
+            left = NodeExpr(NodeExprIdent(self.consume()))
         else:
-            eprint(f"ERROR: {token.position} expected expression, found {token.value}")
-        sys.exit(1)
+            left = self.peek()
+            if left is None:
+                eprint("ERROR: expected expression, found End of file")
+            else:
+                eprint(
+                    f"ERROR: {left.position} expected expression, found {left.value}"
+                )
+            sys.exit(1)
+
+        if self.check(TokenType.Plus):
+            self.consume()
+            right = self.parse_expr()
+            return NodeExpr(NodeExprAdd(lhs=left, rhs=right))
+
+        return left
 
     def peek(self, offset: int = 0) -> Token | None:
         if self.index + offset >= len(self.tokens):
@@ -132,7 +139,7 @@ class NodeStmtAssign:
 
 @dataclass
 class NodeExpr:
-    var: NodeExprIntLit | NodeExprIdent
+    var: NodeExprIntLit | NodeExprIdent | NodeExprAdd
 
     def __str__(self) -> str:
         return str(self.var)
@@ -152,3 +159,12 @@ class NodeExprIdent:
 
     def __str__(self) -> str:
         return self.ident.value
+
+
+@dataclass
+class NodeExprAdd:
+    lhs: NodeExpr
+    rhs: NodeExpr
+
+    def __str__(self) -> str:
+        return f"{self.lhs} + {self.rhs}"

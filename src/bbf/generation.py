@@ -4,6 +4,7 @@ from typing import TextIO
 
 from bbf.parser import (
     NodeExpr,
+    NodeExprAdd,
     NodeExprIdent,
     NodeExprIntLit,
     NodeProgram,
@@ -86,6 +87,15 @@ class CodeGenerator:
             self.emitter.emit(
                 f"mov rax, [rbp-{offset}] ; retrieve value from variable {ident.value}"
             )
+        elif isinstance(expr.var, NodeExprAdd):
+            left, right = expr.var.lhs, expr.var.rhs
+            self.gen_expr(right)
+            self.emitter.emit("push rax ; save RHS on stack")
+            self.gen_expr(left)
+            self.emitter.emit("pop rbx ; restore RHS into rbx")
+            self.emitter.emit("add rax, rbx")
+        else:
+            assert False, "unreachable"
 
     def program_prologue(self) -> None:
         self.emitter.emit("global _start", indent=0)

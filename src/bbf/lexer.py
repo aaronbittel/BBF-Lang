@@ -123,7 +123,7 @@ class Lexer:
         # TODO: probably some edge cases here
         if not self.char.isalpha():
             num = self.src[start : self.index]
-            return self._create_token(ttype=TokenType.Illegal, value=value)
+            return self._create_token(ttype=TokenType.Integer, value=num)
 
         # illegal integer literal
         while self.char.isalnum():
