@@ -21,12 +21,8 @@ _start:
     mov rax, [rbp-16] ; retrieve value from variable y
     mov [rbp-24], rax
     
-    ; assign(y = x)
-    mov rax, [rbp-8] ; retrieve value from variable x
-    mov [rbp-16], rax
-    
-    ; exit(x)
-    mov rax, [rbp-8] ; retrieve value from variable x
+    ; exit(z)
+    mov rax, [rbp-24] ; retrieve value from variable z
     mov rdi, rax
     call __builtin_exit
     

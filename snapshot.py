@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import subprocess
+import tempfile
+from bbf.utils import eprint
 import argparse
 from difflib import SequenceMatcher
 import sys
@@ -140,8 +143,6 @@ def calculate_diff_lines(
             continue
 
         diff_lines.append(DiffLine(line=line, expected=exp_out, actual=act_out))
-        # print(f"LINE: {line}: '{act_out}'")
-        # print(f"LINE: {line}: '{exp_out}'")
     return diff_lines
 
 
@@ -180,6 +181,10 @@ def gen_snapshot_path(path: Path) -> Path:
     return (SNAPSHOTS_DIR / path.stem).with_suffix(".gen.snap")
 
 
+def output_snapshot_path(path: Path) -> Path:
+    return (SNAPSHOTS_DIR / path.stem).with_suffix(".out.snap")
+
+
 if __name__ == "__main__":
     args = parser.parse_args()
 
@@ -200,9 +205,9 @@ if __name__ == "__main__":
         if "lexer" in steps:
             lexer_snapshot = lexer_snapshot_path(path)
             lexer_snapshot.write_text("\n".join(repr(token) for token in tokens))
-            print(f"[INFO] Recorded `token` output for {path} into {lexer_snapshot}")
+            print(f"[INFO] Recorded `lexer` output for {path} into {lexer_snapshot}")
 
-        if "parser" not in steps or "gen" not in steps:
+        if "parser" not in steps and "gen" not in steps:
             sys.exit(0)
 
         parser = Parser(tokens)
@@ -219,10 +224,39 @@ if __name__ == "__main__":
         if "gen" in steps:
             code_gen = CodeGenerator(prog)
             code_gen.gen_prog()
-            gen_snapshot = gen_snapshot_path(path)
-            with gen_snapshot.open("w", encoding="utf-8") as f:
+            gen_snapshot_asm = gen_snapshot_path(path)
+            with gen_snapshot_asm.open("w", encoding="utf-8") as f:
                 code_gen.write_to(f)
-            print(f"[INFO] Recorded `gen` output for {path} into {gen_snapshot}")
+                # NOTE: Currently write output snapshot manually
+
+                # with tempfile.TemporaryDirectory() as tmp_build_dir:
+                #     tmp_dir = Path(tmp_build_dir)
+                #     output_o = tmp_dir / "out.o"
+                #     output_exe = tmp_dir / "a.out"
+                #
+                #     nasm = f"nasm -f elf64 -g -F dwarf -o {output_o} {gen_snapshot_asm}"
+                #     ld = f"ld -o {output_exe} {output_o}"
+                #
+                #     print(f"[DEBUG] {nasm}")
+                #     nasm_res = subprocess.run(args=nasm.split())
+                #     if nasm_res.returncode != 0:
+                #         eprint(red("[ERROR] nasm Failed"))
+                #         sys.exit(1)
+                #
+                #     print(f"[DEBUG] {ld}")
+                #     ld_res = subprocess.run(args=ld.split())
+                #     if ld_res.returncode != 0:
+                #         eprint(red("[ERROR] ld Failed"))
+                #         sys.exit(1)
+                #
+                #     output_path = output_snapshot_path(path)
+                #     exe_res = subprocess.run(args=[output_exe])
+                #     output_path.write_text(str(exe_res.returncode))
+
+                print(
+                    f"[INFO] Recorded `gen` output for {path} into {gen_snapshot_asm}"
+                )
+                # print(f"[INFO] Recorded exitcode for {path} into {output_path}")
 
     elif args.command == "run":
         files_to_run = (
@@ -234,6 +268,7 @@ if __name__ == "__main__":
             steps: list[str] = (
                 ["lexer", "parser", "gen"] if "all" in args.step else args.step
             )
+            print(f"[INFO] Running tests for `{path.name}`")
 
             src = path.read_text()
             lexer = Lexer(path, src)
@@ -244,16 +279,16 @@ if __name__ == "__main__":
                 if not lexer_snapshot.exists():
                     missing_snapshots.append((path, "lexer"))
                 else:
-                    print(f"[INFO] Running lexer snapshot for `{path.name}`", end="")
                     expected_lines = lexer_snapshot.read_text().splitlines()
                     actual_lexer_lines = [repr(token) for token in tokens]
                     diff_lines = calculate_diff_lines(
                         expected_lines, actual_lexer_lines
                     )
+                    print(f"\tlexer: ", end="")
                     if len(diff_lines) == 0:
-                        print(green("[SUCCESS]"))
+                        print(green(" [SUCCESS]"))
                     else:
-                        print(red("[FAIL]"))
+                        print(red(" [FAIL]"))
                         print_diff_lines(diff_lines)
                         lexer_actual_path = lexer_snapshot.with_suffix(".actual")
                         lexer_actual_path.write_text("\n".join(actual_lexer_lines))
@@ -263,7 +298,7 @@ if __name__ == "__main__":
                             )
                         )
 
-            if "parser" not in steps or "gen" not in steps:
+            if "parser" not in steps and "gen" not in steps:
                 sys.exit(0)
 
             parser_snapshot = parser_snapshot_path(path)
@@ -273,7 +308,7 @@ if __name__ == "__main__":
                 if not parser_snapshot.exists():
                     missing_snapshots.append((path, "parser"))
                 else:
-                    print(f"[INFO] Running parser snapshot for `{path.name}`", end=" ")
+                    print("\tparser: ", end="")
                     expected_lines = parser_snapshot.read_text().splitlines()
                     actual_parser_lines = [str(stmt) for stmt in prog.stmts]
                     diff_lines = calculate_diff_lines(
@@ -295,30 +330,61 @@ if __name__ == "__main__":
             if "gen" not in steps:
                 sys.exit(0)
 
-            gen_snapshot = gen_snapshot_path(path)
+            gen_snapshot_asm = gen_snapshot_path(path)
             if "gen" in steps:
-                if not gen_snapshot.exists():
+                if not gen_snapshot_asm.exists():
                     missing_snapshots.append((path, "gen"))
                 else:
-                    print(f"[INFO] Running gen snapshot for `{path.name}`", end=" ")
+                    print("\tgen: ", end="")
                     code_gen = CodeGenerator(prog)
                     code_gen.gen_prog()
 
-                    expected_lines = gen_snapshot.read_text().splitlines()
+                    expected_lines = gen_snapshot_asm.read_text().splitlines()
                     actual_gen_lines = code_gen.emitter.lines
                     diff_lines = calculate_diff_lines(expected_lines, actual_gen_lines)
                     if len(diff_lines) == 0:
-                        print(green("[SUCCESS]"))
+                        print(green("   [SUCCESS]"))
                     else:
-                        print(red("[FAIL]"))
+                        print(red("   [FAIL]"))
                         print_diff_lines(diff_lines)
-                        gen_actual_path = gen_snapshot.with_suffix(".actual")
+                        gen_actual_path = gen_snapshot_asm.with_suffix(".actual")
                         gen_actual_path.write_text("\n".join(actual_gen_lines))
                         print(
                             blue(
                                 f"[INFO] Saved actual `gen` output to {gen_actual_path}"
                             )
                         )
+
+                with tempfile.TemporaryDirectory() as tmp_build_dir:
+                    tmp_dir = Path(tmp_build_dir)
+                    output_o = tmp_dir / "out.o"
+                    output_exe = tmp_dir / "a.out"
+
+                    nasm = f"nasm -f elf64 -g -F dwarf -o {output_o} {gen_snapshot_asm}"
+                    ld = f"ld -o {output_exe} {output_o}"
+
+                    nasm_res = subprocess.run(args=nasm.split())
+                    if nasm_res.returncode != 0:
+                        eprint(red("[ERROR] nasm Failed"))
+                        sys.exit(1)
+
+                    ld_res = subprocess.run(args=ld.split())
+                    if ld_res.returncode != 0:
+                        eprint(red("[ERROR] ld Failed"))
+                        sys.exit(1)
+
+                    output_path = output_snapshot_path(path)
+                    exe_res = subprocess.run(args=[output_exe])
+                    expected_exitcode = int(output_path.read_text().strip())
+                    actual_exitcode = exe_res.returncode
+                    print("\tout: ", end="")
+                    if actual_exitcode != expected_exitcode:
+                        print(red("   [FAIL]"))
+                        print(
+                            f"\tExpected exitcode of {path} to be {expected_exitcode}, but got {actual_exitcode}"
+                        )
+                    else:
+                        print(green("   [SUCCESS]"))
 
         for snap, step in missing_snapshots:
             print(
