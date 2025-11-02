@@ -1,2 +1,0 @@
-assign(x = 5 + 1 + 3)
-exit(x)

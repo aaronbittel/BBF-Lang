@@ -1,5 +1,0 @@
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='x', position=Position(path=PosixPath('tests/cases/invalid_int_lit.bbf'), line=1, column=1))
-Token(ttype=<TokenType.Assign: 'assign'>, value='=', position=Position(path=PosixPath('tests/cases/invalid_int_lit.bbf'), line=1, column=3))
-Token(ttype=<TokenType.Illegal: 'illegal'>, value='123asdf', position=Position(path=PosixPath('tests/cases/invalid_int_lit.bbf'), line=1, column=5))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='sadfas', position=Position(path=PosixPath('tests/cases/invalid_int_lit.bbf'), line=1, column=13))
-Token(ttype=<TokenType.EOF: 'eof'>, value='EOF', position=Position(path=PosixPath('tests/cases/invalid_int_lit.bbf'), line=2, column=1))

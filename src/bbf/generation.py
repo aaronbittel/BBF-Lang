@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from typing import TextIO
 
+from bbf.lexer import TokenType
 from bbf.parser import (
     NodeExpr,
-    NodeExprAdd,
+    NodeExprBinary,
+    NodeExprGrouping,
     NodeExprIdent,
     NodeExprIntLit,
+    NodeExprUnary,
     NodeProgram,
     NodeStmt,
     NodeStmtAssign,
@@ -48,7 +51,7 @@ class CodeGenerator:
         expr = stmt.expr
         self.emitter.emit(f"; {stmt}")
         self.gen_expr(expr)
-        self.emitter.emit("mov rdi, rax")
+        self.emitter.emit("pop rdi")
         self.emitter.emit("call __builtin_exit")
 
     def gen_stmt_assign(self, stmt: NodeStmtAssign) -> None:
@@ -60,7 +63,6 @@ class CodeGenerator:
         if leftside_offset is None:
             # definition of new variable
             self.symbols.define(leftside_ident.value)
-            self.emitter.emit("push rax")
         else:
             # redefining value of variable
             self.emitter.emit(f"mov [rbp-{leftside_offset}], rax")
@@ -71,12 +73,12 @@ class CodeGenerator:
     def gen_expr(self, expr: NodeExpr) -> None:
         """Generate code for an expression.
 
-        Always moves the result onto `rax`.
+        Always moves the result onto the stack.
         """
         if isinstance(expr.var, NodeExprIntLit):
             # NOTE: What to do when value already exists?
             int_lit = expr.var.int_lit
-            self.emitter.emit(f"mov rax, {int_lit.value}")
+            self.emitter.emit(f"push {int_lit.value}; pushing {int_lit.value}")
         elif isinstance(expr.var, NodeExprIdent):
             ident = expr.var.ident
             offset = self.symbols.lookup(ident.value)
@@ -85,17 +87,69 @@ class CodeGenerator:
                     f"ERROR: {ident.position}: identifier `{ident.value}` was not defined"
                 )
             self.emitter.emit(
-                f"mov rax, [rbp-{offset}] ; retrieve value from variable {ident.value}"
+                f"push QWORD [rbp-{offset}] ; push value from variable {ident.value}"
             )
-        elif isinstance(expr.var, NodeExprAdd):
-            left, right = expr.var.lhs, expr.var.rhs
-            self.gen_expr(right)
-            self.emitter.emit("push rax ; save RHS on stack")
-            self.gen_expr(left)
-            self.emitter.emit("pop rbx ; restore RHS into rbx")
-            self.emitter.emit("add rax, rbx")
+        elif isinstance(expr.var, NodeExprBinary):
+            binary = expr.var
+            self.gen_expr(expr.var.lhs)
+            self.gen_expr(expr.var.rhs)
+            self.emitter.emit("pop rbx; pop rhs ?")
+            self.emitter.emit("pop rax; pop lhs ?")
+            if binary.operator.ttype == TokenType.Plus:
+                self.emitter.emit("; addition")
+                self.emitter.emit("add rax, rbx")
+                self.emitter.emit("push rax; push result")
+            elif binary.operator.ttype == TokenType.Minus:
+                self.emitter.emit("; subtraction")
+                self.emitter.emit("sub rax, rbx")
+                self.emitter.emit("push rax; push result")
+            elif binary.operator.ttype == TokenType.Star:
+                self.emitter.emit("; multiplication")
+                self.emitter.emit("imul rbx")
+                self.emitter.emit("push rax; push result")
+            elif binary.operator.ttype == TokenType.Slash:
+                self.emitter.emit("; division")
+                self.emitter.emit(
+                    "xor rdx, rdx ; clear upper 64bit of 128 bit division"
+                )
+                self.emitter.emit("div rbx")
+                self.emitter.emit("push rax; push result")
+            elif binary.operator.ttype == TokenType.Percent:
+                self.emitter.emit("; modulo")
+                self.emitter.emit(
+                    "xor rdx, rdx ; clear upper 64bit of 128 bit division"
+                )
+                self.emitter.emit("div rbx")
+                self.emitter.emit("push rdx; push result (remainder always in rdx)")
+            else:
+                assert False, f"unreachable {binary.operator.ttype}"
+        elif isinstance(expr.var, NodeExprUnary):
+            unary = expr.var
+            assert unary.operator.ttype == TokenType.Minus
+            assert isinstance(unary.right.var, NodeExprIntLit)
+            int_lit = unary.right.var.int_lit
+            self.emitter.emit(f"push {unary.operator.value}{int_lit.value}")
+        elif isinstance(expr.var, NodeExprGrouping):
+            self.gen_expr(expr.var.expr)
         else:
-            assert False, "unreachable"
+            assert False, f"unreachable: {expr.var}"
+            # self.emitter.emit(f"mov rax, {binary.lhs.var}")
+        # elif isinstance(expr.var, NodeExprAdd):
+        #     left, right = expr.var.lhs, expr.var.rhs
+        #     self.gen_expr(right)
+        #     self.emitter.emit("push rax ; save RHS on stack")
+        #     self.gen_expr(left)
+        #     self.emitter.emit("pop rbx ; restore RHS into rbx")
+        #     self.emitter.emit("add rax, rbx")
+        # elif isinstance(expr.var, NodeExprSub):
+        # left, right = expr.var.lhs, expr.var.rhs
+        # self.gen_expr(right)
+        # self.emitter.emit("push rax ; save RHS on stack")
+        # self.gen_expr(left)
+        # self.emitter.emit("pop rbx ; restore RHS into rbx")
+        # self.emitter.emit("sub rax, rbx")  # rax = rax - rbx
+        # else:
+        #     assert False, "unreachable"
 
     def program_prologue(self) -> None:
         self.emitter.emit("global _start", indent=0)

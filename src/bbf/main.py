@@ -5,7 +5,7 @@ from typing import Literal
 
 from bbf.generation import CodeGenerator
 from bbf.lexer import Lexer, Token, TokenType, dump_tokens
-from bbf.parser import Parser
+from bbf.parser import NodeStmtAssign, NodeStmtExit, Parser
 from bbf.utils import eprint, green, red
 
 # TODO: Use snapshot testing
@@ -32,12 +32,7 @@ def main() -> None:
     print("=====================")
 
     lexer = Lexer(path=input_path, src=input_content)
-    tokens: list[Token] = []
-    while (token := lexer.next_token()) and token.ttype != TokenType.EOF:
-        tokens.append(token)
-
-    tokens.append(lexer.next_token())
-    assert tokens[-1].ttype == TokenType.EOF
+    tokens = lexer.tokenize()
 
     print("[INFO] Parsed into Tokens:")
     dump_tokens(tokens)

@@ -1,0 +1,2 @@
+assign(x = ( 32 % 5 ))
+exit(x)

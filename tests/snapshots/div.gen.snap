@@ -5,8 +5,15 @@ _start:
     push rbp
     mov rbp, rsp
     
-    ; assign(x = 123)
-    push 123; pushing 123
+    ; assign(x = ( 30 / 5 ))
+    push 30; pushing 30
+    push 5; pushing 5
+    pop rbx; pop rhs ?
+    pop rax; pop lhs ?
+    ; division
+    xor rdx, rdx ; clear upper 64bit of 128 bit division
+    div rbx
+    push rax; push result
     
     ; exit(x)
     push QWORD [rbp-8] ; push value from variable x

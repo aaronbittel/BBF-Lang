@@ -6,24 +6,27 @@ _start:
     mov rbp, rsp
     
     ; assign(x = 12)
-    mov rax, 12
-    push rax
+    push 12; pushing 12
     
     ; assign(y = x)
-    mov rax, [rbp-8] ; retrieve value from variable x
-    push rax
+    push QWORD [rbp-8] ; push value from variable x
     
     ; assign(z = x)
-    mov rax, [rbp-8] ; retrieve value from variable x
-    push rax
+    push QWORD [rbp-8] ; push value from variable x
     
-    ; assign(z = y)
-    mov rax, [rbp-16] ; retrieve value from variable y
+    ; assign(z = ( y + 1 ))
+    push QWORD [rbp-16] ; push value from variable y
+    push 1; pushing 1
+    pop rbx; pop rhs ?
+    pop rax; pop lhs ?
+    ; addition
+    add rax, rbx
+    push rax; push result
     mov [rbp-24], rax
     
     ; exit(z)
-    mov rax, [rbp-24] ; retrieve value from variable z
-    mov rdi, rax
+    push QWORD [rbp-24] ; push value from variable z
+    pop rdi
     call __builtin_exit
     
     ; default exit 0

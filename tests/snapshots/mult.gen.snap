@@ -5,8 +5,17 @@ _start:
     push rbp
     mov rbp, rsp
     
-    ; exit(42)
-    push 42; pushing 42
+    ; assign(x = ( 4 * 5 ))
+    push 4; pushing 4
+    push 5; pushing 5
+    pop rbx; pop rhs ?
+    pop rax; pop lhs ?
+    ; multiplication
+    imul rbx
+    push rax; push result
+    
+    ; exit(x)
+    push QWORD [rbp-8] ; push value from variable x
     pop rdi
     call __builtin_exit
     

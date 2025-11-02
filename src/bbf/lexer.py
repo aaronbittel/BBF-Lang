@@ -20,11 +20,12 @@ class TokenType(StrEnum):
     # Single Char Tokens
     OpenParen = auto()
     CloseParen = auto()
-    Assign = auto()
+    Equal = auto()
     Plus = auto()
     Minus = auto()
-    Multiplication = auto()
-    Division = auto()
+    Star = auto()
+    Slash = auto()
+    Percent = auto()
 
     Illegal = auto()
     EOF = auto()
@@ -87,7 +88,7 @@ class Lexer:
             token = self._create_token(ttype=TokenType.CloseParen, value=")")
             self.advance()
         elif ch == "=":
-            token = self._create_token(ttype=TokenType.Assign, value="=")
+            token = self._create_token(ttype=TokenType.Equal, value="=")
             self.advance()
         elif ch == "+":
             token = self._create_token(ttype=TokenType.Plus, value="+")
@@ -96,10 +97,13 @@ class Lexer:
             token = self._create_token(ttype=TokenType.Minus, value="-")
             self.advance()
         elif ch == "*":
-            token = self._create_token(ttype=TokenType.Multiplication, value="*")
+            token = self._create_token(ttype=TokenType.Star, value="*")
             self.advance()
         elif ch == "/":
-            token = self._create_token(ttype=TokenType.Division, value="/")
+            token = self._create_token(ttype=TokenType.Slash, value="/")
+            self.advance()
+        elif ch == "%":
+            token = self._create_token(ttype=TokenType.Percent, value="%")
             self.advance()
         elif ch.isnumeric():
             token = self.read_number()

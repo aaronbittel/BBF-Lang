@@ -1,5 +1,5 @@
 x = 12
 y = x
 z = x
-z = y
+z = y + 1
 exit(z)

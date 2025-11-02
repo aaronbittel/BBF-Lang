@@ -31,11 +31,11 @@ def plus(line: int = 1, column: int = 1) -> Token:
 
 
 def mult(line: int = 1, column: int = 1) -> Token:
-    return t(ttype=TokenType.Multiplication, value="*", line=line, column=column)
+    return t(ttype=TokenType.Star, value="*", line=line, column=column)
 
 
 def div(line: int = 1, column: int = 1) -> Token:
-    return t(ttype=TokenType.Division, value="/", line=line, column=column)
+    return t(ttype=TokenType.Slash, value="/", line=line, column=column)
 
 
 def openp(line: int = 1, column: int = 1) -> Token:
@@ -63,7 +63,7 @@ def ident(value: str, line: int = 1, column: int = 1) -> Token:
 
 
 def assign(line: int = 1, column: int = 1) -> Token:
-    return t(ttype=TokenType.Assign, value="=", line=line, column=column)
+    return t(ttype=TokenType.Equal, value="=", line=line, column=column)
 
 
 def fn_exit(line: int = 1, column: int = 1) -> Token:

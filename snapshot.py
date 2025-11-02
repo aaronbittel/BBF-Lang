@@ -127,8 +127,8 @@ class DiffLine:
 
 def print_diff_lines(diff_lines: list[DiffLine]) -> None:
     for diff in diff_lines:
-        print(f"LINE {diff.line}: {diff.actual}")
-        print(f"LINE {diff.line}: {diff.expected}")
+        print(f"LINE {diff.line}: '{diff.actual}'")
+        print(f"LINE {diff.line}: '{diff.expected}'")
 
 
 def calculate_diff_lines(

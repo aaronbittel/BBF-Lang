@@ -1,0 +1,71 @@
+global _start
+
+_start:
+    ; init base pointer
+    push rbp
+    mov rbp, rsp
+    
+    ; assign(x = ( ( 4 + 5 ) - ( 2 * ( ( 4 + 1 ) ) ) ))
+    push 4; pushing 4
+    push 5; pushing 5
+    pop rbx; pop rhs ?
+    pop rax; pop lhs ?
+    ; addition
+    add rax, rbx
+    push rax; push result
+    push 2; pushing 2
+    push 4; pushing 4
+    push 1; pushing 1
+    pop rbx; pop rhs ?
+    pop rax; pop lhs ?
+    ; addition
+    add rax, rbx
+    push rax; push result
+    pop rbx; pop rhs ?
+    pop rax; pop lhs ?
+    ; multiplication
+    imul rbx
+    push rax; push result
+    pop rbx; pop rhs ?
+    pop rax; pop lhs ?
+    ; subtraction
+    sub rax, rbx
+    push rax; push result
+    
+    ; assign(z = ( x - 4 ))
+    push QWORD [rbp-8] ; push value from variable x
+    push 4; pushing 4
+    pop rbx; pop rhs ?
+    pop rax; pop lhs ?
+    ; subtraction
+    sub rax, rbx
+    push rax; push result
+    
+    ; assign(y = ( ( 2 * x ) - z ))
+    push 2; pushing 2
+    push QWORD [rbp-8] ; push value from variable x
+    pop rbx; pop rhs ?
+    pop rax; pop lhs ?
+    ; multiplication
+    imul rbx
+    push rax; push result
+    push QWORD [rbp-16] ; push value from variable z
+    pop rbx; pop rhs ?
+    pop rax; pop lhs ?
+    ; subtraction
+    sub rax, rbx
+    push rax; push result
+    
+    ; exit(y)
+    push QWORD [rbp-24] ; push value from variable y
+    pop rdi
+    call __builtin_exit
+    
+    ; default exit 0
+    mov rdi, 0
+    call __builtin_exit
+    
+; BUILTIN FUNCTIONS
+__builtin_exit:
+    mov rax, 60
+    syscall

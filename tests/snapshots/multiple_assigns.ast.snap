@@ -1,5 +1,5 @@
 assign(x = 12)
 assign(y = x)
 assign(z = x)
-assign(z = y)
+assign(z = ( y + 1 ))
 exit(z)
