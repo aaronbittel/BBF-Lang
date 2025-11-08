@@ -24,6 +24,7 @@ from bbf.parser import (
     NodeStmtExit,
     NodeStmtPrint,
 )
+from bbf.symbol_table import SymbolTable, VarType
 
 
 class CodeGenerator:
@@ -31,7 +32,7 @@ class CodeGenerator:
         self.prog = prog
         self.emitter = Emitter()
 
-        self.symbols = SymbolTable()
+        self.symbol_table = SymbolTable()
         self.strings: list[str] = []
 
     def write_to(self, file: TextIO) -> None:
@@ -71,15 +72,16 @@ class CodeGenerator:
         leftside_ident, expr = stmt.ident, stmt.expr
         self.gen_expr(expr)  # right side value is on the stack
 
-        leftside_offset = self.symbols.lookup(leftside_ident.value)
-        if leftside_offset is None:
+        leftside_varinfo = self.symbol_table.lookup(leftside_ident.value)
+        if leftside_varinfo is None:
             # definition of new variable
-            self.symbols.define(leftside_ident.value)
+            self.symbol_table.define(leftside_ident.value, ttype=stmt.ttype)
         else:
             # redefining value of variable
+            # TODO: does this still work with types?
             self.emitter.emit(f"; redefining of variable {leftside_ident.value}")
             self.emitter.emit("pop rax")
-            self.emitter.emit(f"mov [rbp-{leftside_offset}], rax")
+            self.emitter.emit(f"mov [rbp-{leftside_varinfo.offset}], rax")
 
     def gen_stmt_print(self, stmt: NodeStmtPrint) -> None:
         if isinstance(stmt.expr.var, NodeExprStringLit):
@@ -87,10 +89,10 @@ class CodeGenerator:
             self.emitter.emit("pop rdx ; move length into rdx")
             self.emitter.emit("pop rsi ; move str-addr into rsi")
             self.emitter.emit("call __builtin_print")
+        # TODO: how to handle Unary, Binary in print with types?
         elif (
             isinstance(stmt.expr.var, NodeExprIntLit)
             or isinstance(stmt.expr.var, NodeExprUnary)
-            or isinstance(stmt.expr.var, NodeExprIdent)
             or isinstance(stmt.expr.var, NodeExprBinary)
         ):
             self.gen_expr(stmt.expr)  # literal on stack
@@ -99,6 +101,26 @@ class CodeGenerator:
             self.emitter.emit("mov rdi, rax")
             self.emitter.emit("mov rsi, rdx")
             self.emitter.emit("call __builtin_write")
+        elif isinstance(stmt.expr.var, NodeExprIdent):
+            ident = stmt.expr.var.ident
+            varinfo = self.symbol_table.lookup(ident.value)
+            if varinfo is None:
+                raise CodeGenError(
+                    f"ERROR: {ident.position}: undeclared identifier {ident.value}"
+                )
+            if varinfo.ttype == VarType.Int:
+                self.gen_expr(stmt.expr)  # literal on stack
+                self.emitter.emit("pop rdi")
+                self.emitter.emit("call __builtin_itoa")
+                self.emitter.emit("mov rdi, rax")
+                self.emitter.emit("mov rsi, rdx")
+                self.emitter.emit("call __builtin_write")
+            elif varinfo.ttype == VarType.String:
+                ptr_offset = varinfo.offset
+                len_offset = varinfo.offset + 8
+                self.emitter.emit(f"mov rdi, [rbp-{ptr_offset}] ; load str ptr")
+                self.emitter.emit(f"mov rsi, [rbp-{len_offset}] ; load str len")
+                self.emitter.emit("call __builtin_write")
         else:
             assert False, f"not implemented: {stmt.expr.var}, {type(stmt.expr.var)}"
 
@@ -117,20 +139,20 @@ class CodeGenerator:
             self.emitter.emit("push rax")
         elif isinstance(expr.var, NodeExprIdent):
             ident = expr.var.ident
-            offset = self.symbols.lookup(ident.value)
-            if offset is None:
+            varinfo = self.symbol_table.lookup(ident.value)
+            if varinfo is None:
                 raise CodeGenError(
                     f"ERROR: {ident.position}: identifier `{ident.value}` was not defined"
                 )
             self.emitter.emit(
-                f"push qword [rbp-{offset}] ; push value from variable {ident.value}"
+                f"push qword [rbp-{varinfo.offset}] ; push value from variable {ident.value}"
             )
         elif isinstance(expr.var, NodeExprBinary):
             binary = expr.var
             self.gen_expr(expr.var.lhs)
             self.gen_expr(expr.var.rhs)
-            self.emitter.emit("pop rbx; pop rhs ?")
-            self.emitter.emit("pop rax; pop lhs ?")
+            self.emitter.emit("pop rbx; pop rhs")
+            self.emitter.emit("pop rax; pop lhs")
             if binary.operator.ttype == TokenType.Plus:
                 self.emitter.emit("; addition")
                 self.emitter.emit("add rax, rbx")
@@ -229,15 +251,23 @@ def encode_nasm_string(string: str) -> str:
         # inbetween words
         return f'", {code}, "'
 
-    output = '"'
+    output = ""
     for i, ch in enumerate(string):
         if ch == "\n":
             output += _insert_escaped_code(i=i, code=10)
         elif ch == "\t":
             output += _insert_escaped_code(i=i, code=9)
+        elif ch == '"':
+            output += _insert_escaped_code(i=i, code=34)
+        elif ch == "'":
+            output += _insert_escaped_code(i=i, code=39)
         else:
+            if output == "":
+                output = '"'
             output += ch
-    return output + '"'
+            if i == len(string) - 1:
+                output += '"'
+    return output
 
 
 def make_string_label(i: int) -> str:
@@ -246,21 +276,6 @@ def make_string_label(i: int) -> str:
 
 class CodeGenError(Exception):
     pass
-
-
-class SymbolTable:
-    def __init__(self):
-        self.offsets: dict[str, int] = {}
-        self.next_offset = 8
-
-    def define(self, name: str) -> int:
-        offset = self.next_offset
-        self.offsets[name] = offset
-        self.next_offset += 8
-        return offset
-
-    def lookup(self, name: str) -> int | None:
-        return self.offsets.get(name)
 
 
 class Emitter:

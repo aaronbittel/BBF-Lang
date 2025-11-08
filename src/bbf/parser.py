@@ -4,6 +4,7 @@ import sys
 from dataclasses import dataclass, field
 
 from bbf.lexer import Token, TokenType
+from bbf.symbol_table import VarType
 from bbf.utils import eprint
 
 
@@ -44,9 +45,22 @@ class Parser:
 
     def parse_assign_stmt(self) -> NodeStmt:
         ident = self.consume(TokenType.Identifier, "Expected identifier in assign")
+        self.consume(TokenType.Colon, "Expected `:` in assign for type")
+        if self.match(TokenType.Int):
+            ttype = VarType.Int
+        elif self.match(TokenType.String):
+            ttype = VarType.String
+        else:
+            # no type annotation provided
+            # TODO: what is expected token type in this case?
+            raise ParserExpectError(
+                token=self.peek(),
+                expected=TokenType.Illegal,
+                msg="No type annotation provided",
+            )
         self.consume(TokenType.Equal, "Expected `=` in assign")
         expr = self.expression()
-        return NodeStmt(NodeStmtAssign(ident, expr))
+        return NodeStmt(NodeStmtAssign(ident=ident, expr=expr, ttype=ttype))
 
     def parse_exit_expr(self) -> NodeStmt:
         self.consume(TokenType.Exit, "Expected `exit` call")
@@ -86,7 +100,7 @@ class Parser:
         return self.primary()
 
     def primary(self) -> NodeExpr:
-        if self.match(TokenType.Integer):
+        if self.match(TokenType.IntegerLit):
             return NodeExpr(NodeExprIntLit(self.previous()))
         if self.match(TokenType.Identifier):
             return NodeExpr(NodeExprIdent(self.previous()))
@@ -94,7 +108,7 @@ class Parser:
             expr = self.expression()
             self.consume(TokenType.CloseParen, "Expect ')' after expression.")
             return NodeExpr(NodeExprGrouping(expr))
-        if self.match(TokenType.String):
+        if self.match(TokenType.StringLit):
             return NodeExpr(NodeExprStringLit(self.previous()))
         assert False, "unreachable"
 
@@ -158,10 +172,11 @@ class NodeStmtExit:
 @dataclass
 class NodeStmtAssign:
     ident: Token
+    ttype: VarType
     expr: NodeExpr
 
     def __str__(self) -> str:
-        return f"assign({self.ident.value} = {self.expr})"
+        return f"assign[{self.ttype.value}]({self.ident.value} = {self.expr})"
 
 
 @dataclass

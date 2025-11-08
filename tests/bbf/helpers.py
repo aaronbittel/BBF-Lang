@@ -51,11 +51,11 @@ def eof(line: int = 1, column: int = 1) -> Token:
 
 
 def integer(value: int, line: int = 1, column: int = 1) -> Token:
-    return t(ttype=TokenType.Integer, value=str(value), line=line, column=column)
+    return t(ttype=TokenType.IntegerLit, value=str(value), line=line, column=column)
 
 
 def string(value: str, line: int = 1, column: int = 1) -> Token:
-    return t(ttype=TokenType.String, value=value, line=line, column=column)
+    return t(ttype=TokenType.StringLit, value=value, line=line, column=column)
 
 
 def ident(value: str, line: int = 1, column: int = 1) -> Token:
