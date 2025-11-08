@@ -5,7 +5,7 @@ from bbf.parser import (
     NodeExpr,
     NodeExprIdent,
     NodeExprIntLit,
-    NodeStmtAssign,
+    NodeStmtDecl,
     NodeStmtExit,
 )
 
@@ -82,7 +82,7 @@ def ident_expr(name: str):
 
 
 def assign_stmt(name: str, expr: NodeExpr):
-    return NodeStmtAssign(ident=ident(name), expr=expr)
+    return NodeStmtDecl(ident=ident(name), expr=expr)
 
 
 def exit_stmt(expr: NodeExpr):

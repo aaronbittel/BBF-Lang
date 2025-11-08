@@ -25,7 +25,7 @@ def test_gen_stmt_assign():
     stmt = assign_stmt(name="variable", expr=int_lit(12142))
     prog = NodeProgram([stmt])
     code_gen = CodeGenerator(prog)
-    code_gen.gen_stmt_assign(stmt)
+    code_gen.gen_stmt_decl(stmt)
     expected = "\n".join(["; assign(variable = 12142)", "mov rax, 12142", "push rax"])
     generated = StringIO()
     code_gen.emitter.write_to(generated)

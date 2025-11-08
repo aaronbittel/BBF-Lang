@@ -35,7 +35,9 @@ class Parser:
     def parse_stmt(self) -> NodeStmt:
         if self.check(TokenType.Exit):
             stmt = self.parse_exit_expr()
-        elif self.check(TokenType.Identifier):
+        elif self.check(TokenType.Identifier) and self.check(TokenType.Colon, offset=1):
+            stmt = self.parse_decl_stmt()
+        elif self.check(TokenType.Identifier) and self.check(TokenType.Equal, offset=1):
             stmt = self.parse_assign_stmt()
         elif self.check(TokenType.Print):
             stmt = self.parse_print_stmt()
@@ -48,9 +50,9 @@ class Parser:
             sys.exit(1)
         return NodeStmt(stmt)
 
-    def parse_assign_stmt(self) -> NodeStmtAssign:
-        ident = self.consume(TokenType.Identifier, "Expected identifier in assign")
-        self.consume(TokenType.Colon, "Expected `:` in assign for type")
+    def parse_decl_stmt(self) -> NodeStmtDecl:
+        ident = self.consume(TokenType.Identifier, "Expected identifier in declaration")
+        self.consume(TokenType.Colon, "Expected `:` in declaration for type")
         if self.match(TokenType.Int):
             ttype = VarType.Int
         elif self.match(TokenType.String):
@@ -63,9 +65,15 @@ class Parser:
                 expected=TokenType.Illegal,
                 msg="No type annotation provided",
             )
+        self.consume(TokenType.Equal, "Expected `=` in declaration")
+        expr = self.expression()
+        return NodeStmtDecl(ident=ident, expr=expr, ttype=ttype)
+
+    def parse_assign_stmt(self) -> NodeStmtAssign:
+        ident = self.consume(TokenType.Identifier, "Expected identifier in assign")
         self.consume(TokenType.Equal, "Expected `=` in assign")
         expr = self.expression()
-        return NodeStmtAssign(ident=ident, expr=expr, ttype=ttype)
+        return NodeStmtAssign(ident=ident, expr=expr)
 
     def parse_exit_expr(self) -> NodeStmtExit:
         self.consume(TokenType.Exit, "Expected `exit` call")
@@ -226,7 +234,7 @@ class NodeProgram:
 
 @dataclass
 class NodeStmt:
-    stmt: NodeStmtExit | NodeStmtAssign | NodeStmtPrint | NodeStmtIf
+    stmt: NodeStmtExit | NodeStmtDecl | NodeStmtPrint | NodeStmtIf
 
     def __str__(self) -> str:
         return str(self.stmt)
@@ -241,13 +249,22 @@ class NodeStmtExit:
 
 
 @dataclass
-class NodeStmtAssign:
+class NodeStmtDecl:
     ident: Token
     ttype: VarType
     expr: NodeExpr
 
     def __str__(self) -> str:
-        return f"assign[{self.ttype.value}]({self.ident.value} = {self.expr})"
+        return f"decl[{self.ttype.value}]({self.ident.value} = {self.expr})"
+
+
+@dataclass
+class NodeStmtAssign:
+    ident: Token
+    expr: NodeExpr
+
+    def __str__(self) -> str:
+        return f"assign({self.ident.value} = {self.expr})"
 
 
 @dataclass

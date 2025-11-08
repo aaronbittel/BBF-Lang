@@ -21,6 +21,7 @@ from bbf.parser import (
     NodeProgram,
     NodeStmt,
     NodeStmtAssign,
+    NodeStmtDecl,
     NodeStmtExit,
     NodeStmtIf,
     NodeStmtPrint,
@@ -60,6 +61,8 @@ class CodeGenerator:
             self.emitter.emit(f"; {l}")
         if isinstance(node_stmt.stmt, NodeStmtExit):
             self.gen_stmt_exit(node_stmt.stmt)
+        elif isinstance(node_stmt.stmt, NodeStmtDecl):
+            self.gen_stmt_decl(node_stmt.stmt)
         elif isinstance(node_stmt.stmt, NodeStmtAssign):
             self.gen_stmt_assign(node_stmt.stmt)
         elif isinstance(node_stmt.stmt, NodeStmtIf):
@@ -75,20 +78,32 @@ class CodeGenerator:
         self.emitter.emit("pop rdi")
         self.emitter.emit("call __builtin_exit")
 
-    def gen_stmt_assign(self, stmt: NodeStmtAssign) -> None:
-        leftside_ident, expr = stmt.ident, stmt.expr
+    def gen_stmt_decl(self, stmt: NodeStmtDecl) -> None:
+        ident, expr = stmt.ident, stmt.expr
         self.gen_expr(expr)  # right side value is on the stack
 
-        leftside_varinfo = self.symbol_table.lookup(leftside_ident.value)
-        if leftside_varinfo is None:
+        varinfo = self.symbol_table.lookup(ident.value)
+        if varinfo is None:
             # definition of new variable
-            self.symbol_table.define(leftside_ident.value, ttype=stmt.ttype)
-        else:
-            # redefining value of variable
-            # TODO: does this still work with types?
-            self.emitter.emit(f"; redefining of variable {leftside_ident.value}")
-            self.emitter.emit("pop rax")
-            self.emitter.emit(f"mov [rbp-{leftside_varinfo.offset}], rax")
+            self.symbol_table.define(ident.value, ttype=stmt.ttype)
+            return
+        # NOTE: for now don't allow redefining of variables
+        # TODO: should be allowed later again
+        raise CodeGenError(
+            f"WIP: Redefinition of variables is currently not supported ({ident})"
+        )
+
+    def gen_stmt_assign(self, stmt: NodeStmtAssign) -> None:
+        ident, expr = stmt.ident, stmt.expr
+        self.gen_expr(expr)
+
+        varinfo = self.symbol_table.lookup(ident.value)
+        if varinfo is None:
+            raise CodeGenError(
+                f"ERROR: {ident.position}: undefined variable `{ident.value}`"
+            )
+        self.emitter.emit("pop rax")
+        self.emitter.emit(f"mov [rbp-{varinfo.offset}], rax")
 
     def gen_stmt_if(self, stmt: NodeStmtIf) -> None:
         var = stmt.condition.var
