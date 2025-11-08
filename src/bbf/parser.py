@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass, field
 
+from _pytest.nodes import Node
+
 from bbf.lexer import Token, TokenType
 from bbf.symbol_table import VarType
 from bbf.utils import eprint
@@ -32,18 +34,21 @@ class Parser:
 
     def parse_stmt(self) -> NodeStmt:
         if self.check(TokenType.Exit):
-            return self.parse_exit_expr()
+            stmt = self.parse_exit_expr()
         elif self.check(TokenType.Identifier):
-            return self.parse_assign_stmt()
+            stmt = self.parse_assign_stmt()
         elif self.check(TokenType.Print):
-            return self.parse_print_stmt()
+            stmt = self.parse_print_stmt()
+        elif self.check(TokenType.If):
+            stmt = self.parse_if_stmt()
         else:
             token = self.peek()
             assert token is not None, "checke in `parse_program` that there is a token"
             eprint(f"ERROR: {token.position} unexpected token {token.value}")
             sys.exit(1)
+        return NodeStmt(stmt)
 
-    def parse_assign_stmt(self) -> NodeStmt:
+    def parse_assign_stmt(self) -> NodeStmtAssign:
         ident = self.consume(TokenType.Identifier, "Expected identifier in assign")
         self.consume(TokenType.Colon, "Expected `:` in assign for type")
         if self.match(TokenType.Int):
@@ -60,23 +65,89 @@ class Parser:
             )
         self.consume(TokenType.Equal, "Expected `=` in assign")
         expr = self.expression()
-        return NodeStmt(NodeStmtAssign(ident=ident, expr=expr, ttype=ttype))
+        return NodeStmtAssign(ident=ident, expr=expr, ttype=ttype)
 
-    def parse_exit_expr(self) -> NodeStmt:
+    def parse_exit_expr(self) -> NodeStmtExit:
         self.consume(TokenType.Exit, "Expected `exit` call")
         self.consume(TokenType.OpenParen, "Expected `(` in `exit` call`")
         expr = self.expression()
         self.consume(TokenType.CloseParen, "Expected `)` in `exit` call")
-        return NodeStmt(NodeStmtExit(expr))
+        return NodeStmtExit(expr)
 
-    def parse_print_stmt(self) -> NodeStmt:
+    def parse_if_stmt(self) -> NodeStmtIf:
+        # TODO: can I implement this without .previous() ?
+        self.consume(TokenType.If, "Expected `if` in if-statement")
+        condition = self.expression()
+        self.consume(TokenType.Then, "Expected `then` after if-condition")
+        if_stmts: list[NodeStmt] = []
+        while not self.match(TokenType.End, TokenType.Else, TokenType.Elif):
+            s = self.parse_stmt()
+            if_stmts.append(s)
+        elifs: list[NodeStmtElif] = []
+        if self.previous().ttype == TokenType.Elif:
+            while True:
+                elif_condition = self.expression()
+                self.consume(TokenType.Then, "Expected `then` after elif-condition")
+                elif_stmts: list[NodeStmt] = []
+                while not self.match(TokenType.End, TokenType.Else, TokenType.Elif):
+                    s = self.parse_stmt()
+                    elif_stmts.append(s)
+                elifs.append(NodeStmtElif(condition=elif_condition, stmts=elif_stmts))
+                if self.previous().ttype != TokenType.Elif:
+                    break
+        if self.previous().ttype == TokenType.Else:
+            else_stmts: list[NodeStmt] = []
+            while not self.check(TokenType.End):
+                s = self.parse_stmt()
+                else_stmts.append(s)
+            self.consume(TokenType.End, "Expected `end` after if-statement")
+            return NodeStmtIf(
+                condition=condition,
+                if_stmts=if_stmts,
+                else_stmts=else_stmts,
+                elifs=elifs,
+            )
+        if self.previous().ttype == TokenType.End:
+            return NodeStmtIf(condition=condition, if_stmts=if_stmts, elifs=elifs)
+        raise ParserExpectError(
+            token=self.previous(),
+            # TODO: make this more accurate than Illegal?
+            expected=TokenType.Illegal,
+            msg="Expected one of `end`, `else` or `elif` keywords",
+        )
+
+    def parse_print_stmt(self) -> NodeStmtPrint:
         self.consume(TokenType.Print, "Expected `print` call")
         self.consume(TokenType.OpenParen, "Expected `(` in print")
         expr = self.expression()
         self.consume(TokenType.CloseParen, "Expected `)` in print")
-        return NodeStmt(NodeStmtPrint(expr))
+        return NodeStmtPrint(expr)
 
     def expression(self) -> NodeExpr:
+        return self.equality()
+
+    def equality(self) -> NodeExpr:
+        expr = self.comparison()
+        while self.match(TokenType.BangEqual, TokenType.EqualEqual):
+            operator = self.previous()
+            right = self.comparison()
+            expr = NodeExpr(NodeExprBinary(expr, operator, right))
+        return expr
+
+    def comparison(self) -> NodeExpr:
+        expr = self.term()
+        while self.match(
+            TokenType.Greater,
+            TokenType.GreaterEqual,
+            TokenType.Less,
+            TokenType.LessEqual,
+        ):
+            operator = self.previous()
+            right = self.term()
+            expr = NodeExpr(NodeExprBinary(expr, operator, right))
+        return expr
+
+    def term(self) -> NodeExpr:
         expr = self.factor()
         while self.match(TokenType.Minus, TokenType.Plus):
             operator = self.previous()
@@ -155,7 +226,7 @@ class NodeProgram:
 
 @dataclass
 class NodeStmt:
-    stmt: NodeStmtExit | NodeStmtAssign | NodeStmtPrint
+    stmt: NodeStmtExit | NodeStmtAssign | NodeStmtPrint | NodeStmtIf
 
     def __str__(self) -> str:
         return str(self.stmt)
@@ -177,6 +248,40 @@ class NodeStmtAssign:
 
     def __str__(self) -> str:
         return f"assign[{self.ttype.value}]({self.ident.value} = {self.expr})"
+
+
+@dataclass
+class NodeStmtElif:
+    condition: NodeExpr
+    stmts: list[NodeStmt]
+
+    def __str__(self) -> str:
+        out = f"elif {self.condition} then\n"
+        for s in self.stmts:
+            out += f"\t{s}\n"
+        return out
+
+
+@dataclass
+class NodeStmtIf:
+    condition: NodeExpr
+    if_stmts: list[NodeStmt]
+    elifs: list[NodeStmtElif] | None = None
+    else_stmts: list[NodeStmt] | None = None
+
+    def __str__(self) -> str:
+        out = f"if {self.condition} then\n"
+        for s in self.if_stmts:
+            out += f"\t{s}\n"
+        if self.elifs is not None:
+            for el in self.elifs:
+                out += str(el)
+        if self.else_stmts is not None:
+            out += "else\n"
+            for s in self.else_stmts:
+                out += f"\t{s}\n"
+        out += "end"
+        return out
 
 
 @dataclass

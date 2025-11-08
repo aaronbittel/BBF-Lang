@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from enum import StrEnum, auto
 from pathlib import Path
 
-BUILTINS = {"exit", "print"}
-
 
 class TokenType(StrEnum):
     Identifier = auto()
@@ -16,11 +14,17 @@ class TokenType(StrEnum):
     Int = auto()
     String = auto()
 
-    # Builtins
+    # Builtin Functions
     Exit = auto()
     Print = auto()
 
-    # Double Char Tokens
+    # Keywords
+    If = auto()
+    Then = auto()
+    Else = auto()
+    End = auto()
+    Not = auto()
+    Elif = auto()
 
     # Single Char Tokens
     OpenParen = auto()
@@ -32,9 +36,34 @@ class TokenType(StrEnum):
     Slash = auto()
     Percent = auto()
     Colon = auto()
+    Greater = auto()
+    Less = auto()
+
+    # Double Char Tokens
+    GreaterEqual = auto()
+    LessEqual = auto()
+    EqualEqual = auto()
+    BangEqual = auto()
 
     Illegal = auto()
     EOF = auto()
+
+
+BUILTINS = {
+    # Functions
+    "exit": TokenType.Exit,
+    "print": TokenType.Print,
+    # Types
+    "String": TokenType.String,
+    "Int": TokenType.Int,
+    # Keywords
+    "if": TokenType.If,
+    "then": TokenType.Then,
+    "end": TokenType.End,
+    "not": TokenType.Not,
+    "else": TokenType.Else,
+    "elif": TokenType.Elif,
+}
 
 
 class LexerError(Exception):
@@ -93,9 +122,6 @@ class Lexer:
         elif ch == ")":
             token = self._create_token(ttype=TokenType.CloseParen, value=")")
             self.advance()
-        elif ch == "=":
-            token = self._create_token(ttype=TokenType.Equal, value="=")
-            self.advance()
         elif ch == "+":
             token = self._create_token(ttype=TokenType.Plus, value="+")
             self.advance()
@@ -114,6 +140,45 @@ class Lexer:
         elif ch == ":":
             token = self._create_token(ttype=TokenType.Colon, value=":")
             self.advance()
+        elif ch == ">":
+            if self.peek(1) == "=":
+                token = self._create_token(
+                    ttype=TokenType.GreaterEqual, value=">=", length=2
+                )
+                self.advance()  # advance `=`
+            else:
+                token = self._create_token(ttype=TokenType.Greater, value=">")
+            self.advance()
+        elif ch == "<":
+            if self.peek(1) == "=":
+                token = self._create_token(
+                    ttype=TokenType.LessEqual, value="<=", length=2
+                )
+                self.advance()  # advance `=`
+            else:
+                token = self._create_token(ttype=TokenType.Less, value="<")
+            self.advance()
+        elif ch == "=":
+            if self.peek(1) == "=":
+                token = self._create_token(
+                    ttype=TokenType.EqualEqual, value="==", length=2
+                )
+                self.advance()  # advance `=`
+            else:
+                token = self._create_token(ttype=TokenType.Equal, value="=")
+            self.advance()
+        elif ch == "!":
+            if self.peek(1) == "=":
+                token = self._create_token(
+                    ttype=TokenType.BangEqual, value="!=", length=2
+                )
+                self.advance()  # advance `=`
+            else:
+                raise LexerError(
+                    msg="single `!` is not allowed. Did you forget `=` for comparison? If you want to negate, use `not` instead.",
+                    position=self.position,
+                )
+            self.advance()
         elif ch.isnumeric():
             token = self.read_number()
         elif ch.isalpha():
@@ -122,6 +187,7 @@ class Lexer:
             token = self.read_string_literal()
         else:
             token = self._create_token(ttype=TokenType.Illegal, value="")
+            raise LexerError(msg=f"Illegal Token `{ch}`", position=token.position)
 
         return token
 
@@ -156,14 +222,8 @@ class Lexer:
             self.advance()
         identifier = self.src[start : self.index]
         ttype = TokenType.Identifier
-        if identifier == "exit":
-            ttype = TokenType.Exit
-        elif identifier == "print":
-            ttype = TokenType.Print
-        elif identifier == "Int":
-            ttype = TokenType.Int
-        elif identifier == "String":
-            ttype = TokenType.String
+        if identifier in BUILTINS:
+            ttype = BUILTINS[identifier]
         return self._create_token(ttype=ttype, value=identifier, length=len(identifier))
 
     def read_string_literal(self) -> Token:

@@ -3,8 +3,11 @@
 " Reset existing syntax
 syntax clear
 
-" Define keywords
-syntax keyword bbfKeyword print
+" Keywords (reserved words)
+syntax keyword bbfKeyword if then end else elif
+"
+" Built-in functions
+syntax keyword bbfBuiltin print exit
 
 " Match identifiers
 syntax match bbfIdentifier "\<[a-zA-Z_][a-zA-Z0-9_]*\>"
@@ -29,6 +32,7 @@ syntax match bbfComment "#.*$"
 
 " Link syntax groups to highlight groups
 highlight default link bbfKeyword Keyword
+highlight default link bbfBuiltin Function
 highlight default link bbfType Type
 highlight default link bbfNumber Number
 highlight default link bbfString String

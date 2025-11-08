@@ -9,7 +9,7 @@ from bbf.builtins import (
     _builtin_print,
     _builtin_write,
 )
-from bbf.lexer import TokenType
+from bbf.lexer import Token, TokenType
 from bbf.parser import (
     NodeExpr,
     NodeExprBinary,
@@ -22,6 +22,7 @@ from bbf.parser import (
     NodeStmt,
     NodeStmtAssign,
     NodeStmtExit,
+    NodeStmtIf,
     NodeStmtPrint,
 )
 from bbf.symbol_table import SymbolTable, VarType
@@ -34,6 +35,8 @@ class CodeGenerator:
 
         self.symbol_table = SymbolTable()
         self.strings: list[str] = []
+        self.if_label_count = 0
+        self.elif_label_count = 0
 
     def write_to(self, file: TextIO) -> None:
         self.emitter.write_to(file)
@@ -42,7 +45,7 @@ class CodeGenerator:
         self.program_prologue()
 
         for stmt in self.prog.stmts:
-            self.gen_stmt_node(stmt)
+            self.gen_stmt(stmt)
             self.emitter.emit("")
 
         self.program_epilogue()
@@ -51,12 +54,16 @@ class CodeGenerator:
         self.static_section()
         self.bss_section()
 
-    def gen_stmt_node(self, node_stmt: NodeStmt) -> None:
-        self.emitter.emit(f"; {node_stmt}")
+    def gen_stmt(self, node_stmt: NodeStmt) -> None:
+        node_str = str(node_stmt)
+        for l in node_str.split("\n"):
+            self.emitter.emit(f"; {l}")
         if isinstance(node_stmt.stmt, NodeStmtExit):
             self.gen_stmt_exit(node_stmt.stmt)
         elif isinstance(node_stmt.stmt, NodeStmtAssign):
             self.gen_stmt_assign(node_stmt.stmt)
+        elif isinstance(node_stmt.stmt, NodeStmtIf):
+            self.gen_stmt_if(node_stmt.stmt)
         elif isinstance(node_stmt.stmt, NodeStmtPrint):
             self.gen_stmt_print(node_stmt.stmt)
         else:
@@ -82,6 +89,104 @@ class CodeGenerator:
             self.emitter.emit(f"; redefining of variable {leftside_ident.value}")
             self.emitter.emit("pop rax")
             self.emitter.emit(f"mov [rbp-{leftside_varinfo.offset}], rax")
+
+    def gen_stmt_if(self, stmt: NodeStmtIf) -> None:
+        var = stmt.condition.var
+        if isinstance(var, NodeExprIntLit):
+            token = var.token
+            self.emitter.emit(f"mov rax, {token.value}")
+            self.emitter.emit("cmp rax, 0")
+            self.emitter.emit(f"je .if_{self.if_label_count}_label")
+        elif isinstance(var, NodeExprBinary):
+            self.gen_expr(var.lhs)
+            self.gen_expr(var.rhs)
+            self.emitter.emit("pop rbx ; rhs")
+            self.emitter.emit("pop rax ; lhs")
+            self.emitter.emit("cmp rax, rbx")
+            if var.operator.ttype == TokenType.Greater:
+                self.emitter.emit(f"jle .if_{self.if_label_count}_label")
+            elif var.operator.ttype == TokenType.GreaterEqual:
+                self.emitter.emit(f"jl .if_{self.if_label_count}_label")
+            elif var.operator.ttype == TokenType.Less:
+                self.emitter.emit(f"jge .if_{self.if_label_count}_label")
+            elif var.operator.ttype == TokenType.LessEqual:
+                self.emitter.emit(f"jg .if_{self.if_label_count}_label")
+            elif var.operator.ttype == TokenType.EqualEqual:
+                self.emitter.emit(f"jne .if_{self.if_label_count}_label")
+            elif var.operator.ttype == TokenType.BangEqual:
+                self.emitter.emit(f"je .if_{self.if_label_count}_label")
+            else:
+                assert False, (
+                    f"`gen_stmt_if`: operator f`{var.operator}` is not supported"
+                )
+        else:
+            assert False, f"`gen_stmt_if`: not implemented for {var} {type(var)}"
+        for s in stmt.if_stmts:
+            self.gen_stmt(s)
+        if stmt.else_stmts is not None:
+            self.emitter.emit(f"jmp .end_{self.if_label_count}_label ; skip else-block")
+        self.emitter.emit(f".if_{self.if_label_count}_label:", indent=0)
+        if stmt.elifs is not None:
+            for el in stmt.elifs:
+                self.emitter.emit("; -- insert condition for elif --")
+                elif_var = el.condition.var
+                if isinstance(elif_var, NodeExprIntLit):
+                    token = elif_var.token
+                    self.emitter.emit(f"mov rax, {token.value}")
+                    self.emitter.emit("cmp rax, 0")
+                    self.emitter.emit(f"je .if_{self.if_label_count}_label")
+                elif isinstance(elif_var, NodeExprBinary):
+                    self.gen_expr(elif_var.lhs)
+                    self.gen_expr(elif_var.rhs)
+                    self.emitter.emit("pop rbx ; rhs")
+                    self.emitter.emit("pop rax ; lhs")
+                    self.emitter.emit("cmp rax, rbx")
+                    if elif_var.operator.ttype == TokenType.Greater:
+                        self.emitter.emit(
+                            f"jle .elif_{self.if_label_count}{self.elif_label_count}_label"
+                        )
+                    elif elif_var.operator.ttype == TokenType.GreaterEqual:
+                        self.emitter.emit(
+                            f"jl .elif_{self.if_label_count}{self.elif_label_count}_label"
+                        )
+                    elif elif_var.operator.ttype == TokenType.Less:
+                        self.emitter.emit(
+                            f"jge .elif_{self.if_label_count}{self.elif_label_count}_label"
+                        )
+                    elif elif_var.operator.ttype == TokenType.LessEqual:
+                        self.emitter.emit(
+                            f"jg .elif_{self.if_label_count}{self.elif_label_count}_label"
+                        )
+                    elif elif_var.operator.ttype == TokenType.EqualEqual:
+                        self.emitter.emit(
+                            f"jne .elif_{self.if_label_count}{self.elif_label_count}_label"
+                        )
+                    elif elif_var.operator.ttype == TokenType.BangEqual:
+                        self.emitter.emit(
+                            f"je .elif_{self.if_label_count}{self.elif_label_count}_label"
+                        )
+                    else:
+                        assert False, (
+                            f"`gen_stmt_if`: operator f`{elif_var.operator}` is not supported"
+                        )
+                else:
+                    assert False, (
+                        f"`gen_stmt_if`: not implemented for {elif_var} {type(elif_var)}"
+                    )
+                for s in el.stmts:
+                    self.gen_stmt(s)
+                self.emitter.emit(f"jmp .end_{self.if_label_count}_label")
+                self.emitter.emit(
+                    f".elif_{self.if_label_count}{self.elif_label_count}_label:"
+                )
+                self.elif_label_count += 1
+                self.emitter.emit("; -- end elif block --")
+        if stmt.else_stmts is not None:
+            for s in stmt.else_stmts:
+                self.gen_stmt(s)
+        self.emitter.emit(f".end_{self.if_label_count}_label:", indent=0)
+        self.if_label_count += 1
+        self.elif_label_count = 0
 
     def gen_stmt_print(self, stmt: NodeStmtPrint) -> None:
         if isinstance(stmt.expr.var, NodeExprStringLit):
