@@ -163,21 +163,18 @@ class CodeGenerator:
                 self.emitter.emit("push rax; push result")
             elif binary.operator.ttype == TokenType.Star:
                 self.emitter.emit("; multiplication")
+                self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
                 self.emitter.emit("imul rbx")
                 self.emitter.emit("push rax; push result")
             elif binary.operator.ttype == TokenType.Slash:
                 self.emitter.emit("; division")
-                self.emitter.emit(
-                    "xor rdx, rdx ; clear upper 64bit of 128 bit division"
-                )
-                self.emitter.emit("div rbx")
+                self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
+                self.emitter.emit("idiv rbx")
                 self.emitter.emit("push rax; push result")
             elif binary.operator.ttype == TokenType.Percent:
                 self.emitter.emit("; modulo")
-                self.emitter.emit(
-                    "xor rdx, rdx ; clear upper 64bit of 128 bit division"
-                )
-                self.emitter.emit("div rbx")
+                self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
+                self.emitter.emit("idiv rbx")
                 self.emitter.emit("push rdx; push result (remainder always in rdx)")
             else:
                 assert False, f"unreachable {binary.operator.ttype}"
