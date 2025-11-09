@@ -213,8 +213,12 @@ class CodeGenerator:
                 f"Loop variable must be of type `Int`, not `{varinfo.ttype}`"
             )
         self.symbol_table.define(ident.value, ttype=VarType.Int)
-        self.emitter.emit(f"mov rax, {range_expr.start.value} ; range start")
-        self.emitter.emit(f"push rax")
+        if range_expr.start.ttype == TokenType.IntegerLit:
+            self.gen_node_expr_intlit(range_expr.start)
+        elif range_expr.start.ttype == TokenType.Identifier:
+            self.gen_node_expr_ident(range_expr.start)
+        else:
+            assert False, "unreachable: Parser should have errored"
         self.emitter.emit(f"loop_{self.loop_count}_start:", indent=0)
         for s in stmts:
             self.gen_stmt(s)
@@ -223,8 +227,15 @@ class CodeGenerator:
         self.emitter.emit(
             f"inc qword [rbp{range_ident.offset:+d}] ; increment loop variable"
         )
+        if range_expr.end.ttype == TokenType.IntegerLit:
+            self.gen_node_expr_intlit(range_expr.end)
+        elif range_expr.end.ttype == TokenType.Identifier:
+            self.gen_node_expr_ident(range_expr.end)
+        else:
+            assert False, "unreachable: Parser should have errored"
+        self.emitter.emit("pop rax ; range end")
         self.emitter.emit(
-            f"cmp qword [rbp{range_ident.offset:+d}], {range_expr.end.value} ; check if condition"
+            f"cmp qword [rbp{range_ident.offset:+d}], rax ; check if condition"
         )
         if range_expr.inclusive:
             self.emitter.emit(f"jle loop_{self.loop_count}_start")
@@ -274,13 +285,25 @@ class CodeGenerator:
                 self.emitter.emit("call __builtin_write")
         elif isinstance(stmt.expr.var, NodeExprArgv):
             index = stmt.expr.var.index
-            try:
-                offset = (int(index.value) + 1) * 8
-            except ValueError:
-                raise CodeGenError(
-                    "`argv` can only be access by an IntergerLiteral right now."
+            if index.ttype == TokenType.IntegerLit:
+                try:
+                    offset = (int(index.value) + 1) * 8
+                except ValueError:
+                    raise CodeGenError(
+                        "`argv` can only be access by an IntergerLiteral right now."
+                    )
+                self.emitter.emit(
+                    f"mov rdi, [rbp{offset:+d}] ; load argv{index.value} ptr"
                 )
-            self.emitter.emit(f"mov rdi, [rbp{offset:+d}] ; load argv{index.value} ptr")
+            elif index.ttype == TokenType.Identifier:
+                self.gen_node_expr_ident(index)
+                self.emitter.emit("pop rax")
+                self.emitter.emit("imul rax, 8 ; calc offset into argv")
+                self.emitter.emit("lea rbx, [rbp + rax + 8] ; +8 to skip argc")
+                self.emitter.emit("mov rdi, [rbx]")
+            else:
+                assert False, "unreachable: Parser should have errored"
+
             self.emitter.emit(
                 "push rdi ; save rdi to stack because _builtin_c_strlen messes with rdi ptr"
             )
@@ -300,20 +323,9 @@ class CodeGenerator:
         Always moves the result onto the stack.
         """
         if isinstance(expr.var, NodeExprIntLit):
-            # NOTE: What to do when value already exists?
-            int_lit = expr.var.token
-            self.emitter.emit(f"mov rax, {int_lit.value}; pushing {int_lit.value}")
-            self.emitter.emit("push rax")
+            self.gen_node_expr_intlit(expr.var.token)
         elif isinstance(expr.var, NodeExprIdent):
-            ident = expr.var.ident
-            varinfo = self.symbol_table.lookup(ident.value)
-            if varinfo is None:
-                raise CodeGenError(
-                    f"ERROR: {ident.position}: identifier `{ident.value}` was not defined"
-                )
-            self.emitter.emit(
-                f"push qword [rbp{varinfo.offset:+d}] ; push value from variable {ident.value}"
-            )
+            self.gen_node_expr_ident(expr.var.ident)
         elif isinstance(expr.var, NodeExprBinary):
             binary = expr.var
             self.gen_expr(expr.var.lhs)
@@ -366,6 +378,23 @@ class CodeGenerator:
             self.emitter.emit(f"push qword [{len_label}]")
         else:
             assert False, f"unreachable: {expr.var}"
+
+    # NOTE: Should this be Token?
+    def gen_node_expr_intlit(self, intlit: Token) -> None:
+        # NOTE: What to do when value already exists?
+        self.emitter.emit(f"mov rax, {intlit.value}; pushing {intlit.value}")
+        self.emitter.emit("push rax")
+
+    # NOTE: Should this be Token?
+    def gen_node_expr_ident(self, ident: Token) -> None:
+        varinfo = self.symbol_table.lookup(ident.value)
+        if varinfo is None:
+            raise CodeGenError(
+                f"ERROR: {ident.position}: identifier `{ident.value}` was not defined"
+            )
+        self.emitter.emit(
+            f"push qword [rbp{varinfo.offset:+d}] ; push value from variable {ident.value}"
+        )
 
     def program_prologue(self) -> None:
         self.emitter.emit("global _start", indent=0)

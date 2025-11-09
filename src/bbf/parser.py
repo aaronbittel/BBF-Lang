@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass, field
 
 
 from bbf.lexer import Token, TokenType
 from bbf.symbol_table import VarType
-from bbf.utils import eprint
 
 
 class ParserError(Exception):
@@ -19,13 +17,18 @@ class ParserError(Exception):
 
 
 class ParserExpectError(ParserError):
-    def __init__(self, token: Token, expected: TokenType, msg: str) -> None:
+    def __init__(self, token: Token, msg: str, *expected: TokenType) -> None:
         self.token = token
-        self.expected = expected
         self.msg = msg
+        self.expected = expected
 
     def __str__(self) -> str:
-        return f"ERROR: {self.token.position} Expected {self.expected}, but got {self.token}: {self.msg}"
+        expected_str = (
+            str(self.expected[0])
+            if len(self.expected) == 1
+            else ", ".join(self.expected)
+        )
+        return f"ERROR: {self.token.position} Expected {expected_str}, but got {self.token}: {self.msg}"
 
 
 class Parser:
@@ -148,9 +151,18 @@ class Parser:
         if self.check(TokenType.Equal):
             self.advance()
             inclusive = True
-        end = self.consume(
-            TokenType.IntegerLit, "Expected `IntegerLit` as end for range expression"
-        )
+        if self.check(TokenType.IntegerLit):
+            end = self.advance()
+        elif self.check(TokenType.Identifier):
+            end = self.advance()
+        else:
+            # TODO: msg in ParserExpectError ?
+            raise ParserExpectError(
+                self.peek(),
+                "What to put here???",
+                TokenType.IntegerLit,
+                TokenType.Identifier,
+            )
         return NodeExprRange(start, end, inclusive)
 
     def parse_print_stmt(self) -> NodeStmtPrint:
@@ -237,10 +249,17 @@ class Parser:
     def argv(self) -> NodeExprArgv:
         self.consume(TokenType.Identifier, "Expected `argv`")
         self.consume(TokenType.OpenBracket, "Expected `[` in argv access")
-        token = self.consume(
-            TokenType.IntegerLit,
-            "Expected `IntLiteral` to access argv. Currently only IntLiteral are supported.",
-        )
+        if self.check(TokenType.IntegerLit):
+            token = self.advance()
+        elif self.check(TokenType.Identifier):
+            token = self.advance()
+        else:
+            raise ParserExpectError(
+                self.peek(),
+                "Expected `IntLiteral` to access argv. Currently only IntLiteral are supported.",
+                TokenType.IntegerLit,
+                TokenType.Identifier,
+            )
         self.consume(TokenType.CloseBracket, "Expected `]` in argv access")
         return NodeExprArgv(token)
 
@@ -250,7 +269,7 @@ class Parser:
     def consume(self, ttype: TokenType, msg: str) -> Token:
         if self.check(ttype):
             return self.advance()
-        raise ParserExpectError(token=self.peek(), expected=ttype, msg=msg)
+        raise ParserExpectError(self.peek(), msg, ttype)
 
     def advance(self) -> Token:
         if self.is_eof():
