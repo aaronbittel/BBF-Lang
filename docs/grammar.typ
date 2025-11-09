@@ -10,12 +10,15 @@ $
                     "Declaration",
                     "Assignment",
                     "If-Statement",
+                    "For-Loop",
                     ) \
 "Declaration" arrow &  "Identifier : (" #e("Int") | #e("String") ")" = "Expression" \
 "Assignment" arrow & "Identifier" = "Expression" \
 "If-Statement" arrow & "if Condition then {Statement} {Elif-Statement} [Else-Statement] end" \
 "Elif-Statement" arrow & "elif Condition then {Statement}" \
 "Else-Statement" arrow & "else {Statement}" \
+"For-Loop" arrow & "for Identifier in Range do {Statement} end" \
+"Range" arrow & "Digit"..[#e("=")]"Digit" \
 "Expression" arrow & "Equality" \
 "Equality" arrow & "Comparison" ( (#e("!=") | #e("==")) "Comparison" )* \
 "Comparison" arrow & "Term" ((#e(">") | #e(">=") | #e("<") | #e("<=")) "Term")* \
@@ -28,6 +31,9 @@ $
     & | "Identifier" \
     & | #e("(") "Expression" #e(")") \
     & | "argv" #e("[") "IntegerLit" #e("]") \
-"Condition" arrow & "Expression"
+"Condition" arrow & "Expression" \
+"Identifier" arrow & "Letter" ("Letter" | "Digit" )* \
+"Letter" arrow & #e("A")..#e("Z") | #e("a")..#e("z") | #e("_") \
+"Digit" arrow & #e("0")..#e("9") \
 $
 

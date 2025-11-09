@@ -25,6 +25,9 @@ class TokenType(StrEnum):
     End = auto()
     Not = auto()
     Elif = auto()
+    For = auto()
+    Do = auto()
+    In = auto()
 
     # Single Char Tokens
     OpenParen = auto()
@@ -40,6 +43,7 @@ class TokenType(StrEnum):
     Colon = auto()
     Greater = auto()
     Less = auto()
+    Dot = auto()
 
     # Double Char Tokens
     GreaterEqual = auto()
@@ -65,6 +69,9 @@ BUILTINS = {
     "not": TokenType.Not,
     "else": TokenType.Else,
     "elif": TokenType.Elif,
+    "for": TokenType.For,
+    "do": TokenType.Do,
+    "in": TokenType.In,
 }
 
 
@@ -147,6 +154,9 @@ class Lexer:
             self.advance()
         elif ch == ":":
             token = self._create_token(ttype=TokenType.Colon, value=":")
+            self.advance()
+        elif ch == ".":
+            token = self._create_token(ttype=TokenType.Dot, value=".")
             self.advance()
         elif ch == ">":
             if self.peek(1) == "=":

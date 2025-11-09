@@ -18,6 +18,7 @@ from bbf.parser import (
     NodeStmtAssign,
     NodeStmtDecl,
     NodeStmtExit,
+    NodeStmtFor,
     NodeStmtIf,
     NodeStmtPrint,
 )
@@ -33,6 +34,7 @@ class CodeGenerator:
         self.strings: list[str] = []
         self.if_label_count = 0
         self.elif_label_count = 0
+        self.loop_count = 0
 
     def write_to(self, file: TextIO) -> None:
         self.emitter.write_to(file)
@@ -50,22 +52,24 @@ class CodeGenerator:
         self.static_section()
         self.bss_section()
 
-    def gen_stmt(self, node_stmt: NodeStmt) -> None:
-        node_str = str(node_stmt)
+    def gen_stmt(self, stmt: NodeStmt) -> None:
+        node_str = str(stmt)
         for l in node_str.split("\n"):
             self.emitter.emit(f"; {l}")
-        if isinstance(node_stmt.stmt, NodeStmtExit):
-            self.gen_stmt_exit(node_stmt.stmt)
-        elif isinstance(node_stmt.stmt, NodeStmtDecl):
-            self.gen_stmt_decl(node_stmt.stmt)
-        elif isinstance(node_stmt.stmt, NodeStmtAssign):
-            self.gen_stmt_assign(node_stmt.stmt)
-        elif isinstance(node_stmt.stmt, NodeStmtIf):
-            self.gen_stmt_if(node_stmt.stmt)
-        elif isinstance(node_stmt.stmt, NodeStmtPrint):
-            self.gen_stmt_print(node_stmt.stmt)
+        if isinstance(stmt.stmt, NodeStmtExit):
+            self.gen_stmt_exit(stmt.stmt)
+        elif isinstance(stmt.stmt, NodeStmtDecl):
+            self.gen_stmt_decl(stmt.stmt)
+        elif isinstance(stmt.stmt, NodeStmtAssign):
+            self.gen_stmt_assign(stmt.stmt)
+        elif isinstance(stmt.stmt, NodeStmtIf):
+            self.gen_stmt_if(stmt.stmt)
+        elif isinstance(stmt.stmt, NodeStmtPrint):
+            self.gen_stmt_print(stmt.stmt)
+        elif isinstance(stmt.stmt, NodeStmtFor):
+            self.gen_stmt_for(stmt.stmt)
         else:
-            raise CodeGenError(f"ERROR: unexpected NodeStmt: {node_stmt}")
+            raise CodeGenError(f"ERROR: unexpected NodeStmt: {stmt}")
 
     def gen_stmt_exit(self, stmt: NodeStmtExit) -> None:
         expr = stmt.expr
@@ -197,6 +201,36 @@ class CodeGenerator:
         self.emitter.emit(f".end_{self.if_label_count}_label:", indent=0)
         self.if_label_count += 1
         self.elif_label_count = 0
+
+    def gen_stmt_for(self, stmt: NodeStmtFor) -> None:
+        # NOTE: currently for loops just declare a variable that will not be cleaned up
+        # after the loop
+        ident, range_expr, stmts = stmt.ident, stmt.range_expr, stmt.stmts
+        varinfo = self.symbol_table.lookup(ident.value)
+        # TODO: move this into seperate type checking section
+        if varinfo is not None and varinfo.ttype != VarType.Int:
+            raise CodeGenError(
+                f"Loop variable must be of type `Int`, not `{varinfo.ttype}`"
+            )
+        self.symbol_table.define(ident.value, ttype=VarType.Int)
+        self.emitter.emit(f"mov rax, {range_expr.start.value} ; range start")
+        self.emitter.emit(f"push rax")
+        self.emitter.emit(f"loop_{self.loop_count}_start:", indent=0)
+        for s in stmts:
+            self.gen_stmt(s)
+        range_ident = self.symbol_table.lookup(ident.value)
+        assert range_ident is not None, f"{ident.value} was just created"
+        self.emitter.emit(
+            f"inc qword [rbp{range_ident.offset:+d}] ; increment loop variable"
+        )
+        self.emitter.emit(
+            f"cmp qword [rbp{range_ident.offset:+d}], {range_expr.end.value} ; check if condition"
+        )
+        if range_expr.inclusive:
+            self.emitter.emit(f"jle loop_{self.loop_count}_start")
+        else:
+            self.emitter.emit(f"jl loop_{self.loop_count}_start")
+        self.loop_count += 1
 
     # TODO: in grammar: print ( Expression ) -> so just self.gen_expr()
     # but how do I know if String or Int ? -> somehow get expression result type?

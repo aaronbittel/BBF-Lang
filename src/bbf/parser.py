@@ -3,14 +3,22 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass, field
 
-from _pytest.nodes import Node
 
 from bbf.lexer import Token, TokenType
 from bbf.symbol_table import VarType
 from bbf.utils import eprint
 
 
-class ParserExpectError(Exception):
+class ParserError(Exception):
+    def __init__(self, token: Token, msg: str) -> None:
+        self.token = token
+        self.msg = msg
+
+    def __str__(self) -> str:
+        return f"ERROR: {self.token.position}: {self.msg}"
+
+
+class ParserExpectError(ParserError):
     def __init__(self, token: Token, expected: TokenType, msg: str) -> None:
         self.token = token
         self.expected = expected
@@ -43,11 +51,11 @@ class Parser:
             stmt = self.parse_print_stmt()
         elif self.check(TokenType.If):
             stmt = self.parse_if_stmt()
+        elif self.check(TokenType.For):
+            stmt = self.parse_for_stmt()
         else:
             token = self.peek()
-            assert token is not None, "checke in `parse_program` that there is a token"
-            eprint(f"ERROR: {token.position} unexpected token {token.value}")
-            sys.exit(1)
+            raise ParserError(token=token, msg=f"unexpected token: {token.value}")
         return NodeStmt(stmt)
 
     def parse_decl_stmt(self) -> NodeStmtDecl:
@@ -58,11 +66,8 @@ class Parser:
         elif self.match(TokenType.String):
             ttype = VarType.String
         else:
-            # no type annotation provided
-            # TODO: what is expected token type in this case?
-            raise ParserExpectError(
+            raise ParserError(
                 token=self.peek(),
-                expected=TokenType.Illegal,
                 msg="No type annotation provided",
             )
         self.consume(TokenType.Equal, "Expected `=` in declaration")
@@ -117,12 +122,36 @@ class Parser:
             )
         if self.previous().ttype == TokenType.End:
             return NodeStmtIf(condition=condition, if_stmts=if_stmts, elifs=elifs)
-        raise ParserExpectError(
+        raise ParserError(
             token=self.previous(),
-            # TODO: make this more accurate than Illegal?
-            expected=TokenType.Illegal,
             msg="Expected one of `end`, `else` or `elif` keywords",
         )
+
+    def parse_for_stmt(self) -> NodeStmtFor:
+        self.consume(TokenType.For, "Expected `for` in for loop")
+        ident = self.consume(TokenType.Identifier, "Expected `Identifier` in for loop")
+        self.consume(TokenType.In, "Expected `in` in for loop")
+        range_expr = self.range_expr()
+        self.consume(TokenType.Do, "Expected `do` in for loop")
+        stmts: list[NodeStmt] = []
+        while not self.match(TokenType.End):
+            stmts.append(self.parse_stmt())
+        return NodeStmtFor(ident, range_expr, stmts)
+
+    def range_expr(self) -> NodeExprRange:
+        start = self.consume(
+            TokenType.IntegerLit, "Expected `IntegerLit` as start for range expression"
+        )
+        self.consume(TokenType.Dot, "Expected `.` in range expression")
+        self.consume(TokenType.Dot, "Expected `.` in range expression")
+        inclusive = False
+        if self.check(TokenType.Equal):
+            self.advance()
+            inclusive = True
+        end = self.consume(
+            TokenType.IntegerLit, "Expected `IntegerLit` as end for range expression"
+        )
+        return NodeExprRange(start, end, inclusive)
 
     def parse_print_stmt(self) -> NodeStmtPrint:
         self.consume(TokenType.Print, "Expected `print` call")
@@ -258,7 +287,7 @@ class NodeProgram:
 
 @dataclass
 class NodeStmt:
-    stmt: NodeStmtExit | NodeStmtDecl | NodeStmtPrint | NodeStmtIf
+    stmt: NodeStmtExit | NodeStmtDecl | NodeStmtPrint | NodeStmtIf | NodeStmtFor
 
     def __str__(self) -> str:
         return str(self.stmt)
@@ -321,6 +350,30 @@ class NodeStmtIf:
             out += "else\n"
             for s in self.else_stmts:
                 out += f"\t{s}\n"
+        out += "end"
+        return out
+
+
+@dataclass
+class NodeExprRange:
+    start: Token
+    end: Token
+    inclusive: bool
+
+    def __str__(self) -> str:
+        return f"{self.start.value}..{'=' if self.inclusive else ''}{self.end.value}"
+
+
+@dataclass
+class NodeStmtFor:
+    ident: Token
+    range_expr: NodeExprRange
+    stmts: list[NodeStmt]
+
+    def __str__(self) -> str:
+        out = f"for {self.ident.value} in {self.range_expr} do\n"
+        for s in self.stmts:
+            out += f"\t{s}\n"
         out += "end"
         return out
 
