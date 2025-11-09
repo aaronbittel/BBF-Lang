@@ -1,16 +1,21 @@
 _builtin_exit = """
 __builtin_exit:
     mov rax, 60
-    syscall
-"""
+    syscall"""
 
 _builtin_print = """
 __builtin_print:
     mov rax, 1 ; sys_write
     mov rdi, 1 ; stdout
     syscall
-    ret
-"""
+    ret"""
+
+_builtin_eprint = """
+__builtin_eprint:
+    mov rax, 1 ; sys_write
+    mov rdi, 2 ; stderr
+    syscall
+    ret"""
 
 _builtin_atoi = """
 __builtin_atoi:
@@ -30,8 +35,7 @@ __builtin_atoi:
     jmp .loop
 
 .return:
-    ret
-"""
+    ret"""
 
 _builtin_itoa = """
 __builtin_itoa:
@@ -68,8 +72,7 @@ __builtin_itoa:
     lea rax, [__itoa_buf + r9] ; pointer to start of string
     mov rdx, 32
     sub rdx, r9 ; length
-    ret
-"""
+    ret"""
 
 _builtin_write = """
 ; rdi: ptr | rsi: length
@@ -82,5 +85,4 @@ __builtin_write:
     mov rsi, r8
     mov rdx, r9
     syscall
-    ret
-"""
+    ret"""

@@ -2,13 +2,7 @@ from __future__ import annotations
 
 from typing import TextIO
 
-from bbf.builtins import (
-    _builtin_atoi,
-    _builtin_exit,
-    _builtin_itoa,
-    _builtin_print,
-    _builtin_write,
-)
+from bbf import builtins as bbf_builtins
 from bbf.lexer import Token, TokenType
 from bbf.parser import (
     NodeExpr,
@@ -325,7 +319,6 @@ class CodeGenerator:
         self.emitter.emit("", indent=0)
         self.emitter.emit("_start:", indent=0)
         self.emitter.emit("; init base pointer")
-        self.emitter.emit("push rbp")
         self.emitter.emit("mov rbp, rsp")
         self.emitter.emit("")
 
@@ -338,11 +331,9 @@ class CodeGenerator:
         self.emitter.emit("")
         self.emitter.emit("; BUILTIN FUNCTIONS", indent=0)
 
-        self.emitter.multi(_builtin_exit)
-        self.emitter.multi(_builtin_print)
-        self.emitter.multi(_builtin_atoi)
-        self.emitter.multi(_builtin_itoa)
-        self.emitter.multi(_builtin_write)
+        for name, code in vars(bbf_builtins).items():
+            if name.startswith("_builtin_"):
+                self.emitter.multi(code)
 
     def static_section(self) -> None:
         self.emitter.emit("")
