@@ -11,22 +11,23 @@ $
                     "Assignment",
                     "If-Statement",
                     ) \
-"Declaration" arrow &  "Identifier : (" #(e("Int")) | #(e("String")) ")" = "Expression" \
+"Declaration" arrow &  "Identifier : (" #e("Int") | #e("String") ")" = "Expression" \
 "Assignment" arrow & "Identifier" = "Expression" \
 "If-Statement" arrow & "if Condition then {Statement} {Elif-Statement} [Else-Statement] end" \
 "Elif-Statement" arrow & "elif Condition then {Statement}" \
 "Else-Statement" arrow & "else {Statement}" \
 "Expression" arrow & "Equality" \
-"Equality" arrow & "Comparison" ( (#(e("!=")) | #(e("=="))) "Comparison" )* \
-"Comparison" arrow & "Term" ((#(e(">")) | #(e(">=")) | #(e("<")) | #(e("<="))) "Term")* \
-"Term" arrow & "Factor" ((#(e("-")) | #(e("+"))) "Factor")* \
-"Factor" arrow & "Unary" (((#e("/")) | #(e("*")) | #(e("%"))) "Unary")* \
+"Equality" arrow & "Comparison" ( (#e("!=") | #e("==")) "Comparison" )* \
+"Comparison" arrow & "Term" ((#e(">") | #e(">=") | #e("<") | #e("<=")) "Term")* \
+"Term" arrow & "Factor" ((#e("-") | #e("+")) "Factor")* \
+"Factor" arrow & "Unary" ((#e("/") | #e("*") | #e("%")) "Unary")* \
 "Unary" arrow & ( #(e("-")) | "not") "Unary" \ & | "Primary" \
 "Primary" arrow
     & "IntegerLit" \
     & | "StringLit" \
     & | "Identifier" \
-    & | #e(("(")) "Expression" #e((")")) \
+    & | #e("(") "Expression" #e(")") \
+    & | "argv" #e("[") "IntegerLit" #e("]") \
 "Condition" arrow & "Expression"
 $
 

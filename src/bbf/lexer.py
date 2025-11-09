@@ -29,6 +29,8 @@ class TokenType(StrEnum):
     # Single Char Tokens
     OpenParen = auto()
     CloseParen = auto()
+    OpenBracket = auto()
+    CloseBracket = auto()
     Equal = auto()
     Plus = auto()
     Minus = auto()
@@ -50,7 +52,7 @@ class TokenType(StrEnum):
 
 
 BUILTINS = {
-    # Functions
+    # Builtin Functions
     "exit": TokenType.Exit,
     "print": TokenType.Print,
     # Types
@@ -121,6 +123,12 @@ class Lexer:
             self.advance()
         elif ch == ")":
             token = self._create_token(ttype=TokenType.CloseParen, value=")")
+            self.advance()
+        elif ch == "[":
+            token = self._create_token(ttype=TokenType.OpenBracket, value="[")
+            self.advance()
+        elif ch == "]":
+            token = self._create_token(ttype=TokenType.CloseBracket, value="]")
             self.advance()
         elif ch == "+":
             token = self._create_token(ttype=TokenType.Plus, value="+")

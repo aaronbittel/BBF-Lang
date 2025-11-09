@@ -1,0 +1,17 @@
+print("Program Name: ") print(argv[0]) print("\n")
+
+if argc >= 2 then
+    print("Argv[1]: ") print(argv[1]) print("\n")
+end
+
+if argc >= 3 then
+    print("Argv[2]: ") print(argv[2]) print("\n")
+end
+
+if argc >= 4 then
+    print("Argv[3]: ") print(argv[3]) print("\n")
+end
+
+if argc >= 5 then
+    print("And ") print(argc - 4) print(" more...")
+end

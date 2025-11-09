@@ -50,7 +50,6 @@ __builtin_itoa:
 
 .positive:
     mov r9, 31 ; r9: index
-    mov byte [__itoa_buf+r9], 10 ; write <newline> at the end
 
 .loop:
     dec r9
@@ -85,4 +84,19 @@ __builtin_write:
     mov rsi, r8
     mov rdx, r9
     syscall
+    ret"""
+
+_builtin_c_strlen = """
+; rdi: ptr
+__builtin_c_strlen:
+    xor rax, rax
+
+.loop:
+    cmp byte [rdi], 0
+    je .return
+    inc rdi
+    inc rax
+    jmp .loop
+
+.return:
     ret"""

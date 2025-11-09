@@ -179,17 +179,41 @@ class Parser:
         return self.primary()
 
     def primary(self) -> NodeExpr:
-        if self.match(TokenType.IntegerLit):
-            return NodeExpr(NodeExprIntLit(self.previous()))
-        if self.match(TokenType.Identifier):
-            return NodeExpr(NodeExprIdent(self.previous()))
-        if self.match(TokenType.OpenParen):
+        if self.check(TokenType.IntegerLit):
+            return NodeExpr(
+                NodeExprIntLit(
+                    self.consume(TokenType.IntegerLit, msg="Expected `IntegerLit`")
+                )
+            )
+        if self.check(TokenType.Identifier) and self.peek().value == "argv":
+            return NodeExpr(self.argv())
+        if self.check(TokenType.Identifier):
+            return NodeExpr(
+                NodeExprIdent(
+                    self.consume(TokenType.Identifier, "Expected `Identifier`")
+                )
+            )
+        if self.check(TokenType.OpenParen):
             expr = self.expression()
             self.consume(TokenType.CloseParen, "Expect ')' after expression.")
             return NodeExpr(NodeExprGrouping(expr))
-        if self.match(TokenType.StringLit):
-            return NodeExpr(NodeExprStringLit(self.previous()))
-        assert False, "unreachable"
+        if self.check(TokenType.StringLit):
+            return NodeExpr(
+                NodeExprStringLit(
+                    self.consume(TokenType.StringLit, "Expected `StringLiteral`")
+                )
+            )
+        assert False, f"unreachable: {self.peek()}"
+
+    def argv(self) -> NodeExprArgv:
+        self.consume(TokenType.Identifier, "Expected `argv`")
+        self.consume(TokenType.OpenBracket, "Expected `[` in argv access")
+        token = self.consume(
+            TokenType.IntegerLit,
+            "Expected `IntLiteral` to access argv. Currently only IntLiteral are supported.",
+        )
+        self.consume(TokenType.CloseBracket, "Expected `]` in argv access")
+        return NodeExprArgv(token)
 
     def peek(self, offset: int = 0) -> Token:
         return self.tokens[self.index + offset]
@@ -318,6 +342,7 @@ class NodeExpr:
         | NodeExprBinary
         | NodeExprUnary
         | NodeExprGrouping
+        | NodeExprArgv
     )
 
     def __str__(self) -> str:
@@ -373,3 +398,11 @@ class NodeExprGrouping:
 
     def __str__(self) -> str:
         return f"( {self.expr} )"
+
+
+@dataclass
+class NodeExprArgv:
+    index: Token
+
+    def __str__(self) -> str:
+        return f"argv[{self.index.value}]"

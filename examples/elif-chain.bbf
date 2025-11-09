@@ -1,0 +1,13 @@
+age: Int = 80
+
+if age < 18  then
+    print("under 18")
+elif age < 30 then
+    print("between 18 and 30")
+elif age < 50 then
+    print("between 30 and 50")
+elif age < 80 then
+    print("between 50 and 80")
+else
+    print("80+")
+end

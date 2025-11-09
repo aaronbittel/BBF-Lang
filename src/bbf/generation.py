@@ -6,6 +6,7 @@ from bbf import builtins as bbf_builtins
 from bbf.lexer import Token, TokenType
 from bbf.parser import (
     NodeExpr,
+    NodeExprArgv,
     NodeExprBinary,
     NodeExprGrouping,
     NodeExprIdent,
@@ -97,7 +98,7 @@ class CodeGenerator:
                 f"ERROR: {ident.position}: undefined variable `{ident.value}`"
             )
         self.emitter.emit("pop rax")
-        self.emitter.emit(f"mov [rbp-{varinfo.offset}], rax")
+        self.emitter.emit(f"mov [rbp{varinfo.offset:+d}], rax")
 
     def gen_stmt_if(self, stmt: NodeStmtIf) -> None:
         var = stmt.condition.var
@@ -197,6 +198,8 @@ class CodeGenerator:
         self.if_label_count += 1
         self.elif_label_count = 0
 
+    # TODO: in grammar: print ( Expression ) -> so just self.gen_expr()
+    # but how do I know if String or Int ? -> somehow get expression result type?
     def gen_stmt_print(self, stmt: NodeStmtPrint) -> None:
         if isinstance(stmt.expr.var, NodeExprStringLit):
             self.gen_expr(stmt.expr)  # length, str-addr on stack
@@ -232,9 +235,25 @@ class CodeGenerator:
             elif varinfo.ttype == VarType.String:
                 ptr_offset = varinfo.offset
                 len_offset = varinfo.offset + 8
-                self.emitter.emit(f"mov rdi, [rbp-{ptr_offset}] ; load str ptr")
-                self.emitter.emit(f"mov rsi, [rbp-{len_offset}] ; load str len")
+                self.emitter.emit(f"mov rdi, [rbp{ptr_offset:+d}] ; load str ptr")
+                self.emitter.emit(f"mov rsi, [rbp{len_offset:+d}] ; load str len")
                 self.emitter.emit("call __builtin_write")
+        elif isinstance(stmt.expr.var, NodeExprArgv):
+            index = stmt.expr.var.index
+            try:
+                offset = (int(index.value) + 1) * 8
+            except ValueError:
+                raise CodeGenError(
+                    "`argv` can only be access by an IntergerLiteral right now."
+                )
+            self.emitter.emit(f"mov rdi, [rbp{offset:+d}] ; load argv{index.value} ptr")
+            self.emitter.emit(
+                "push rdi ; save rdi to stack because _builtin_c_strlen messes with rdi ptr"
+            )
+            self.emitter.emit("call __builtin_c_strlen")
+            self.emitter.emit("mov rsi, rax ; move length to rsi")
+            self.emitter.emit("pop rdi")
+            self.emitter.emit("call __builtin_write")
         else:
             assert False, f"not implemented: {stmt.expr.var}, {type(stmt.expr.var)}"
 
@@ -259,7 +278,7 @@ class CodeGenerator:
                     f"ERROR: {ident.position}: identifier `{ident.value}` was not defined"
                 )
             self.emitter.emit(
-                f"push qword [rbp-{varinfo.offset}] ; push value from variable {ident.value}"
+                f"push qword [rbp{varinfo.offset:+d}] ; push value from variable {ident.value}"
             )
         elif isinstance(expr.var, NodeExprBinary):
             binary = expr.var
