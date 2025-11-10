@@ -464,10 +464,10 @@ class NodeExprStringLit:
 
 @dataclass
 class NodeExprIdent:
-    ident: Token
+    token: Token
 
     def __str__(self) -> str:
-        return self.ident.value
+        return self.token.value
 
 
 @dataclass

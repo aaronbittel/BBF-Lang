@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TextIO
 
 from bbf import builtins as bbf_builtins
-from bbf.lexer import Token, TokenType
+from bbf.lexer import TokenType
 from bbf.parser import (
     NodeExpr,
     NodeExprArgv,
@@ -261,11 +261,12 @@ class CodeGenerator:
             self.gen_expr(stmt.expr)  # literal on stack
             self.emitter.emit("pop rdi")
             self.emitter.emit("call __builtin_itoa")
-            self.emitter.emit("mov rdi, rax")
-            self.emitter.emit("mov rsi, rdx")
+            self.emitter.emit("mov rsi, rax ; str_ptr")
+            self.emitter.emit("; len already in rdx")
+            self.emitter.emit(f"mov rdi, {stmt.fd} ; fd")
             self.emitter.emit("call __builtin_write")
         elif isinstance(stmt.expr.var, NodeExprIdent):
-            ident = stmt.expr.var.ident
+            ident = stmt.expr.var.token
             varinfo = self.symbol_table.lookup(ident.value)
             if varinfo is None:
                 raise CodeGenError(
@@ -275,14 +276,16 @@ class CodeGenerator:
                 self.gen_expr(stmt.expr)  # literal on stack
                 self.emitter.emit("pop rdi")
                 self.emitter.emit("call __builtin_itoa")
-                self.emitter.emit("mov rdi, rax")
-                self.emitter.emit("mov rsi, rdx")
+                self.emitter.emit("mov rsi, rax ; str_ptr")
+                self.emitter.emit("; len already in rdx")
+                self.emitter.emit(f"mov rdi, {stmt.fd} ; fd")
                 self.emitter.emit("call __builtin_write")
             elif varinfo.ttype == VarType.String:
                 ptr_offset = varinfo.offset
-                len_offset = varinfo.offset + 8
-                self.emitter.emit(f"mov rdi, [rbp{ptr_offset:+d}] ; load str ptr")
-                self.emitter.emit(f"mov rsi, [rbp{len_offset:+d}] ; load str len")
+                len_offset = varinfo.offset - 8
+                self.emitter.emit(f"mov rsi, [rbp{ptr_offset:+d}] ; load str ptr")
+                self.emitter.emit(f"mov rdx, [rbp{len_offset:+d}] ; load str len")
+                self.emitter.emit(f"mov rdi, {stmt.fd} ; fd")
                 self.emitter.emit("call __builtin_write")
         elif isinstance(stmt.expr.var, NodeExprArgv):
             expr = stmt.expr.var.expr
@@ -309,130 +312,153 @@ class CodeGenerator:
     def gen_expr(self, expr: NodeExpr) -> None:
         """Generate code for an expression.
 
-        Always moves the result onto the stack.
+        Always pushes the results onto the stack.
         """
         if isinstance(expr.var, NodeExprIntLit):
-            self.gen_node_expr_intlit(expr.var.token)
+            self.gen_node_expr_intlit(expr.var)
         elif isinstance(expr.var, NodeExprIdent):
-            self.gen_node_expr_ident(expr.var.ident)
+            self.gen_node_expr_ident(expr.var)
         elif isinstance(expr.var, NodeExprBinary):
-            binary = expr.var
-            self.gen_expr(expr.var.lhs)
-            self.gen_expr(expr.var.rhs)
-            self.emitter.emit("pop rbx; pop rhs")
-            self.emitter.emit("pop rax; pop lhs")
-            if binary.operator.ttype == TokenType.Plus:
-                self.emitter.emit("; addition")
-                self.emitter.emit("add rax, rbx")
-                self.emitter.emit("push rax; push result")
-            elif binary.operator.ttype == TokenType.Minus:
-                self.emitter.emit("; subtraction")
-                self.emitter.emit("sub rax, rbx")
-                self.emitter.emit("push rax; push result")
-            elif binary.operator.ttype == TokenType.Star:
-                self.emitter.emit("; multiplication")
-                self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
-                self.emitter.emit("imul rbx")
-                self.emitter.emit("push rax; push result")
-            elif binary.operator.ttype == TokenType.Slash:
-                self.emitter.emit("; division")
-                self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
-                self.emitter.emit("idiv rbx")
-                self.emitter.emit("push rax; push result")
-            elif binary.operator.ttype == TokenType.Percent:
-                self.emitter.emit("; modulo")
-                self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
-                self.emitter.emit("idiv rbx")
-                self.emitter.emit("push rdx; push result (remainder always in rdx)")
-            elif binary.operator.ttype in COMPARISON_SETCC:
-                setcc_mnemonic = COMPARISON_SETCC[binary.operator.ttype]
-                self.emitter.emit("cmp rax, rbx")
-                self.emitter.emit(f"{setcc_mnemonic} al ; set AL = 1 if condition")
-                self.emitter.emit("movzx rax, al ; zero-extend AL to RAX")
-                self.emitter.emit("push rax ; push result")
-                self.comparison_count += 1
-            else:
-                assert False, f"unreachable {binary.operator.ttype}"
+            self.gen_node_expr_binary(expr.var)
         elif isinstance(expr.var, NodeExprUnary):
-            unary = expr.var
-            self.gen_expr(unary.expr)
-            if unary.operator.ttype == TokenType.Minus:
-                self.emitter.emit("; negate (unary)")
-                self.emitter.emit("pop rax")
-                self.emitter.emit("imul rax, -1")
-                self.emitter.emit("push rax")
-            elif unary.operator.ttype == TokenType.Not:
-                self.emitter.emit("; <not>")
-                self.emitter.emit("pop rax")
-                self.emitter.emit("cmp rax, 0")
-                self.emitter.emit(f"{COMPARISON_SETCC[TokenType.EqualEqual]} al")
-                self.emitter.emit("movzx rax, al ; zero-extend AL to RAX")
-                self.emitter.emit("push rax ; push result")
-            elif unary.operator.ttype == TokenType.Plus:
-                pass
-            else:
-                raise CodeGenError(
-                    f"ERROR: {unary.operator.position}: unsupported unary operator type {unary.operator}"
-                )
+            self.gen_node_expr_unary(expr.var)
         elif isinstance(expr.var, NodeExprGrouping):
             self.gen_expr(expr.var.expr)
         elif isinstance(expr.var, NodeExprStringLit):
-            self.strings.append(expr.var.token.value)
-            label = make_string_label(len(self.strings) - 1)
-            len_label = f"{label}_len"
-            self.emitter.emit("; load string literal")
-            self.emitter.emit("; push string addr")
-            self.emitter.emit(f"lea rax, [{label}]")
-            self.emitter.emit("push rax")
-            self.emitter.emit("; push string length")
-            self.emitter.emit(f"push qword [{len_label}]")
+            self.gen_node_expr_stringlit(expr.var)
         elif isinstance(expr.var, NodeExprArgv):
-            argv = expr.var
-            self.gen_expr(argv.expr)
-
-            self.emitter.emit("pop rax")
-            self.emitter.emit("imul rax, 8 ; calc offset into argv")
-            self.emitter.emit("lea rbx, [rbp + rax + 8] ; +8 to skip argc")
-            self.emitter.emit("mov rdi, [rbx]")
-
-            self.emitter.emit("push rdi ; str_len")
-            self.emitter.emit("call __builtin_c_strlen")
-            self.emitter.emit("push rax ; str_len")
+            self.gen_node_expr_argv(expr.var)
         elif isinstance(expr.var, NodeExprAtoi):
-            atoi = expr.var
-            self.gen_expr(atoi.expr)
-            # NOTE: This will break if expression does not evaluate to a string
-            self.emitter.emit("pop rsi ; str_len")
-            self.emitter.emit("pop rdi ; str_ptr")
-            self.emitter.emit("call __builtin_atoi")
-            self.emitter.emit("push rax")
+            self.gen_node_expr_atoi(expr.var)
         else:
             assert False, f"unreachable: {expr.var}"
 
-    # NOTE: Should this be Token?
-    def gen_node_expr_intlit(self, intlit: Token) -> None:
+    def gen_expr_as_string(self, expr: NodeExpr) -> None:
+        self.gen_expr(expr)
+        if isinstance(expr, NodeExprIntLit):
+            self.emitter.emit("pop rdi")
+            self.emitter.emit("call __builtin_itoa")
+            self.emitter.emit("push rax ; str_ptr")
+            self.emitter.emit("push rdx ; str_len")
+        elif isinstance(expr, NodeExprStringLit) or isinstance(expr, NodeExprArgv):
+            pass  # do nothing
+        else:
+            raise CodeGenError(f"`gen_expr_as_string` not implemented for {expr}")
+
+    def gen_node_expr_intlit(self, intlit: NodeExprIntLit) -> None:
         # NOTE: What to do when value already exists?
-        self.emitter.emit(f"mov rax, {intlit.value}; pushing {intlit.value}")
+        self.emitter.emit(
+            f"mov rax, {intlit.token.value}; pushing {intlit.token.value}"
+        )
         self.emitter.emit("push rax")
 
-    # NOTE: Should this be Token?
-    def gen_node_expr_ident(self, ident: Token) -> None:
-        varinfo = self.symbol_table.lookup(ident.value)
+    def gen_node_expr_ident(self, ident: NodeExprIdent) -> None:
+        varinfo = self.symbol_table.lookup(ident.token.value)
         if varinfo is None:
             is_numeric_with_underscores = lambda value: all(
                 ch.isdigit() or ch == "_" for ch in value
             )
             extra = (
                 " Did you mean to write a number?"
-                if is_numeric_with_underscores(ident.value)
+                if is_numeric_with_underscores(ident.token.value)
                 else ""
             )
             raise CodeGenError(
-                f"ERROR: {ident.position}: identifier `{ident.value}` was not defined.{extra}"
+                f"ERROR: {ident.token.position}: identifier `{ident.token.value}` was not defined.{extra}"
             )
         self.emitter.emit(
-            f"push qword [rbp{varinfo.offset:+d}] ; push value from variable {ident.value}"
+            f"push qword [rbp{varinfo.offset:+d}] ; push value from variable {ident.token.value}"
         )
+
+    def gen_node_expr_binary(self, binary: NodeExprBinary) -> None:
+        self.gen_expr(binary.lhs)
+        self.gen_expr(binary.rhs)
+        self.emitter.emit("pop rbx; pop rhs")
+        self.emitter.emit("pop rax; pop lhs")
+        if binary.operator.ttype == TokenType.Plus:
+            self.emitter.emit("; addition")
+            self.emitter.emit("add rax, rbx")
+            self.emitter.emit("push rax; push result")
+        elif binary.operator.ttype == TokenType.Minus:
+            self.emitter.emit("; subtraction")
+            self.emitter.emit("sub rax, rbx")
+            self.emitter.emit("push rax; push result")
+        elif binary.operator.ttype == TokenType.Star:
+            self.emitter.emit("; multiplication")
+            self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
+            self.emitter.emit("imul rbx")
+            self.emitter.emit("push rax; push result")
+        elif binary.operator.ttype == TokenType.Slash:
+            self.emitter.emit("; division")
+            self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
+            self.emitter.emit("idiv rbx")
+            self.emitter.emit("push rax; push result")
+        elif binary.operator.ttype == TokenType.Percent:
+            self.emitter.emit("; modulo")
+            self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
+            self.emitter.emit("idiv rbx")
+            self.emitter.emit("push rdx; push result (remainder always in rdx)")
+        elif binary.operator.ttype in COMPARISON_SETCC:
+            setcc_mnemonic = COMPARISON_SETCC[binary.operator.ttype]
+            self.emitter.emit("cmp rax, rbx")
+            self.emitter.emit(f"{setcc_mnemonic} al ; set AL = 1 if condition")
+            self.emitter.emit("movzx rax, al ; zero-extend AL to RAX")
+            self.emitter.emit("push rax ; push result")
+            self.comparison_count += 1
+        else:
+            assert False, f"unreachable {binary.operator.ttype}"
+
+    def gen_node_expr_unary(self, unary: NodeExprUnary) -> None:
+        self.gen_expr(unary.expr)
+        if unary.operator.ttype == TokenType.Minus:
+            self.emitter.emit("; negate (unary)")
+            self.emitter.emit("pop rax")
+            self.emitter.emit("imul rax, -1")
+            self.emitter.emit("push rax")
+        elif unary.operator.ttype == TokenType.Not:
+            self.emitter.emit("; <not>")
+            self.emitter.emit("pop rax")
+            self.emitter.emit("cmp rax, 0")
+            self.emitter.emit(f"{COMPARISON_SETCC[TokenType.EqualEqual]} al")
+            self.emitter.emit("movzx rax, al ; zero-extend AL to RAX")
+            self.emitter.emit("push rax ; push result")
+        elif unary.operator.ttype == TokenType.Plus:
+            pass  # Ignore +
+        else:
+            raise CodeGenError(
+                f"ERROR: {unary.operator.position}: unsupported unary operator type {unary.operator}"
+            )
+
+    def gen_node_expr_stringlit(self, stringlit: NodeExprStringLit) -> None:
+        self.strings.append(stringlit.token.value)
+        label = make_string_label(len(self.strings) - 1)
+        len_label = f"{label}_len"
+        self.emitter.emit("; load string literal")
+        self.emitter.emit("; push string addr")
+        self.emitter.emit(f"lea rax, [{label}]")
+        self.emitter.emit("push rax")
+        self.emitter.emit("; push string length")
+        self.emitter.emit(f"push qword [{len_label}]")
+
+    def gen_node_expr_argv(self, argv: NodeExprArgv) -> None:
+        self.gen_expr(argv.expr)
+
+        self.emitter.emit("pop rax")
+        self.emitter.emit("imul rax, 8 ; calc offset into argv")
+        self.emitter.emit("lea rbx, [rbp + rax + 8] ; +8 to skip argc")
+        self.emitter.emit("mov rdi, [rbx]")
+
+        self.emitter.emit("push rdi ; str_len")
+        self.emitter.emit("call __builtin_c_strlen")
+        self.emitter.emit("push rax ; str_len")
+
+    def gen_node_expr_atoi(self, atoi: NodeExprAtoi) -> None:
+        self.gen_expr(atoi.expr)
+        # NOTE: This will break if expression does not evaluate to a string
+        self.emitter.emit("pop rsi ; str_len")
+        self.emitter.emit("pop rdi ; str_ptr")
+        self.emitter.emit("call __builtin_atoi")
+        self.emitter.emit("push rax")
 
     def program_prologue(self) -> None:
         self.emitter.emit("global _start", indent=0)
