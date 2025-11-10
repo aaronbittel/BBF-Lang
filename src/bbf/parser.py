@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-
 from bbf.lexer import Token, TokenType
 from bbf.symbol_table import VarType
 
@@ -201,6 +200,14 @@ class Parser:
 
     def unary(self) -> NodeExpr:
         if self.match(TokenType.Minus):
+            operator = self.previous()
+            right = self.unary()
+            return NodeExpr(NodeExprUnary(operator, right))
+        if self.match(TokenType.Plus):
+            operator = self.previous()
+            right = self.unary()
+            return NodeExpr(NodeExprUnary(operator, right))
+        if self.match(TokenType.Not):
             operator = self.previous()
             right = self.unary()
             return NodeExpr(NodeExprUnary(operator, right))
@@ -435,10 +442,10 @@ class NodeExprBinary:
 @dataclass
 class NodeExprUnary:
     operator: Token
-    right: NodeExpr
+    expr: NodeExpr
 
     def __str__(self) -> str:
-        return f"( {self.operator.value} {self.right} )"
+        return f"( {self.operator.value} {self.expr} )"
 
 
 @dataclass

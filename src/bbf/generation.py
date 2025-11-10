@@ -54,8 +54,8 @@ class CodeGenerator:
 
     def gen_stmt(self, stmt: NodeStmt) -> None:
         node_str = str(stmt)
-        for l in node_str.split("\n"):
-            self.emitter.emit(f"; {l}")
+        for line in node_str.split("\n"):
+            self.emitter.emit(f"; {line}")
         if isinstance(stmt.stmt, NodeStmtExit):
             self.gen_stmt_exit(stmt.stmt)
         elif isinstance(stmt.stmt, NodeStmtDecl):
@@ -336,11 +336,20 @@ class CodeGenerator:
                 assert False, f"unreachable {binary.operator.ttype}"
         elif isinstance(expr.var, NodeExprUnary):
             unary = expr.var
-            assert unary.operator.ttype == TokenType.Minus
-            assert isinstance(unary.right.var, NodeExprIntLit)
-            int_lit = unary.right.var.token
-            self.emitter.emit(f"mov rax, {unary.operator.value}{int_lit.value}")
-            self.emitter.emit("push rax")
+            self.gen_expr(unary.expr)
+            if unary.operator.ttype == TokenType.Minus:
+                self.emitter.emit("; negate (unary)")
+                self.emitter.emit("pop rax")
+                self.emitter.emit("imul rax, -1")
+                self.emitter.emit("push rax")
+            elif unary.operator.ttype == TokenType.Not:
+                assert False, "boolean operation `not` is not implemented yet"
+            elif unary.operator.ttype == TokenType.Plus:
+                pass
+            else:
+                raise CodeGenError(
+                    f"ERROR: {unary.operator.position}: unsupported unary operator type {unary.operator}"
+                )
         elif isinstance(expr.var, NodeExprGrouping):
             self.gen_expr(expr.var.expr)
         elif isinstance(expr.var, NodeExprStringLit):
@@ -366,8 +375,16 @@ class CodeGenerator:
     def gen_node_expr_ident(self, ident: Token) -> None:
         varinfo = self.symbol_table.lookup(ident.value)
         if varinfo is None:
+            is_numeric_with_underscores = lambda value: all(
+                ch.isdigit() or ch == "_" for ch in value
+            )
+            extra = (
+                " Did you mean to write a number?"
+                if is_numeric_with_underscores(ident.value)
+                else ""
+            )
             raise CodeGenError(
-                f"ERROR: {ident.position}: identifier `{ident.value}` was not defined"
+                f"ERROR: {ident.position}: identifier `{ident.value}` was not defined.{extra}"
             )
         self.emitter.emit(
             f"push qword [rbp{varinfo.offset:+d}] ; push value from variable {ident.value}"

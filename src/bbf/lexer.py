@@ -199,7 +199,7 @@ class Lexer:
             self.advance()
         elif ch.isnumeric():
             token = self.read_number()
-        elif ch.isalpha():
+        elif ch.isalpha() or ch == "_":
             token = self.read_identifier()
         elif ch == '"':
             token = self.read_string_literal()
@@ -211,15 +211,22 @@ class Lexer:
 
     def read_number(self) -> Token:
         start = self.index
-        self.advance()  # first digit
-        while self.char.isnumeric():
-            self.advance()
+        num_str = self.advance()  # first digit
+        while (ch := self.peek()) and ch.isnumeric() or ch == "_":
+            if ch == "_":
+                if self.previous() == "_":
+                    raise LexerError(
+                        msg="SyntaxError: invalid decimal literal: consecutive `_` are not allowed",
+                        position=self.position,
+                    )
+                self.advance()
+                continue
+            num_str += self.advance()
 
         # TODO: probably some edge cases here
         if not self.char.isalpha():
-            num = self.src[start : self.index]
             return self._create_token(
-                ttype=TokenType.IntegerLit, value=num, length=len(num)
+                ttype=TokenType.IntegerLit, value=num_str, length=self.index - start
             )
 
         # illegal integer literal
@@ -270,7 +277,6 @@ class Lexer:
                     )
             else:
                 string += ch
-        print("len", len(string))
 
         if self.is_eof():
             raise LexerError(msg="unterminated string literal", position=self.position)

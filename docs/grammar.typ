@@ -24,7 +24,7 @@ $
 "Comparison" arrow & "Term" ((#e(">") | #e(">=") | #e("<") | #e("<=")) "Term")* \
 "Term" arrow & "Factor" ((#e("-") | #e("+")) "Factor")* \
 "Factor" arrow & "Unary" ((#e("/") | #e("*") | #e("%")) "Unary")* \
-"Unary" arrow & ( #(e("-")) | "not") "Unary" \ & | "Primary" \
+"Unary" arrow & ( #e("-") | #e("+") | "not") "Unary" \ & | "Primary" \
 "Primary" arrow
     & "IntegerLit" \
     & | "StringLit" \
@@ -33,6 +33,8 @@ $
     & | "argv" #e("[") "Expression" #e("]") \
 "Condition" arrow & "Expression" \
 "Identifier" arrow & "Letter" ("Letter" | "Digit" )* \
+"IntegerLit" arrow & (#e("+") | #e("-"))? "Digit" ( #e("_") "Digit" | "Digit" )* \
+"StringLit" arrow & #e("\"") ("~"#e("\""))* #e("\"") \
 "Letter" arrow & #e("A")..#e("Z") | #e("a")..#e("z") | #e("_") \
 "Digit" arrow & #e("0")..#e("9") \
 $
