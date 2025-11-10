@@ -24,6 +24,15 @@ from bbf.parser import (
 )
 from bbf.symbol_table import SymbolTable, VarType
 
+COMPARISON_SETCC = {
+    TokenType.Less: "setl",  # <
+    TokenType.LessEqual: "setle",  # <=
+    TokenType.Greater: "setg",  # >
+    TokenType.GreaterEqual: "setge",  # >=
+    TokenType.EqualEqual: "sete",  # ==
+    TokenType.BangEqual: "setne",  # !=
+}
+
 
 class CodeGenerator:
     def __init__(self, prog: NodeProgram) -> None:
@@ -35,6 +44,7 @@ class CodeGenerator:
         self.if_label_count = 0
         self.elif_label_count = 0
         self.loop_count = 0
+        self.comparison_count = 0
 
     def write_to(self, file: TextIO) -> None:
         self.emitter.write_to(file)
@@ -332,6 +342,13 @@ class CodeGenerator:
                 self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
                 self.emitter.emit("idiv rbx")
                 self.emitter.emit("push rdx; push result (remainder always in rdx)")
+            elif binary.operator.ttype in COMPARISON_SETCC:
+                setcc_mnemonic = COMPARISON_SETCC[binary.operator.ttype]
+                self.emitter.emit(f"cmp rax, rbx")
+                self.emitter.emit(f"{setcc_mnemonic} al ; set AL = 1 if condition")
+                self.emitter.emit(f"movzx rax, al ; zero-extend AL to RAX")
+                self.emitter.emit(f"push rax ; push result")
+                self.comparison_count += 1
             else:
                 assert False, f"unreachable {binary.operator.ttype}"
         elif isinstance(expr.var, NodeExprUnary):
@@ -343,7 +360,12 @@ class CodeGenerator:
                 self.emitter.emit("imul rax, -1")
                 self.emitter.emit("push rax")
             elif unary.operator.ttype == TokenType.Not:
-                assert False, "boolean operation `not` is not implemented yet"
+                self.emitter.emit("; <not>")
+                self.emitter.emit("pop rax")
+                self.emitter.emit("cmp rax, 0")
+                self.emitter.emit(f"{COMPARISON_SETCC[TokenType.EqualEqual]} al")
+                self.emitter.emit(f"movzx rax, al ; zero-extend AL to RAX")
+                self.emitter.emit(f"push rax ; push result")
             elif unary.operator.ttype == TokenType.Plus:
                 pass
             else:
