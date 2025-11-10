@@ -18,7 +18,7 @@ $
 "Elif-Statement" arrow & "elif Condition then {Statement}" \
 "Else-Statement" arrow & "else {Statement}" \
 "For-Loop" arrow & "for Identifier in Range do {Statement} end" \
-"Range" arrow & ("Digit" | "Identifier")..[#e("=")]("Digit" | "Identifier") \
+"Range" arrow & "Expression"..[#e("=")]"Expression" \
 "Expression" arrow & "Equality" \
 "Equality" arrow & "Comparison" ( (#e("!=") | #e("==")) "Comparison" )* \
 "Comparison" arrow & "Term" ((#e(">") | #e(">=") | #e("<") | #e("<=")) "Term")* \

@@ -142,27 +142,14 @@ class Parser:
         return NodeStmtFor(ident, range_expr, stmts)
 
     def range_expr(self) -> NodeExprRange:
-        start = self.consume(
-            TokenType.IntegerLit, "Expected `IntegerLit` as start for range expression"
-        )
+        start = self.expression()
         self.consume(TokenType.Dot, "Expected `.` in range expression")
         self.consume(TokenType.Dot, "Expected `.` in range expression")
         inclusive = False
         if self.check(TokenType.Equal):
             self.advance()
             inclusive = True
-        if self.check(TokenType.IntegerLit):
-            end = self.advance()
-        elif self.check(TokenType.Identifier):
-            end = self.advance()
-        else:
-            # TODO: msg in ParserExpectError ?
-            raise ParserExpectError(
-                self.peek(),
-                "What to put here???",
-                TokenType.IntegerLit,
-                TokenType.Identifier,
-            )
+        end = self.expression()
         return NodeExprRange(start, end, inclusive)
 
     def parse_print_stmt(self) -> NodeStmtPrint:
@@ -365,22 +352,22 @@ class NodeStmtIf:
 
 @dataclass
 class NodeExprRange:
-    start: Token
-    end: Token
+    start: NodeExpr
+    end: NodeExpr
     inclusive: bool
 
     def __str__(self) -> str:
-        return f"{self.start.value}..{'=' if self.inclusive else ''}{self.end.value}"
+        return f"{self.start}..{'=' if self.inclusive else ''}{self.end}"
 
 
 @dataclass
 class NodeStmtFor:
-    ident: Token
+    loop_ident: Token
     range_expr: NodeExprRange
     stmts: list[NodeStmt]
 
     def __str__(self) -> str:
-        out = f"for {self.ident.value} in {self.range_expr} do\n"
+        out = f"for {self.loop_ident.value} in {self.range_expr} do\n"
         for s in self.stmts:
             out += f"\t{s}\n"
         out += "end"

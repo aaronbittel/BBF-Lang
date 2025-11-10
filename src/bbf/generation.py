@@ -203,36 +203,25 @@ class CodeGenerator:
         self.elif_label_count = 0
 
     def gen_stmt_for(self, stmt: NodeStmtFor) -> None:
-        # NOTE: currently for loops just declare a variable that will not be cleaned up
-        # after the loop
-        ident, range_expr, stmts = stmt.ident, stmt.range_expr, stmt.stmts
-        varinfo = self.symbol_table.lookup(ident.value)
+        # NOTE: currently for loops just declare a variable that will not be cleaned up after the loop
+        loop_ident, range_expr, stmts = stmt.loop_ident, stmt.range_expr, stmt.stmts
+        varinfo = self.symbol_table.lookup(loop_ident.value)
         # TODO: move this into seperate type checking section
         if varinfo is not None and varinfo.ttype != VarType.Int:
             raise CodeGenError(
                 f"Loop variable must be of type `Int`, not `{varinfo.ttype}`"
             )
-        self.symbol_table.define(ident.value, ttype=VarType.Int)
-        if range_expr.start.ttype == TokenType.IntegerLit:
-            self.gen_node_expr_intlit(range_expr.start)
-        elif range_expr.start.ttype == TokenType.Identifier:
-            self.gen_node_expr_ident(range_expr.start)
-        else:
-            assert False, "unreachable: Parser should have errored"
+        self.symbol_table.define(loop_ident.value, ttype=VarType.Int)
+        self.gen_expr(range_expr.start)
         self.emitter.emit(f"loop_{self.loop_count}_start:", indent=0)
         for s in stmts:
             self.gen_stmt(s)
-        range_ident = self.symbol_table.lookup(ident.value)
-        assert range_ident is not None, f"{ident.value} was just created"
+        range_ident = self.symbol_table.lookup(loop_ident.value)
+        assert range_ident is not None, f"{loop_ident.value} was just created"
         self.emitter.emit(
             f"inc qword [rbp{range_ident.offset:+d}] ; increment loop variable"
         )
-        if range_expr.end.ttype == TokenType.IntegerLit:
-            self.gen_node_expr_intlit(range_expr.end)
-        elif range_expr.end.ttype == TokenType.Identifier:
-            self.gen_node_expr_ident(range_expr.end)
-        else:
-            assert False, "unreachable: Parser should have errored"
+        self.gen_expr(range_expr.end)
         self.emitter.emit("pop rax ; range end")
         self.emitter.emit(
             f"cmp qword [rbp{range_ident.offset:+d}], rax ; check if condition"
