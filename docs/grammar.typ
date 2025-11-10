@@ -1,4 +1,6 @@
-= Grammar for BBF-Lang
+#align(center)[= Grammar for BBF-Lang]
+
+#v(2em)
 
 #let e(x) = math.text("\"" + str(x) + "\"")
 
@@ -15,7 +17,7 @@ $
                     ) \
 "Declaration" arrow &  "Identifier : (" #e("Int") | #e("String") ")" = "Expression" \
 "Assignment" arrow & "Identifier" = "Expression" \
-"If-Statement" arrow & "if Condition then {Statement} {Elif-Statement} [Else-Statement] end" \
+"If-Statement" arrow & "if Condition then" \ & "{Statement}" \ & "{Elif-Statement}" \ & "[Else-Statement]" \ &  "end" \
 "Elif-Statement" arrow & "elif Condition then {Statement}" \
 "Else-Statement" arrow & "else {Statement}" \
 "For-Loop" arrow & "for Identifier in Range do {Statement} end" \
