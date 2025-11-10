@@ -7,6 +7,7 @@ from bbf.lexer import Token, TokenType
 from bbf.parser import (
     NodeExpr,
     NodeExprArgv,
+    NodeExprAtoi,
     NodeExprBinary,
     NodeExprGrouping,
     NodeExprIdent,
@@ -20,7 +21,7 @@ from bbf.parser import (
     NodeStmtExit,
     NodeStmtFor,
     NodeStmtIf,
-    NodeStmtPrint,
+    NodeStmtWrite,
 )
 from bbf.symbol_table import SymbolTable, VarType
 
@@ -74,7 +75,7 @@ class CodeGenerator:
             self.gen_stmt_assign(stmt.stmt)
         elif isinstance(stmt.stmt, NodeStmtIf):
             self.gen_stmt_if(stmt.stmt)
-        elif isinstance(stmt.stmt, NodeStmtPrint):
+        elif isinstance(stmt.stmt, NodeStmtWrite):
             self.gen_stmt_print(stmt.stmt)
         elif isinstance(stmt.stmt, NodeStmtFor):
             self.gen_stmt_for(stmt.stmt)
@@ -244,12 +245,13 @@ class CodeGenerator:
 
     # TODO: in grammar: print ( Expression ) -> so just self.gen_expr()
     # but how do I know if String or Int ? -> somehow get expression result type?
-    def gen_stmt_print(self, stmt: NodeStmtPrint) -> None:
+    def gen_stmt_print(self, stmt: NodeStmtWrite) -> None:
         if isinstance(stmt.expr.var, NodeExprStringLit):
             self.gen_expr(stmt.expr)  # length, str-addr on stack
             self.emitter.emit("pop rdx ; move length into rdx")
             self.emitter.emit("pop rsi ; move str-addr into rsi")
-            self.emitter.emit("call __builtin_print")
+            self.emitter.emit(f"mov rdi, {stmt.fd} ; fd")
+            self.emitter.emit("call __builtin_write")
         # TODO: how to handle Unary, Binary in print with types?
         elif (
             isinstance(stmt.expr.var, NodeExprIntLit)
@@ -344,10 +346,10 @@ class CodeGenerator:
                 self.emitter.emit("push rdx; push result (remainder always in rdx)")
             elif binary.operator.ttype in COMPARISON_SETCC:
                 setcc_mnemonic = COMPARISON_SETCC[binary.operator.ttype]
-                self.emitter.emit(f"cmp rax, rbx")
+                self.emitter.emit("cmp rax, rbx")
                 self.emitter.emit(f"{setcc_mnemonic} al ; set AL = 1 if condition")
-                self.emitter.emit(f"movzx rax, al ; zero-extend AL to RAX")
-                self.emitter.emit(f"push rax ; push result")
+                self.emitter.emit("movzx rax, al ; zero-extend AL to RAX")
+                self.emitter.emit("push rax ; push result")
                 self.comparison_count += 1
             else:
                 assert False, f"unreachable {binary.operator.ttype}"
@@ -364,8 +366,8 @@ class CodeGenerator:
                 self.emitter.emit("pop rax")
                 self.emitter.emit("cmp rax, 0")
                 self.emitter.emit(f"{COMPARISON_SETCC[TokenType.EqualEqual]} al")
-                self.emitter.emit(f"movzx rax, al ; zero-extend AL to RAX")
-                self.emitter.emit(f"push rax ; push result")
+                self.emitter.emit("movzx rax, al ; zero-extend AL to RAX")
+                self.emitter.emit("push rax ; push result")
             elif unary.operator.ttype == TokenType.Plus:
                 pass
             else:
@@ -384,6 +386,26 @@ class CodeGenerator:
             self.emitter.emit("push rax")
             self.emitter.emit("; push string length")
             self.emitter.emit(f"push qword [{len_label}]")
+        elif isinstance(expr.var, NodeExprArgv):
+            argv = expr.var
+            self.gen_expr(argv.expr)
+
+            self.emitter.emit("pop rax")
+            self.emitter.emit("imul rax, 8 ; calc offset into argv")
+            self.emitter.emit("lea rbx, [rbp + rax + 8] ; +8 to skip argc")
+            self.emitter.emit("mov rdi, [rbx]")
+
+            self.emitter.emit("push rdi ; str_len")
+            self.emitter.emit("call __builtin_c_strlen")
+            self.emitter.emit("push rax ; str_len")
+        elif isinstance(expr.var, NodeExprAtoi):
+            atoi = expr.var
+            self.gen_expr(atoi.expr)
+            # NOTE: This will break if expression does not evaluate to a string
+            self.emitter.emit("pop rsi ; str_len")
+            self.emitter.emit("pop rdi ; str_ptr")
+            self.emitter.emit("call __builtin_atoi")
+            self.emitter.emit("push rax")
         else:
             assert False, f"unreachable: {expr.var}"
 

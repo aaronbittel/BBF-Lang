@@ -4,24 +4,8 @@ __builtin_exit:
     mov rax, 60
     syscall"""
 
-_builtin_print = """
-; rdi: str_ptr, rsi: str_len
-__builtin_print:
-    mov rax, 1 ; sys_write
-    mov rdi, 1 ; stdout
-    syscall
-    ret"""
-
-_builtin_eprint = """
-; rdi: str_ptr, rsi: str_len
-__builtin_eprint:
-    mov rax, 1 ; sys_write
-    mov rdi, 2 ; stderr
-    syscall
-    ret"""
-
 _builtin_atoi = """
-; rdi: str_ptr
+; rdi: str_ptr, rsi: str_len
 __builtin_atoi:
     mov rax, 0
     mov r9, rdi ; r9: ptr into str
@@ -79,15 +63,9 @@ __builtin_itoa:
     ret"""
 
 _builtin_write = """
-; rdi: str_ptr, rsi: str_len
+; rdi: fd, rsi: str_ptr, rdx: str_len
 __builtin_write:
-    mov r9, rsi
-    mov r8, rdi
-
     mov rax, 1
-    mov rdi, 1
-    mov rsi, r8
-    mov rdx, r9
     syscall
     ret"""
 

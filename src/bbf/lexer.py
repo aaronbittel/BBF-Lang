@@ -17,6 +17,8 @@ class TokenType(StrEnum):
     # Builtin Functions
     Exit = auto()
     Print = auto()
+    Eprint = auto()
+    Atoi = auto()
 
     # Keywords
     If = auto()
@@ -59,6 +61,8 @@ BUILTINS = {
     # Builtin Functions
     "exit": TokenType.Exit,
     "print": TokenType.Print,
+    "eprint": TokenType.Eprint,
+    "atoi": TokenType.Atoi,
     # Types
     "String": TokenType.String,
     "Int": TokenType.Int,

@@ -1,6 +1,12 @@
-age: Int = 80
+if argc == 1 then
+    eprint("USAGE: ") eprint(argv[0]) eprint(" <age>\n")
+    exit(1)
+end
 
-if age < 18  then
+age: Int = atoi(argv[1])
+print("age ")
+
+if age < 18 then
     print("under 18")
 elif age < 30 then
     print("between 18 and 30")
@@ -9,5 +15,5 @@ elif age < 50 then
 elif age < 80 then
     print("between 50 and 80")
 else
-    print("80+")
+    print("over 80")
 end

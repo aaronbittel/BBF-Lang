@@ -7,6 +7,7 @@ $
 "Statement" arrow & cases(
                     "exit(Expression)",
                     "print(Expression)",
+                    "eprint(Expression)",
                     "Declaration",
                     "Assignment",
                     "If-Statement",
@@ -31,6 +32,7 @@ $
     & | "Identifier" \
     & | #e("(") "Expression" #e(")") \
     & | "argv" #e("[") "Expression" #e("]") \
+    & | "atoi(Expression)" \
 "Condition" arrow & "Expression" \
 "Identifier" arrow & "Letter" ("Letter" | "Digit" )* \
 "IntegerLit" arrow & (#e("+") | #e("-"))? "Digit" ( #e("_") "Digit" | "Digit" )* \

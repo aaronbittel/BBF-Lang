@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 from bbf.lexer import Token, TokenType
 from bbf.symbol_table import VarType
@@ -49,7 +50,7 @@ class Parser:
             stmt = self.parse_decl_stmt()
         elif self.check(TokenType.Identifier) and self.check(TokenType.Equal, offset=1):
             stmt = self.parse_assign_stmt()
-        elif self.check(TokenType.Print):
+        elif self.check(TokenType.Print) or self.check(TokenType.Eprint):
             stmt = self.parse_print_stmt()
         elif self.check(TokenType.If):
             stmt = self.parse_if_stmt()
@@ -151,12 +152,26 @@ class Parser:
         end = self.expression()
         return NodeExprRange(start, end, inclusive)
 
-    def parse_print_stmt(self) -> NodeStmtPrint:
-        self.consume(TokenType.Print, "Expected `print` call")
+    def parse_print_stmt(self) -> NodeStmtWrite:
+        if self.check(TokenType.Print):
+            self.consume(TokenType.Print, "Expected `print` call")
+            fd = STDOUT
+        elif self.check(TokenType.Eprint):
+            self.consume(TokenType.Eprint, "Expected `eprint` call")
+            fd = STDERR
+        else:
+            assert False, "unreachable"
         self.consume(TokenType.OpenParen, "Expected `(` in print")
         expr = self.expression()
         self.consume(TokenType.CloseParen, "Expected `)` in print")
-        return NodeStmtPrint(expr)
+        return NodeStmtWrite(expr, fd)
+
+    def atoi(self) -> NodeExprAtoi:
+        self.consume(TokenType.Atoi, "Expected `atoi` in atoi")
+        self.consume(TokenType.OpenParen, "Expected `(` in atoi")
+        expr = self.expression()
+        self.consume(TokenType.CloseParen, "Expected `)` in atoi")
+        return NodeExprAtoi(expr)
 
     def expression(self) -> NodeExpr:
         return self.equality()
@@ -238,6 +253,8 @@ class Parser:
                     self.consume(TokenType.StringLit, "Expected `StringLiteral`")
                 )
             )
+        if self.check(TokenType.Atoi):
+            return NodeExpr(self.atoi())
         assert False, f"unreachable: {self.peek()}"
 
     def argv(self) -> NodeExprArgv:
@@ -290,7 +307,14 @@ class NodeProgram:
 
 @dataclass
 class NodeStmt:
-    stmt: NodeStmtExit | NodeStmtDecl | NodeStmtPrint | NodeStmtIf | NodeStmtFor
+    stmt: (
+        NodeStmtExit
+        | NodeStmtDecl
+        | NodeStmtWrite
+        | NodeStmtIf
+        | NodeStmtFor
+        | NodeStmtAssign
+    )
 
     def __str__(self) -> str:
         return str(self.stmt)
@@ -381,12 +405,28 @@ class NodeStmtFor:
         return out
 
 
+STDIN = 0
+STDOUT = 1
+STDERR = 2
+
+type FD = Literal[0, 1, 2]
+
+
 @dataclass
-class NodeStmtPrint:
+class NodeStmtWrite:
+    expr: NodeExpr
+    fd: FD
+
+    def __str__(self) -> str:
+        return f"{'e' if self.fd == STDERR else ''}print({self.expr})"
+
+
+@dataclass
+class NodeExprAtoi:
     expr: NodeExpr
 
     def __str__(self) -> str:
-        return f"print({self.expr})"
+        return f"atoi({self.expr})"
 
 
 @dataclass
@@ -399,6 +439,7 @@ class NodeExpr:
         | NodeExprUnary
         | NodeExprGrouping
         | NodeExprArgv
+        | NodeExprAtoi
     )
 
     def __str__(self) -> str:
