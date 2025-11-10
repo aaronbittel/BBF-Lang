@@ -116,102 +116,51 @@ class CodeGenerator:
         self.emitter.emit(f"mov [rbp{varinfo.offset:+d}], rax")
 
     def gen_stmt_if(self, stmt: NodeStmtIf) -> None:
-        var = stmt.condition.var
-        if isinstance(var, NodeExprIntLit):
-            token = var.token
-            self.emitter.emit(f"mov rax, {token.value}")
-            self.emitter.emit("cmp rax, 0")
-            self.emitter.emit(f"je .if_{self.if_label_count}_label")
-        elif isinstance(var, NodeExprBinary):
-            self.gen_expr(var.lhs)
-            self.gen_expr(var.rhs)
-            self.emitter.emit("pop rbx ; rhs")
-            self.emitter.emit("pop rax ; lhs")
-            self.emitter.emit("cmp rax, rbx")
-            if var.operator.ttype == TokenType.Greater:
-                self.emitter.emit(f"jle .if_{self.if_label_count}_label")
-            elif var.operator.ttype == TokenType.GreaterEqual:
-                self.emitter.emit(f"jl .if_{self.if_label_count}_label")
-            elif var.operator.ttype == TokenType.Less:
-                self.emitter.emit(f"jge .if_{self.if_label_count}_label")
-            elif var.operator.ttype == TokenType.LessEqual:
-                self.emitter.emit(f"jg .if_{self.if_label_count}_label")
-            elif var.operator.ttype == TokenType.EqualEqual:
-                self.emitter.emit(f"jne .if_{self.if_label_count}_label")
-            elif var.operator.ttype == TokenType.BangEqual:
-                self.emitter.emit(f"je .if_{self.if_label_count}_label")
-            else:
-                assert False, (
-                    f"`gen_stmt_if`: operator f`{var.operator}` is not supported"
-                )
+        label_id = self.if_label_count
+        self.if_label_count += 1
+
+        end_label = f".end_if_{label_id}_label"
+        else_label = f".else_if_{label_id}_label"
+
+        # --- IF condition ---
+        self.gen_expr(stmt.condition)
+        self.emitter.emit("pop rax")
+        self.emitter.emit("cmp rax, 0")
+        if stmt.elifs or stmt.else_stmts:
+            self.emitter.emit(f"je {else_label}")
         else:
-            assert False, f"`gen_stmt_if`: not implemented for {var} {type(var)}"
+            self.emitter.emit(f"je {end_label}")
+
+        # --- IF block ---
         for s in stmt.if_stmts:
             self.gen_stmt(s)
-        if stmt.else_stmts is not None:
-            self.emitter.emit(f"jmp .end_{self.if_label_count}_label ; skip else-block")
-        self.emitter.emit(f".if_{self.if_label_count}_label:", indent=0)
-        if stmt.elifs is not None:
-            for el in stmt.elifs:
-                self.emitter.emit("; -- insert condition for elif --")
-                elif_var = el.condition.var
-                if isinstance(elif_var, NodeExprIntLit):
-                    token = elif_var.token
-                    self.emitter.emit(f"mov rax, {token.value}")
-                    self.emitter.emit("cmp rax, 0")
-                    self.emitter.emit(f"je .if_{self.if_label_count}_label")
-                elif isinstance(elif_var, NodeExprBinary):
-                    self.gen_expr(elif_var.lhs)
-                    self.gen_expr(elif_var.rhs)
-                    self.emitter.emit("pop rbx ; rhs")
-                    self.emitter.emit("pop rax ; lhs")
-                    self.emitter.emit("cmp rax, rbx")
-                    if elif_var.operator.ttype == TokenType.Greater:
-                        self.emitter.emit(
-                            f"jle .elif_{self.if_label_count}{self.elif_label_count}_label"
-                        )
-                    elif elif_var.operator.ttype == TokenType.GreaterEqual:
-                        self.emitter.emit(
-                            f"jl .elif_{self.if_label_count}{self.elif_label_count}_label"
-                        )
-                    elif elif_var.operator.ttype == TokenType.Less:
-                        self.emitter.emit(
-                            f"jge .elif_{self.if_label_count}{self.elif_label_count}_label"
-                        )
-                    elif elif_var.operator.ttype == TokenType.LessEqual:
-                        self.emitter.emit(
-                            f"jg .elif_{self.if_label_count}{self.elif_label_count}_label"
-                        )
-                    elif elif_var.operator.ttype == TokenType.EqualEqual:
-                        self.emitter.emit(
-                            f"jne .elif_{self.if_label_count}{self.elif_label_count}_label"
-                        )
-                    elif elif_var.operator.ttype == TokenType.BangEqual:
-                        self.emitter.emit(
-                            f"je .elif_{self.if_label_count}{self.elif_label_count}_label"
-                        )
-                    else:
-                        assert False, (
-                            f"`gen_stmt_if`: operator f`{elif_var.operator}` is not supported"
-                        )
-                else:
-                    assert False, (
-                        f"`gen_stmt_if`: not implemented for {elif_var} {type(elif_var)}"
-                    )
+        if stmt.elifs or stmt.else_stmts:
+            self.emitter.emit(f"jmp {end_label}")
+
+        # --- ELIF / ELSE blocks ---
+        if stmt.elifs or stmt.else_stmts:
+            self.emitter.emit(f"{else_label}:", indent=0)
+
+        # --- ELIF chain ---
+        if stmt.elifs:
+            for i, el in enumerate(stmt.elifs):
+                next_label = f".elif_{label_id}_{i + 1}_label"
+                self.gen_expr(el.condition)
+                self.emitter.emit("pop rax")
+                self.emitter.emit("cmp rax, 0")
+                self.emitter.emit(f"je {next_label}")
                 for s in el.stmts:
                     self.gen_stmt(s)
-                self.emitter.emit(f"jmp .end_{self.if_label_count}_label")
-                self.emitter.emit(
-                    f".elif_{self.if_label_count}{self.elif_label_count}_label:"
-                )
-                self.elif_label_count += 1
-                self.emitter.emit("; -- end elif block --")
-        if stmt.else_stmts is not None:
+                self.emitter.emit(f"jmp {end_label}")
+                self.emitter.emit(f"{next_label}:", indent=0)
+
+        # --- ELSE block ---
+        if stmt.else_stmts:
             for s in stmt.else_stmts:
                 self.gen_stmt(s)
-        self.emitter.emit(f".end_{self.if_label_count}_label:", indent=0)
-        self.if_label_count += 1
-        self.elif_label_count = 0
+
+        # --- END ---
+        self.emitter.emit(f"{end_label}:", indent=0)
 
     def gen_stmt_for(self, stmt: NodeStmtFor) -> None:
         # NOTE: currently for loops just declare a variable that will not be cleaned up after the loop
@@ -243,8 +192,6 @@ class CodeGenerator:
             self.emitter.emit(f"jl loop_{self.loop_count}_start")
         self.loop_count += 1
 
-    # TODO: in grammar: print ( Expression ) -> so just self.gen_expr()
-    # but how do I know if String or Int ? -> somehow get expression result type?
     def gen_stmt_print(self, stmt: NodeStmtWrite) -> None:
         self.gen_expr_as_string(stmt.expr)
         self.emitter.emit("pop rdx ; str_len")
@@ -389,7 +336,7 @@ class CodeGenerator:
             self.emitter.emit("movzx rax, al ; zero-extend AL to RAX")
             self.emitter.emit("push rax ; push result")
         elif unary.operator.ttype == TokenType.Plus:
-            pass  # Ignore +
+            pass  # Ignore "+"
         else:
             raise CodeGenError(
                 f"ERROR: {unary.operator.position}: unsupported unary operator type {unary.operator}"
