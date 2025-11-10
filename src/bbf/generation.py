@@ -284,25 +284,13 @@ class CodeGenerator:
                 self.emitter.emit(f"mov rsi, [rbp{len_offset:+d}] ; load str len")
                 self.emitter.emit("call __builtin_write")
         elif isinstance(stmt.expr.var, NodeExprArgv):
-            index = stmt.expr.var.index
-            if index.ttype == TokenType.IntegerLit:
-                try:
-                    offset = (int(index.value) + 1) * 8
-                except ValueError:
-                    raise CodeGenError(
-                        "`argv` can only be access by an IntergerLiteral right now."
-                    )
-                self.emitter.emit(
-                    f"mov rdi, [rbp{offset:+d}] ; load argv{index.value} ptr"
-                )
-            elif index.ttype == TokenType.Identifier:
-                self.gen_node_expr_ident(index)
-                self.emitter.emit("pop rax")
-                self.emitter.emit("imul rax, 8 ; calc offset into argv")
-                self.emitter.emit("lea rbx, [rbp + rax + 8] ; +8 to skip argc")
-                self.emitter.emit("mov rdi, [rbx]")
-            else:
-                assert False, "unreachable: Parser should have errored"
+            expr = stmt.expr.var.expr
+            self.gen_expr(expr)
+
+            self.emitter.emit("pop rax")
+            self.emitter.emit("imul rax, 8 ; calc offset into argv")
+            self.emitter.emit("lea rbx, [rbp + rax + 8] ; +8 to skip argc")
+            self.emitter.emit("mov rdi, [rbx]")
 
             self.emitter.emit(
                 "push rdi ; save rdi to stack because _builtin_c_strlen messes with rdi ptr"

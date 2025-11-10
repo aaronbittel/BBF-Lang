@@ -249,19 +249,9 @@ class Parser:
     def argv(self) -> NodeExprArgv:
         self.consume(TokenType.Identifier, "Expected `argv`")
         self.consume(TokenType.OpenBracket, "Expected `[` in argv access")
-        if self.check(TokenType.IntegerLit):
-            token = self.advance()
-        elif self.check(TokenType.Identifier):
-            token = self.advance()
-        else:
-            raise ParserExpectError(
-                self.peek(),
-                "Expected `IntLiteral` to access argv. Currently only IntLiteral are supported.",
-                TokenType.IntegerLit,
-                TokenType.Identifier,
-            )
+        expr = self.expression()
         self.consume(TokenType.CloseBracket, "Expected `]` in argv access")
-        return NodeExprArgv(token)
+        return NodeExprArgv(expr)
 
     def peek(self, offset: int = 0) -> Token:
         return self.tokens[self.index + offset]
@@ -474,7 +464,7 @@ class NodeExprGrouping:
 
 @dataclass
 class NodeExprArgv:
-    index: Token
+    expr: NodeExpr
 
     def __str__(self) -> str:
-        return f"argv[{self.index.value}]"
+        return f"argv[{self.expr}]"

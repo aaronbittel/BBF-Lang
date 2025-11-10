@@ -30,7 +30,7 @@ $
     & | "StringLit" \
     & | "Identifier" \
     & | #e("(") "Expression" #e(")") \
-    & | "argv" #e("[") ("IntegerLit" | "Identifier") #e("]") \
+    & | "argv" #e("[") "Expression" #e("]") \
 "Condition" arrow & "Expression" \
 "Identifier" arrow & "Letter" ("Letter" | "Digit" )* \
 "Letter" arrow & #e("A")..#e("Z") | #e("a")..#e("z") | #e("_") \
