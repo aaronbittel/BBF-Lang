@@ -4,7 +4,7 @@
 syntax clear
 
 " Keywords (reserved words)
-syntax keyword bbfKeyword if then end else elif for do step in
+syntax keyword bbfKeyword if then end else elif for do step in not
 "
 " Built-in functions
 syntax keyword bbfBuiltin print exit eprint atoi
