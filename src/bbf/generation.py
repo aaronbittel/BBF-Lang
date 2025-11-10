@@ -246,65 +246,11 @@ class CodeGenerator:
     # TODO: in grammar: print ( Expression ) -> so just self.gen_expr()
     # but how do I know if String or Int ? -> somehow get expression result type?
     def gen_stmt_print(self, stmt: NodeStmtWrite) -> None:
-        if isinstance(stmt.expr.var, NodeExprStringLit):
-            self.gen_expr(stmt.expr)  # length, str-addr on stack
-            self.emitter.emit("pop rdx ; move length into rdx")
-            self.emitter.emit("pop rsi ; move str-addr into rsi")
-            self.emitter.emit(f"mov rdi, {stmt.fd} ; fd")
-            self.emitter.emit("call __builtin_write")
-        # TODO: how to handle Unary, Binary in print with types?
-        elif (
-            isinstance(stmt.expr.var, NodeExprIntLit)
-            or isinstance(stmt.expr.var, NodeExprUnary)
-            or isinstance(stmt.expr.var, NodeExprBinary)
-        ):
-            self.gen_expr(stmt.expr)  # literal on stack
-            self.emitter.emit("pop rdi")
-            self.emitter.emit("call __builtin_itoa")
-            self.emitter.emit("mov rsi, rax ; str_ptr")
-            self.emitter.emit("; len already in rdx")
-            self.emitter.emit(f"mov rdi, {stmt.fd} ; fd")
-            self.emitter.emit("call __builtin_write")
-        elif isinstance(stmt.expr.var, NodeExprIdent):
-            ident = stmt.expr.var.token
-            varinfo = self.symbol_table.lookup(ident.value)
-            if varinfo is None:
-                raise CodeGenError(
-                    f"ERROR: {ident.position}: undeclared identifier {ident.value}"
-                )
-            if varinfo.ttype == VarType.Int:
-                self.gen_expr(stmt.expr)  # literal on stack
-                self.emitter.emit("pop rdi")
-                self.emitter.emit("call __builtin_itoa")
-                self.emitter.emit("mov rsi, rax ; str_ptr")
-                self.emitter.emit("; len already in rdx")
-                self.emitter.emit(f"mov rdi, {stmt.fd} ; fd")
-                self.emitter.emit("call __builtin_write")
-            elif varinfo.ttype == VarType.String:
-                ptr_offset = varinfo.offset
-                len_offset = varinfo.offset - 8
-                self.emitter.emit(f"mov rsi, [rbp{ptr_offset:+d}] ; load str ptr")
-                self.emitter.emit(f"mov rdx, [rbp{len_offset:+d}] ; load str len")
-                self.emitter.emit(f"mov rdi, {stmt.fd} ; fd")
-                self.emitter.emit("call __builtin_write")
-        elif isinstance(stmt.expr.var, NodeExprArgv):
-            expr = stmt.expr.var.expr
-            self.gen_expr(expr)
-
-            self.emitter.emit("pop rax")
-            self.emitter.emit("imul rax, 8 ; calc offset into argv")
-            self.emitter.emit("lea rbx, [rbp + rax + 8] ; +8 to skip argc")
-            self.emitter.emit("mov rdi, [rbx]")
-
-            self.emitter.emit(
-                "push rdi ; save rdi to stack because _builtin_c_strlen messes with rdi ptr"
-            )
-            self.emitter.emit("call __builtin_c_strlen")
-            self.emitter.emit("mov rsi, rax ; move length to rsi")
-            self.emitter.emit("pop rdi")
-            self.emitter.emit("call __builtin_write")
-        else:
-            assert False, f"not implemented: {stmt.expr.var}, {type(stmt.expr.var)}"
+        self.gen_expr_as_string(stmt.expr)
+        self.emitter.emit("pop rdx ; str_len")
+        self.emitter.emit("pop rsi ; str_ptr")
+        self.emitter.emit(f"mov rdi, {stmt.fd} ; fd")
+        self.emitter.emit("call __builtin_write")
 
     # TODO: Make gen_stmt_* functions return values or registers
     # When you add binary expressions or function calls, you’ll want to evaluate
@@ -335,15 +281,25 @@ class CodeGenerator:
 
     def gen_expr_as_string(self, expr: NodeExpr) -> None:
         self.gen_expr(expr)
-        if isinstance(expr, NodeExprIntLit):
-            self.emitter.emit("pop rdi")
-            self.emitter.emit("call __builtin_itoa")
-            self.emitter.emit("push rax ; str_ptr")
-            self.emitter.emit("push rdx ; str_len")
-        elif isinstance(expr, NodeExprStringLit) or isinstance(expr, NodeExprArgv):
-            pass  # do nothing
-        else:
-            raise CodeGenError(f"`gen_expr_as_string` not implemented for {expr}")
+        if isinstance(expr.var, NodeExprStringLit) or isinstance(
+            expr.var, NodeExprArgv
+        ):
+            return
+
+        if isinstance(expr.var, NodeExprIdent):
+            ident = expr.var
+            varinfo = self.symbol_table.lookup(ident.token.value)
+            if varinfo is None:
+                raise CodeGenError(
+                    f"ERROR: {ident.token.position}: undeclared identifier {ident.token.value}"
+                )
+            if varinfo.ttype == VarType.String:
+                return
+
+        self.emitter.emit("pop rdi")
+        self.emitter.emit("call __builtin_itoa")
+        self.emitter.emit("push rax ; str_ptr")
+        self.emitter.emit("push rdx ; str_len")
 
     def gen_node_expr_intlit(self, intlit: NodeExprIntLit) -> None:
         # NOTE: What to do when value already exists?
@@ -366,9 +322,19 @@ class CodeGenerator:
             raise CodeGenError(
                 f"ERROR: {ident.token.position}: identifier `{ident.token.value}` was not defined.{extra}"
             )
-        self.emitter.emit(
-            f"push qword [rbp{varinfo.offset:+d}] ; push value from variable {ident.token.value}"
-        )
+        if varinfo.ttype == VarType.Int:
+            self.emitter.emit(
+                f"push qword [rbp{varinfo.offset:+d}] ; push value from variable {ident.token.value}"
+            )
+        elif varinfo.ttype == VarType.String:
+            self.emitter.emit(
+                f"push qword [rbp{varinfo.offset:+d}] ; str_ptr form variable {ident.token.value}"
+            )
+            self.emitter.emit(
+                f"push qword [rbp{varinfo.offset - 8:+d}] ; str_len form variable {ident.token.value}"
+            )
+        else:
+            assert False, f"unreachable: unknown VarType: {varinfo.ttype}"
 
     def gen_node_expr_binary(self, binary: NodeExprBinary) -> None:
         self.gen_expr(binary.lhs)
