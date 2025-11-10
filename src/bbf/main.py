@@ -1,3 +1,4 @@
+import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -10,22 +11,19 @@ from bbf.utils import eprint, green, red
 # TODO: Use snapshot testing
 
 BIN_DIR = Path("./bin")
+BIN_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def main() -> None:
-    if len(sys.argv) == 1:
-        eprint("usage: uv run bbf [mode=gen] <input.bbf>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Run BBF compiler")
+    parser.add_argument("--step", default="gen", help="Compilation step (default: gen)")
+    parser.add_argument("input_path", type=Path, help="Path to input .bbf file")
+    args = parser.parse_args()
 
-    BIN_DIR.mkdir(parents=True, exist_ok=True)
+    input_path: Path = args.input_path
+    step: str = args.step
 
-    step = "gen"
-    if len(sys.argv) == 3:
-        step, input_path = sys.argv[1], Path(sys.argv[2])
-    else:
-        input_path = Path(sys.argv[1])
-
-    with input_path.open(mode="r") as f:
+    with args.input_path.open(mode="r") as f:
         input_content = f.read()
     print(f"[INFO] Read input file: {input_path}")
     print(input_content)
