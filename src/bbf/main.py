@@ -6,9 +6,8 @@ from pathlib import Path
 from bbf.generation import CodeGenerator
 from bbf.lexer import Lexer, dump_tokens
 from bbf.parser import Parser
+from bbf.source import Source
 from bbf.utils import GREEN, RED, RESET, eprint, green, red
-
-# TODO: Use snapshot testing
 
 BIN_DIR = Path("./bin")
 BIN_DIR.mkdir(parents=True, exist_ok=True)
@@ -51,7 +50,9 @@ def main() -> None:
         print(src)
         print("=====================")
 
-    lexer = Lexer(path=input_path, src=src)
+    source = Source(text=src, filepath=input_path)
+
+    lexer = Lexer(source)
     tokens = lexer.tokenize()
 
     if not quiet:

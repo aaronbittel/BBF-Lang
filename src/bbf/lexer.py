@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from enum import StrEnum, auto
 from pathlib import Path
 
+from bbf.source import Source
+
 
 class TokenType(StrEnum):
     Identifier = auto()
@@ -99,9 +101,8 @@ class Token:
 
 
 class Lexer:
-    def __init__(self, path: Path, src: str) -> None:
-        self.path = path
-        self.src = src
+    def __init__(self, source: Source) -> None:
+        self.source = source
         self.index = 0
 
         self.line = 1
@@ -120,10 +121,10 @@ class Lexer:
     def next_token(self) -> Token:
         self.skip_whitespace()
 
-        if self.index >= len(self.src):
+        if self.is_eof():
             return self._create_token(ttype=TokenType.EOF, value="EOF", length=0)
 
-        ch = self.char
+        ch = self.peek()
 
         if ch == "#":  # comment
             self.skip_comment()
@@ -167,7 +168,7 @@ class Lexer:
                 token = self._create_token(
                     ttype=TokenType.GreaterEqual, value=">=", length=2
                 )
-                self.advance()  # advance `=`
+                self.consume("=")
             else:
                 token = self._create_token(ttype=TokenType.Greater, value=">")
             self.advance()
@@ -176,7 +177,7 @@ class Lexer:
                 token = self._create_token(
                     ttype=TokenType.LessEqual, value="<=", length=2
                 )
-                self.advance()  # advance `=`
+                self.consume("=")
             else:
                 token = self._create_token(ttype=TokenType.Less, value="<")
             self.advance()
@@ -185,7 +186,7 @@ class Lexer:
                 token = self._create_token(
                     ttype=TokenType.EqualEqual, value="==", length=2
                 )
-                self.advance()  # advance `=`
+                self.consume("=")
             else:
                 token = self._create_token(ttype=TokenType.Equal, value="=")
             self.advance()
@@ -194,7 +195,7 @@ class Lexer:
                 token = self._create_token(
                     ttype=TokenType.BangEqual, value="!=", length=2
                 )
-                self.advance()  # advance `=`
+                self.consume("=")
             else:
                 raise LexerError(
                     msg="single `!` is not allowed. Did you forget `=` for comparison? If you want to negate, use `not` instead.",
@@ -228,13 +229,13 @@ class Lexer:
             num_str += self.advance()
 
         # TODO: probably some edge cases here
-        if not self.char.isalpha():
+        if not self.peek().isalpha():
             return self._create_token(
                 ttype=TokenType.IntegerLit, value=num_str, length=self.index - start
             )
 
         # illegal integer literal
-        while self.char.isalnum():
+        while self.peek().isalnum():
             self.advance()
         value = self.src[start : self.index]
         self.errors.append(
@@ -247,7 +248,7 @@ class Lexer:
     def read_identifier(self) -> Token:
         start = self.index
         self.advance()  # first character
-        while self.char.isalnum() or self.char == "_":
+        while (ch := self.peek()) and ch.isalnum() or ch == "_":
             self.advance()
         identifier = self.src[start : self.index]
         ttype = TokenType.Identifier
@@ -258,9 +259,9 @@ class Lexer:
     def read_string_literal(self) -> Token:
         # NOTE: Handle escape sequences "\n" here?
         start = self.index
-        self.advance()  # advance '"'
+        self.consume('"')
         string = ""
-        while self.char != "" and self.char.isascii() and not self.char == '"':
+        while (ch := self.peek()) and ch != "" and ch.isascii() and not ch == '"':
             ch = self.advance()
             if ch == "\\":
                 next_ch = self.advance()
@@ -284,7 +285,7 @@ class Lexer:
 
         if self.is_eof():
             raise LexerError(msg="unterminated string literal", position=self.position)
-        self.advance()  # advance '"'
+        self.consume('"')
         return self._create_token(
             ttype=TokenType.StringLit, value=string, length=self.index - start
         )
@@ -300,6 +301,13 @@ class Lexer:
         self.index += 1
         return self.previous()
 
+    def consume(self, ch: str) -> str:
+        if self.peek() == ch:
+            return self.advance()
+        raise LexerError(
+            msg=f"Expected `{ch}`, but found {self.peek()}", position=self.position
+        )
+
     def previous(self) -> str:
         return self.src[self.index - 1]
 
@@ -313,7 +321,7 @@ class Lexer:
 
     def skip_whitespace(self) -> None:
         # TODO: How to handle \r\n?
-        while (ch := self.char) and ch in (" ", "\n", "\r", "\t"):
+        while (ch := self.peek()) and ch in (" ", "\n", "\r", "\t"):
             if ch == "\r":
                 if self.advance() == "\n":
                     self.advance()
@@ -327,28 +335,30 @@ class Lexer:
             self.advance()
 
     def skip_comment(self) -> None:
-        while self.char != "" and self.char != "\n":
+        while self.peek() != "" and self.peek() != "\n":
             self.advance()
 
     @property
-    def char(self) -> str:
-        if self.index >= len(self.src):
-            return ""
-        return self.src[self.index]
+    def position(self) -> Position:
+        return Position(source=self.source, line=self.line, column=self.column)
 
     @property
-    def position(self) -> Position:
-        return Position(path=self.path, line=self.line, column=self.column)
+    def src(self) -> str:
+        return self.source.text
+
+    @property
+    def path(self) -> Path:
+        return self.source.filepath
 
 
 @dataclass
 class Position:
-    path: Path
+    source: Source
     line: int
     column: int
 
     def __str__(self) -> str:
-        return f"{self.path}:{self.line}:{self.column}"
+        return f"{self.source.filepath}:{self.line}:{self.column}"
 
 
 def dump_tokens(tokens: list[Token]) -> None:
