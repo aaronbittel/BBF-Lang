@@ -38,7 +38,8 @@ __builtin_itoa:
     inc r8 ; r8 == 1 => negative
 
 .positive:
-    mov r9, 32 ; r9: index
+    mov r9, 31 ; r9: index
+    mov byte [__itoa_buf+r9], 10 ; write <newline> at the end
 
 .loop:
     dec r9

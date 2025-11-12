@@ -1,26 +1,28 @@
-#align(center)[= Grammar for BBF-Lang]
+#set page(margin: 1cm)
 
-#v(2em)
+#align(center)[= Grammar for BBF-Lang]
+#v(1em)
 
 #let e(x) = math.text("\"" + str(x) + "\"")
 
 $
 "Program" arrow & "{Statement}" \
 "Statement" arrow & cases(
-                    "exit(Expression)",
-                    "print(Expression)",
-                    "eprint(Expression)",
-                    "Declaration",
-                    "Assignment",
-                    "If-Statement",
-                    "For-Loop",
-                    ) \
+  "exit(Expression)",
+  "print(Expression)",
+  "eprint(Expression)",
+  "Declaration",
+  "Assignment",
+  "If-Statement",
+  "For-Statement",
+) \
 "Declaration" arrow &  "Identifier : (" #e("Int") | #e("String") ")" = "Expression" \
 "Assignment" arrow & "Identifier" = "Expression" \
-"If-Statement" arrow & "if Condition then" \ & "{Statement}" \ & "{Elif-Statement}" \ & "[Else-Statement]" \ &  "end" \
-"Elif-Statement" arrow & "elif Condition then {Statement}" \
-"Else-Statement" arrow & "else {Statement}" \
-"For-Loop" arrow & "for Identifier in Range do {Statement} end" \
+"Scope" arrow & {"Statement"} \
+"If-Statement" arrow & "if Condition then" \ & "{Scope}" \ & "{Elif-Statement}" \ & "[Else-Statement]" \ &  "end" \
+"Elif-Statement" arrow & "elif Condition then {Scope}" \
+"Else-Statement" arrow & "else {Scope}" \
+"For-Statement" arrow & "for Identifier in Range do {Scope} end" \
 "Range" arrow & "Expression"..[#e("=")]"Expression" \
 "Expression" arrow & "Equality" \
 "Equality" arrow & "Comparison" ( (#e("!=") | #e("==")) "Comparison" )* \

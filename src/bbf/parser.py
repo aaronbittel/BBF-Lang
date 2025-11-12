@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 from bbf.lexer import Token, TokenType
@@ -31,6 +31,8 @@ class ParserExpectError(ParserError):
         return f"ERROR: {self.token.position} Expected {expected_str}, but got {self.token}: {self.msg}"
 
 
+# TODO: Maybe keep scope stack [If-For-...] to give better error message when coming
+# across an unexpected token in parse_stmt
 class Parser:
     # TODO: input lexer instead?
     def __init__(self, tokens: list[Token]) -> None:
@@ -41,7 +43,7 @@ class Parser:
         stmts: list[NodeStmt] = []
         while not self.is_eof():
             stmts.append(self.parse_stmt())
-        return NodeProgram(stmts)
+        return NodeProgram(NodeScope(stmts))
 
     def parse_stmt(self) -> NodeStmt:
         if self.check(TokenType.Exit):
@@ -99,6 +101,7 @@ class Parser:
         while not self.match(TokenType.End, TokenType.Else, TokenType.Elif):
             s = self.parse_stmt()
             if_stmts.append(s)
+        scope = NodeScope(if_stmts)
         elifs: list[NodeStmtElif] = []
         if self.previous().ttype == TokenType.Elif:
             while True:
@@ -108,7 +111,9 @@ class Parser:
                 while not self.match(TokenType.End, TokenType.Else, TokenType.Elif):
                     s = self.parse_stmt()
                     elif_stmts.append(s)
-                elifs.append(NodeStmtElif(condition=elif_condition, stmts=elif_stmts))
+                elifs.append(
+                    NodeStmtElif(condition=elif_condition, scope=NodeScope(elif_stmts))
+                )
                 if self.previous().ttype != TokenType.Elif:
                     break
         if self.previous().ttype == TokenType.Else:
@@ -119,12 +124,12 @@ class Parser:
             self.consume(TokenType.End, "Expected `end` after if-statement")
             return NodeStmtIf(
                 condition=condition,
-                if_stmts=if_stmts,
-                else_stmts=else_stmts,
+                scope=scope,
+                else_scope=NodeScope(else_stmts),
                 elifs=elifs,
             )
         if self.previous().ttype == TokenType.End:
-            return NodeStmtIf(condition=condition, if_stmts=if_stmts, elifs=elifs)
+            return NodeStmtIf(condition=condition, scope=scope, elifs=elifs)
         raise ParserError(
             token=self.previous(),
             msg="Expected one of `end`, `else` or `elif` keywords",
@@ -139,7 +144,7 @@ class Parser:
         stmts: list[NodeStmt] = []
         while not self.match(TokenType.End):
             stmts.append(self.parse_stmt())
-        return NodeStmtFor(ident, range_expr, stmts)
+        return NodeStmtFor(ident, range_expr, scope=NodeScope(stmts))
 
     def range_expr(self) -> NodeExprRange:
         start = self.expression()
@@ -244,6 +249,7 @@ class Parser:
                 )
             )
         if self.check(TokenType.OpenParen):
+            self.consume(TokenType.OpenParen, "Expect '(' before expression.")
             expr = self.expression()
             self.consume(TokenType.CloseParen, "Expect ')' after expression.")
             return NodeExpr(NodeExprGrouping(expr))
@@ -297,12 +303,16 @@ class Parser:
         return self.peek().ttype == TokenType.EOF
 
 
+# TODO: Remove string formatting from Nodes and implement some kind of Visitor that
+# pretty prints the NodeProgram AST
+
+
 @dataclass
 class NodeProgram:
-    stmts: list[NodeStmt] = field(default_factory=list)
+    scope: NodeScope
 
     def __str__(self) -> str:
-        return "\n".join(str(s) for s in self.stmts)
+        return str(self.scope)
 
 
 @dataclass
@@ -335,7 +345,7 @@ class NodeStmtDecl:
     expr: NodeExpr
 
     def __str__(self) -> str:
-        return f"decl[{self.ttype.value}]({self.ident.value} = {self.expr})"
+        return f"decl[{self.ttype.name}]({self.ident.value} = {self.expr})"
 
 
 @dataclass
@@ -350,33 +360,27 @@ class NodeStmtAssign:
 @dataclass
 class NodeStmtElif:
     condition: NodeExpr
-    stmts: list[NodeStmt]
+    scope: NodeScope
 
     def __str__(self) -> str:
-        out = f"elif {self.condition} then\n"
-        for s in self.stmts:
-            out += f"\t{s}\n"
-        return out
+        return f"elif {self.condition} then\n{self.scope}"
 
 
 @dataclass
 class NodeStmtIf:
     condition: NodeExpr
-    if_stmts: list[NodeStmt]
-    elifs: list[NodeStmtElif] | None = None
-    else_stmts: list[NodeStmt] | None = None
+    scope: NodeScope
+    elifs: list[NodeStmtElif]
+    else_scope: NodeScope | None = None
 
     def __str__(self) -> str:
         out = f"if {self.condition} then\n"
-        for s in self.if_stmts:
-            out += f"\t{s}\n"
+        out += str(self.scope)
         if self.elifs is not None:
             for el in self.elifs:
                 out += str(el)
-        if self.else_stmts is not None:
-            out += "else\n"
-            for s in self.else_stmts:
-                out += f"\t{s}\n"
+        if self.else_scope is not None:
+            out += "else\n\t{else_scope}\n"
         out += "end"
         return out
 
@@ -395,14 +399,10 @@ class NodeExprRange:
 class NodeStmtFor:
     loop_ident: Token
     range_expr: NodeExprRange
-    stmts: list[NodeStmt]
+    scope: NodeScope
 
     def __str__(self) -> str:
-        out = f"for {self.loop_ident.value} in {self.range_expr} do\n"
-        for s in self.stmts:
-            out += f"\t{s}\n"
-        out += "end"
-        return out
+        return f"for {self.loop_ident.value} in {self.range_expr} do{self.scope}\nend"
 
 
 STDIN = 0
@@ -427,6 +427,14 @@ class NodeExprAtoi:
 
     def __str__(self) -> str:
         return f"atoi({self.expr})"
+
+
+@dataclass
+class NodeScope:
+    stmts: list[NodeStmt]
+
+    def __str__(self) -> str:
+        return f"Scoped({'\n\t'.join(str(stmt) for stmt in self.stmts)})"
 
 
 @dataclass

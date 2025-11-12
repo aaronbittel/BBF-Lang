@@ -12,7 +12,10 @@ parser:
 lexer:
 	@uv run bbf $(FILENAME).bbf --step lexer
 
+run: gen
+	@$(BIN_DIR)/$(FILENAME)
+
 debug: gen
 	@gdb -q $(BIN_DIR)/$(FILENAME)
 
-.PHONY = gen parser lexer debug
+.PHONY = run gen parser lexer debug
