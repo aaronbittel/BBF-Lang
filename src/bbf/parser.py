@@ -259,9 +259,9 @@ class Parser:
                 )
             )
         if self.check(TokenType.OpenParen):
-            self.consume(TokenType.OpenParen, "Expect '(' before expression.")
+            self.consume(TokenType.OpenParen, "Expected `(` in expression")
             expr = self.expression()
-            self.consume(TokenType.CloseParen, "Expect ')' after expression.")
+            self.consume(TokenType.CloseParen, "Expected ')' after expression.")
             return NodeExpr(NodeExprGrouping(expr))
         if self.check(TokenType.StringLit):
             return NodeExpr(

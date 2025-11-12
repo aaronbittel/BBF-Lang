@@ -119,7 +119,7 @@ class CodeGenerator:
         varinfo = self.symbol_table.lookup(ident.value)
         if varinfo is None:
             raise CodeGenError(
-                f"ERROR: {ident.position}: undefined variable `{ident.value}`"
+                f"ERROR: {ident.position}: undeclared variable `{ident.value}`. Did you forget to assign a type?"
             )
         self.emitter.emit("pop rax")
         self.emitter.emit(f"mov [rbp{varinfo.offset:+d}], rax")

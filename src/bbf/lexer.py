@@ -164,32 +164,32 @@ class Lexer:
             token = self._create_token(ttype=TokenType.Dot, value=".")
             self.advance()
         elif ch == ">":
-            if self.peek(1) == "=":
+            self.advance()
+            if self.peek() == "=":
                 token = self._create_token(
                     ttype=TokenType.GreaterEqual, value=">=", length=2
                 )
                 self.consume("=")
             else:
                 token = self._create_token(ttype=TokenType.Greater, value=">")
-            self.advance()
         elif ch == "<":
-            if self.peek(1) == "=":
+            self.advance()
+            if self.peek() == "=":
                 token = self._create_token(
                     ttype=TokenType.LessEqual, value="<=", length=2
                 )
                 self.consume("=")
             else:
                 token = self._create_token(ttype=TokenType.Less, value="<")
-            self.advance()
         elif ch == "=":
-            if self.peek(1) == "=":
+            self.advance()
+            if self.peek() == "=":
                 token = self._create_token(
                     ttype=TokenType.EqualEqual, value="==", length=2
                 )
                 self.consume("=")
             else:
                 token = self._create_token(ttype=TokenType.Equal, value="=")
-            self.advance()
         elif ch == "!":
             if self.peek(1) == "=":
                 token = self._create_token(
