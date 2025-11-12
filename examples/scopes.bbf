@@ -1,0 +1,31 @@
+print("Argv[1]: ") print(argv[1]) print("\n")
+input: Int = atoi(argv[1])
+x: Int = 12
+y: String = "Hello, World!\n"
+
+if input == 10 then
+    print("If\n")
+    x: Int = 1200
+    print(x)
+elif input == 20 then
+    print("Elif 1\n")
+    y: Int = 20
+    z: Int = 1000
+    print(z + y * z)
+elif input == 30 then
+    print("Elif 2\n")
+    abc: String = "ABC"
+    abc: String = "ABC"
+    bcd: String = "BCD"
+    qwer: String = "aslkdfjalsfjdlkfsal"
+elif input == 40 then
+    print("Elif 3\n")
+    abc: Int = 4 * 2 + 12 - 125 + (34 / 12) % 23
+    print(abc)
+else
+    print("Else\n")
+    print(100)
+end
+
+print(x)
+print(y)

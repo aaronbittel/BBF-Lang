@@ -15,10 +15,12 @@ $
   "Assignment",
   "If-Statement",
   "For-Statement",
+  "Scope-Statement",
 ) \
 "Declaration" arrow &  "Identifier : (" #e("Int") | #e("String") ")" = "Expression" \
 "Assignment" arrow & "Identifier" = "Expression" \
 "Scope" arrow & {"Statement"} \
+"Scope-Statement" arrow & "do" {"Statement"} "end" \
 "If-Statement" arrow & "if Condition then" \ & "{Scope}" \ & "{Elif-Statement}" \ & "[Else-Statement]" \ &  "end" \
 "Elif-Statement" arrow & "elif Condition then {Scope}" \
 "Else-Statement" arrow & "else {Scope}" \

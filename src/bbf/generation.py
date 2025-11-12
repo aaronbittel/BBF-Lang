@@ -84,6 +84,8 @@ class CodeGenerator:
             self.gen_stmt_print(stmt.stmt)
         elif isinstance(stmt.stmt, NodeStmtFor):
             self.gen_stmt_for(stmt.stmt)
+        elif isinstance(stmt.stmt, NodeScope):
+            self.gen_stmt_scope(stmt.stmt)
         else:
             raise CodeGenError(f"ERROR: unexpected NodeStmt: {stmt}")
 
@@ -229,6 +231,11 @@ class CodeGenerator:
             else:
                 self.emitter.emit(f"jl loop_{self.loop_count}_start")
             self.loop_count += 1
+
+    def gen_stmt_scope(self, scope: NodeScope) -> None:
+        with self.new_scope(scope):
+            for stmt in scope.stmts:
+                self.gen_stmt(stmt)
 
     def gen_stmt_print(self, stmt: NodeStmtWrite) -> None:
         self.gen_expr_as_string(stmt.expr)

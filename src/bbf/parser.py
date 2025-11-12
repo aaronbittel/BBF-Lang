@@ -58,6 +58,8 @@ class Parser:
             stmt = self.parse_if_stmt()
         elif self.check(TokenType.For):
             stmt = self.parse_for_stmt()
+        elif self.check(TokenType.Do):
+            stmt = self.parse_scope_stmt()
         else:
             token = self.peek()
             raise ParserError(token=token, msg=f"unexpected token: {token.value}")
@@ -156,6 +158,14 @@ class Parser:
             inclusive = True
         end = self.expression()
         return NodeExprRange(start, end, inclusive)
+
+    def parse_scope_stmt(self) -> NodeScope:
+        self.consume(TokenType.Do, "Expected `do` in scope statement")
+        stmts: list[NodeStmt] = []
+        while not self.check(TokenType.End):
+            stmts.append(self.parse_stmt())
+        self.consume(TokenType.End, "Expected `end` to end scope statement")
+        return NodeScope(stmts)
 
     def parse_print_stmt(self) -> NodeStmtWrite:
         if self.check(TokenType.Print):
