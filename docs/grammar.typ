@@ -8,24 +8,52 @@
 
 #block(breakable: true)
 $
-"Program" arrow & "{Statement}" \
-"Statement" arrow & cases(
+"Program" arrow & "{TopLevel}" \
+"TopLevel" arrow & "FunctionDefiniton" | "GlobalStatement" \
+"GlobalStatement" arrow & cases(
   "Declaration",
   "Assignment",
-  "If-Statement",
-  "For-Statement",
-  "Scope-Statement",
+  "IfStatement",
+  "ForStatement",
+  "DoBlock",
   "FunctionCall",
 ) \
-"Declaration" arrow &  "Identifier" #e(":") "VarType" #e("=") "Expression" \
+"FunctionDefiniton" arrow &
+  #e("fn") "Identifier" #e("(") ["FuncDefArgs"] #e(")") \"arrow\" "VarType" #e("do") \
+  & {"FunctionStatement"} \
+  & #e("end") \
+"FunctionStatement" arrow & "GlobalStatement" | "ReturnStatement" \
+"ReturnStatement" arrow & #e("return") "Expression" \
+"Declaration" arrow & "Identifier" #e(":") "VarType" #e("=") "Expression" \
 "Assignment" arrow & "Identifier" #e("=") "Expression" \
-"Scope" arrow & {"Statement"} \
-"Scope-Statement" arrow & "do" {"Statement"} "end" \
-"If-Statement" arrow & "if Condition then" \ & "{Scope}" \ & "{Elif-Statement}" \ & "[Else-Statement]" \ &  "end" \
-"Elif-Statement" arrow & "elif Condition then {Scope}" \
-"Else-Statement" arrow & "else {Scope}" \
-"For-Statement" arrow & "for Identifier in Range do {Scope} end" \
+
+"IfStatement" arrow &
+  #e("if") "Condition" #e("then") \
+  & "Block" \
+  & {"ElifClause"} \
+  & ["ElseClause"] \
+  & #e("end") \
+"ElifClause" arrow & #e("elif") "Condition" #e("then") "Block" \
+"ElseClause" arrow & #e("else") "Block" \
+"ForStatement" arrow & #e("for") "Identifier" #e("in") "Range" #e("do") "Block" #e("end") \
 "Range" arrow & "Expression"..[#e("=")]"Expression" \
+"Block" arrow & {"FunctionStatement"} \
+"DoBlock" arrow & #e("do") "Block" #e("end") \
+
+"FuncDefArgs" arrow & "FuncDefArg" {#e(",") "FuncDefArg"} \
+"FuncDefArg" arrow & "Identifier" #e(":") "VarType" \
+"FunctionCall" arrow & "Identifier" #e("(") ["ArgList"] #e(")") \
+"ArgList" arrow & "Expression" {#e(",") "Expression"} \
+"Condition" arrow & "Expression" \
+"Identifier" arrow & "Letter" ("Letter" | "Digit" )* \
+"VarType" arrow & cases(
+  "Int",
+  "String",
+  "Void",
+) \
+$
+#pagebreak()
+$
 "Expression" arrow & "Equality" \
 "Equality" arrow & "Comparison" ( (#e("!=") | #e("==")) "Comparison" )* \
 "Comparison" arrow & "Term" ((#e(">") | #e(">=") | #e("<") | #e("<=")) "Term")* \
@@ -40,18 +68,10 @@ $
   "argv" #e("[") "Expression" #e("]"),
   "FunctionCall",
 ) \
-"FunctionCall" arrow & "Identifier" #e("(") ["ArgumentList"] #e(")") \
-"ArgumentList" arrow & "Expression" | "Expression", "ArgumentList" \
-"Condition" arrow & "Expression" \
-"Identifier" arrow & "Letter" ("Letter" | "Digit" )* \
 "IntegerLit" arrow & (#e("+") | #e("-"))? "Digit" ( #e("_") "Digit" | "Digit" )* \
 "StringLit" arrow & #e("\"") ("~"#e("\""))* #e("\"") \
 "Letter" arrow & #e("A")..#e("Z") | #e("a")..#e("z") | #e("_") \
 "Digit" arrow & #e("0")..#e("9") \
-"VarType" arrow & cases(
-  "Int",
-  "String",
-  "Void",
-) \
 $
+
 
