@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
 
 from bbf.lexer import Token, TokenType
 from bbf.symbol_table import VarType
@@ -43,23 +42,23 @@ class Parser:
         stmts: list[NodeStmt] = []
         while not self.is_eof():
             stmts.append(self.parse_stmt())
-        return NodeProgram(NodeScope(stmts))
+        return NodeProgram(NodeStmtScope(stmts))
 
     def parse_stmt(self) -> NodeStmt:
-        if self.check(TokenType.Exit):
-            stmt = self.parse_exit_expr()
-        elif self.check(TokenType.Identifier) and self.check(TokenType.Colon, offset=1):
+        if self.check(TokenType.Identifier) and self.check(TokenType.Colon, offset=1):
             stmt = self.parse_decl_stmt()
         elif self.check(TokenType.Identifier) and self.check(TokenType.Equal, offset=1):
             stmt = self.parse_assign_stmt()
-        elif self.check(TokenType.Print) or self.check(TokenType.Eprint):
-            stmt = self.parse_print_stmt()
         elif self.check(TokenType.If):
             stmt = self.parse_if_stmt()
         elif self.check(TokenType.For):
             stmt = self.parse_for_stmt()
         elif self.check(TokenType.Do):
             stmt = self.parse_scope_stmt()
+        elif self.check(TokenType.Identifier) and self.check(
+            TokenType.OpenParen, offset=1
+        ):
+            stmt = self.fn_call()
         else:
             token = self.peek()
             raise ParserError(token=token, msg=f"unexpected token: {token.value}")
@@ -87,13 +86,6 @@ class Parser:
         expr = self.expression()
         return NodeStmtAssign(ident=ident, expr=expr)
 
-    def parse_exit_expr(self) -> NodeStmtExit:
-        self.consume(TokenType.Exit, "Expected `exit` call")
-        self.consume(TokenType.OpenParen, "Expected `(` in `exit` call`")
-        expr = self.expression()
-        self.consume(TokenType.CloseParen, "Expected `)` in `exit` call")
-        return NodeStmtExit(expr)
-
     def parse_if_stmt(self) -> NodeStmtIf:
         # TODO: can I implement this without .previous() ?
         self.consume(TokenType.If, "Expected `if` in if-statement")
@@ -103,7 +95,7 @@ class Parser:
         while not self.match(TokenType.End, TokenType.Else, TokenType.Elif):
             s = self.parse_stmt()
             if_stmts.append(s)
-        scope = NodeScope(if_stmts)
+        scope = NodeStmtScope(if_stmts)
         elifs: list[NodeStmtElif] = []
         if self.previous().ttype == TokenType.Elif:
             while True:
@@ -114,7 +106,9 @@ class Parser:
                     s = self.parse_stmt()
                     elif_stmts.append(s)
                 elifs.append(
-                    NodeStmtElif(condition=elif_condition, scope=NodeScope(elif_stmts))
+                    NodeStmtElif(
+                        condition=elif_condition, scope=NodeStmtScope(elif_stmts)
+                    )
                 )
                 if self.previous().ttype != TokenType.Elif:
                     break
@@ -127,7 +121,7 @@ class Parser:
             return NodeStmtIf(
                 condition=condition,
                 scope=scope,
-                else_scope=NodeScope(else_stmts),
+                else_scope=NodeStmtScope(else_stmts),
                 elifs=elifs,
             )
         if self.previous().ttype == TokenType.End:
@@ -146,7 +140,7 @@ class Parser:
         stmts: list[NodeStmt] = []
         while not self.match(TokenType.End):
             stmts.append(self.parse_stmt())
-        return NodeStmtFor(ident, range_expr, scope=NodeScope(stmts))
+        return NodeStmtFor(ident, range_expr, scope=NodeStmtScope(stmts))
 
     def range_expr(self) -> NodeExprRange:
         start = self.expression()
@@ -159,34 +153,13 @@ class Parser:
         end = self.expression()
         return NodeExprRange(start, end, inclusive)
 
-    def parse_scope_stmt(self) -> NodeScope:
+    def parse_scope_stmt(self) -> NodeStmtScope:
         self.consume(TokenType.Do, "Expected `do` in scope statement")
         stmts: list[NodeStmt] = []
         while not self.check(TokenType.End):
             stmts.append(self.parse_stmt())
         self.consume(TokenType.End, "Expected `end` to end scope statement")
-        return NodeScope(stmts)
-
-    def parse_print_stmt(self) -> NodeStmtWrite:
-        if self.check(TokenType.Print):
-            self.consume(TokenType.Print, "Expected `print` call")
-            fd = STDOUT
-        elif self.check(TokenType.Eprint):
-            self.consume(TokenType.Eprint, "Expected `eprint` call")
-            fd = STDERR
-        else:
-            assert False, "unreachable"
-        self.consume(TokenType.OpenParen, "Expected `(` in print")
-        expr = self.expression()
-        self.consume(TokenType.CloseParen, "Expected `)` in print")
-        return NodeStmtWrite(expr, fd)
-
-    def atoi(self) -> NodeExprAtoi:
-        self.consume(TokenType.Atoi, "Expected `atoi` in atoi")
-        self.consume(TokenType.OpenParen, "Expected `(` in atoi")
-        expr = self.expression()
-        self.consume(TokenType.CloseParen, "Expected `)` in atoi")
-        return NodeExprAtoi(expr)
+        return NodeStmtScope(stmts)
 
     def expression(self) -> NodeExpr:
         return self.equality()
@@ -252,6 +225,10 @@ class Parser:
             )
         if self.check(TokenType.Identifier) and self.peek().value == "argv":
             return NodeExpr(self.argv())
+        if self.check(TokenType.Identifier) and self.check(
+            TokenType.OpenParen, offset=1
+        ):
+            return NodeExpr(self.fn_call())
         if self.check(TokenType.Identifier):
             return NodeExpr(
                 NodeExprIdent(
@@ -269,9 +246,22 @@ class Parser:
                     self.consume(TokenType.StringLit, "Expected `StringLiteral`")
                 )
             )
-        if self.check(TokenType.Atoi):
-            return NodeExpr(self.atoi())
         assert False, f"unreachable: {self.peek()}"
+
+    def fn_call(self) -> NodeExprFnCall:
+        name = self.consume(TokenType.Identifier, "Expected `name` for function call")
+        self.consume(TokenType.OpenParen, "Expected `(` for function call")
+        args_list: list[NodeExpr] = []
+        if not self.check(TokenType.CloseParen):
+            args_list = self.args_list()
+        self.consume(TokenType.CloseParen, "Expected `)` for function call")
+        return NodeExprFnCall(name, args_list)
+
+    def args_list(self) -> list[NodeExpr]:
+        args: list[NodeExpr] = [self.expression()]
+        while self.match(TokenType.Comma):
+            args.append(self.expression())
+        return args
 
     def argv(self) -> NodeExprArgv:
         self.consume(TokenType.Identifier, "Expected `argv`")
@@ -319,7 +309,7 @@ class Parser:
 
 @dataclass
 class NodeProgram:
-    scope: NodeScope
+    scope: NodeStmtScope
 
     def __str__(self) -> str:
         return str(self.scope)
@@ -328,24 +318,16 @@ class NodeProgram:
 @dataclass
 class NodeStmt:
     stmt: (
-        NodeStmtExit
-        | NodeStmtDecl
-        | NodeStmtWrite
+        NodeStmtDecl
         | NodeStmtIf
         | NodeStmtFor
         | NodeStmtAssign
+        | NodeStmtScope
+        | NodeExprFnCall
     )
 
     def __str__(self) -> str:
         return str(self.stmt)
-
-
-@dataclass
-class NodeStmtExit:
-    expr: NodeExpr
-
-    def __str__(self) -> str:
-        return f"exit({self.expr})"
 
 
 @dataclass
@@ -370,7 +352,7 @@ class NodeStmtAssign:
 @dataclass
 class NodeStmtElif:
     condition: NodeExpr
-    scope: NodeScope
+    scope: NodeStmtScope
 
     def __str__(self) -> str:
         return f"elif {self.condition} then\n{self.scope}"
@@ -379,9 +361,9 @@ class NodeStmtElif:
 @dataclass
 class NodeStmtIf:
     condition: NodeExpr
-    scope: NodeScope
+    scope: NodeStmtScope
     elifs: list[NodeStmtElif]
-    else_scope: NodeScope | None = None
+    else_scope: NodeStmtScope | None = None
 
     def __str__(self) -> str:
         out = f"if {self.condition} then\n"
@@ -409,38 +391,14 @@ class NodeExprRange:
 class NodeStmtFor:
     loop_ident: Token
     range_expr: NodeExprRange
-    scope: NodeScope
+    scope: NodeStmtScope
 
     def __str__(self) -> str:
         return f"for {self.loop_ident.value} in {self.range_expr} do{self.scope}\nend"
 
 
-STDIN = 0
-STDOUT = 1
-STDERR = 2
-
-type FD = Literal[0, 1, 2]
-
-
 @dataclass
-class NodeStmtWrite:
-    expr: NodeExpr
-    fd: FD
-
-    def __str__(self) -> str:
-        return f"{'e' if self.fd == STDERR else ''}print({self.expr})"
-
-
-@dataclass
-class NodeExprAtoi:
-    expr: NodeExpr
-
-    def __str__(self) -> str:
-        return f"atoi({self.expr})"
-
-
-@dataclass
-class NodeScope:
+class NodeStmtScope:
     stmts: list[NodeStmt]
 
     def __str__(self) -> str:
@@ -457,11 +415,20 @@ class NodeExpr:
         | NodeExprUnary
         | NodeExprGrouping
         | NodeExprArgv
-        | NodeExprAtoi
+        | NodeExprFnCall
     )
 
     def __str__(self) -> str:
         return str(self.var)
+
+
+@dataclass
+class NodeExprFnCall:
+    name: Token
+    args_list: list[NodeExpr]
+
+    def __str__(self) -> str:
+        return f"{self.name.value}({', '.join(str(e) for e in self.args_list)})"
 
 
 @dataclass

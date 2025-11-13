@@ -8,24 +8,22 @@ from bbf.lexer import TokenType
 from bbf.parser import (
     NodeExpr,
     NodeExprArgv,
-    NodeExprAtoi,
     NodeExprBinary,
+    NodeExprFnCall,
     NodeExprGrouping,
     NodeExprIdent,
     NodeExprIntLit,
     NodeExprStringLit,
     NodeExprUnary,
     NodeProgram,
-    NodeScope,
     NodeStmt,
     NodeStmtAssign,
     NodeStmtDecl,
-    NodeStmtExit,
     NodeStmtFor,
     NodeStmtIf,
-    NodeStmtWrite,
+    NodeStmtScope,
 )
-from bbf.symbol_table import SymbolTable, VarInfo, VarType
+from bbf.symbol_table import FunctionTable, SymbolTable, VarInfo, VarType
 
 COMPARISON_SETCC = {
     TokenType.Less: "setl",  # <
@@ -45,6 +43,7 @@ class CodeGenerator:
         self.symbol_table = SymbolTable()
         # TODO: move this into symboltable again
         self.symbol_table.offsets = {"argc": VarInfo(offset=0, ttype=VarType.Int)}
+        self.function_table = FunctionTable()
         self.strings: list[str] = []
         self.if_label_count = 0
         self.elif_label_count = 0
@@ -72,37 +71,27 @@ class CodeGenerator:
         node_str = str(stmt)
         for line in node_str.split("\n"):
             self.emitter.emit(f"; {line}")
-        if isinstance(stmt.stmt, NodeStmtExit):
-            self.gen_stmt_exit(stmt.stmt)
-        elif isinstance(stmt.stmt, NodeStmtDecl):
+        if isinstance(stmt.stmt, NodeStmtDecl):
             self.gen_stmt_decl(stmt.stmt)
         elif isinstance(stmt.stmt, NodeStmtAssign):
             self.gen_stmt_assign(stmt.stmt)
         elif isinstance(stmt.stmt, NodeStmtIf):
             self.gen_stmt_if(stmt.stmt)
-        elif isinstance(stmt.stmt, NodeStmtWrite):
-            self.gen_stmt_print(stmt.stmt)
         elif isinstance(stmt.stmt, NodeStmtFor):
             self.gen_stmt_for(stmt.stmt)
-        elif isinstance(stmt.stmt, NodeScope):
+        elif isinstance(stmt.stmt, NodeStmtScope):
             self.gen_stmt_scope(stmt.stmt)
+        elif isinstance(stmt.stmt, NodeExprFnCall):
+            self.gen_fn_call(stmt.stmt)
         else:
             raise CodeGenError(f"ERROR: unexpected NodeStmt: {stmt}")
-
-    def gen_stmt_exit(self, stmt: NodeStmtExit) -> None:
-        expr = stmt.expr
-        self.gen_expr(expr)
-        self.emitter.emit("pop rdi")
-        self.emitter.emit("call __builtin_exit")
 
     def gen_stmt_decl(self, stmt: NodeStmtDecl) -> None:
         ident, expr = stmt.ident, stmt.expr
 
-        varinfo = self.symbol_table.lookup(ident.value)
-        assert varinfo is not None, "`new_scope()` declares all new variables"
-        offset = varinfo.offset
-
         self.gen_expr(expr)
+        offset = self.symbol_table.define(ident.value, stmt.ttype)
+
         if stmt.ttype == VarType.Int:
             self.emitter.emit("pop rax")
             self.emitter.emit(f"mov [rbp{offset:+d}], rax")
@@ -111,6 +100,10 @@ class CodeGenerator:
             self.emitter.emit("pop rax ; str_ptr")
             self.emitter.emit(f"mov [rbp{offset:+d}], rax ; store str_ptr")
             self.emitter.emit(f"mov [rbp{offset - 8:+d}], rdx ; store str_len")
+        else:
+            raise CodeGenError(
+                f"ERROR: {stmt.ident.position}: Unsupported VarType `{stmt.ttype}`"
+            )
 
     def gen_stmt_assign(self, stmt: NodeStmtAssign) -> None:
         ident, expr = stmt.ident, stmt.expr
@@ -178,20 +171,72 @@ class CodeGenerator:
         # --- END ---
         self.emitter.emit(f"{end_label}:", indent=0)
 
+    def gen_fn_call(self, stmt: NodeExprFnCall) -> None:
+        # NOTE: Functions will push their result into rax. Calling code needs to
+        # handle this.
+        fninfo = self.function_table.lookup(stmt.name.value)
+        if fninfo is None:
+            raise CodeGenError(
+                f"ERROR: {stmt.name.position}: No function with name `{stmt.name.value}` is defined."
+            )
+        fn_name = stmt.name.value
+        # TODO: add type checking here
+        if len(stmt.args_list) != len(fninfo.args):
+            raise CodeGenError(
+                f"ERROR: {stmt.name.position}: Expected `{len(fninfo.args)}` function parameters for function `{fn_name}`, but got `{len(stmt.args_list)}`"
+            )
+
+        if len(fninfo.args) > 6:
+            raise CodeGenError(
+                f"ERROR: {stmt.name.position}: Function calls with more than 6 arguments are currently not supported."
+            )
+
+        regs_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+        reg_i = 0
+
+        self.emitter.emit(f"; {fn_name} function args")
+        for fn_arg, expr_arg in zip(fninfo.args, stmt.args_list):
+            # TODO: Check if type of fn param matches var type
+            self.gen_expr(expr_arg)
+            if fn_arg.vartype == VarType.Int:
+                assert reg_i + 1 < len(regs_order), (
+                    "Currently can't handle more physcial args than 6"
+                )
+                self.emitter.emit(f"pop {regs_order[reg_i]}")
+                reg_i += 1
+            elif fn_arg.vartype == VarType.String:
+                assert reg_i + 2 < len(regs_order), (
+                    "Currently can't handle more physcial args than 6"
+                )
+                self.emitter.emit(f"pop {regs_order[reg_i + 1]} ; str_len")
+                self.emitter.emit(f"pop {regs_order[reg_i]} ; str_ptr")
+                reg_i += 2
+
+        self.emitter.emit(f"call {fn_name} ; return_type: {fninfo.return_type.name}")
+        if fninfo.return_type == VarType.Int:
+            self.emitter.emit("push rax ; return value from fn call")
+        elif fninfo.return_type == VarType.Void:
+            pass
+        elif fninfo.return_type == VarType.String:
+            self.emitter.emit("push rax ; return str_ptr from fn call")
+            self.emitter.emit("push rdi ; return str_len from fn call")
+        else:
+            raise CodeGenError(
+                f"ERROR: {stmt.name.position}: return type {fninfo.return_type} is currently not supported."
+            )
+
     @contextmanager
-    def new_scope(self, scope: NodeScope):
+    def new_scope(self, scope: NodeStmtScope):
         try:
             old_table = self.symbol_table
             self.symbol_table = SymbolTable(
                 parent=self.symbol_table, next_offset=self.symbol_table.next_offset
             )
-            total = 0
-            for stmt in scope.stmts:
-                if isinstance(stmt.stmt, NodeStmtDecl):
-                    decl = stmt.stmt
-                    self.symbol_table.define(decl.ident.value, decl.ttype)
-                    print(f"defining {decl.ident.value}", self.symbol_table.offsets)
-                    total += decl.ttype.value
+            total = sum(
+                stmt.stmt.ttype.value
+                for stmt in scope.stmts
+                if isinstance(stmt.stmt, NodeStmtDecl)
+            )
             self.emitter.emit(f"sub rsp, {total} ; reserve space for scope")
             yield
         finally:
@@ -232,17 +277,10 @@ class CodeGenerator:
                 self.emitter.emit(f"jl loop_{self.loop_count}_start")
             self.loop_count += 1
 
-    def gen_stmt_scope(self, scope: NodeScope) -> None:
+    def gen_stmt_scope(self, scope: NodeStmtScope) -> None:
         with self.new_scope(scope):
             for stmt in scope.stmts:
                 self.gen_stmt(stmt)
-
-    def gen_stmt_print(self, stmt: NodeStmtWrite) -> None:
-        self.gen_expr_as_string(stmt.expr)
-        self.emitter.emit("pop rdx ; str_len")
-        self.emitter.emit("pop rsi ; str_ptr")
-        self.emitter.emit(f"mov rdi, {stmt.fd} ; fd")
-        self.emitter.emit("call __builtin_write")
 
     # TODO: Make gen_stmt_* functions return values or registers
     # When you add binary expressions or function calls, you’ll want to evaluate
@@ -266,8 +304,8 @@ class CodeGenerator:
             self.gen_node_expr_stringlit(expr.var)
         elif isinstance(expr.var, NodeExprArgv):
             self.gen_node_expr_argv(expr.var)
-        elif isinstance(expr.var, NodeExprAtoi):
-            self.gen_node_expr_atoi(expr.var)
+        elif isinstance(expr.var, NodeExprFnCall):
+            self.gen_fn_call(expr.var)
         else:
             assert False, f"unreachable: {expr.var}"
 
@@ -289,7 +327,7 @@ class CodeGenerator:
                 return
 
         self.emitter.emit("pop rdi")
-        self.emitter.emit("call __builtin_itoa")
+        self.emitter.emit("call itoa")
         self.emitter.emit("push rax ; str_ptr")
         self.emitter.emit("push rdx ; str_len")
 
@@ -405,16 +443,8 @@ class CodeGenerator:
         self.emitter.emit("mov rdi, [rbx]")
 
         self.emitter.emit("push rdi ; str_len")
-        self.emitter.emit("call __builtin_c_strlen")
+        self.emitter.emit("call c_strlen")
         self.emitter.emit("push rax ; str_len")
-
-    def gen_node_expr_atoi(self, atoi: NodeExprAtoi) -> None:
-        self.gen_expr(atoi.expr)
-        # NOTE: This will break if expression does not evaluate to a string
-        self.emitter.emit("pop rsi ; str_len")
-        self.emitter.emit("pop rdi ; str_ptr")
-        self.emitter.emit("call __builtin_atoi")
-        self.emitter.emit("push rax")
 
     def program_prologue(self) -> None:
         self.emitter.emit("global _start", indent=0)
@@ -427,7 +457,7 @@ class CodeGenerator:
     def program_epilogue(self):
         self.emitter.emit("; default exit 0")
         self.emitter.emit("mov rdi, 0")
-        self.emitter.emit("call __builtin_exit")
+        self.emitter.emit("call exit")
 
     def builtins(self) -> None:
         self.emitter.emit("")

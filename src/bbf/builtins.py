@@ -1,13 +1,15 @@
 _builtin_exit = """
 ; rdi: exit_code
-__builtin_exit:
+exit:
     mov rax, 60
     syscall"""
 
 _builtin_atoi = """
 ; rdi: str_ptr, rsi: str_len
-__builtin_atoi:
-    mov rax, 0
+atoi:
+    push rbp
+    mov rbp, rsp
+    xor rax, rax
     mov r9, rdi ; r9: ptr into str
     lea r11, [rdi + rsi] ; r11: end ptr
 
@@ -23,11 +25,12 @@ __builtin_atoi:
     jmp .loop
 
 .return:
+    pop rbp
     ret"""
 
 _builtin_itoa = """
 ; rdi: int
-__builtin_itoa:
+itoa:
     mov rbx, 10 ; factor 10 used for division and modulo
     mov rax, rdi ; rax: number
 
@@ -38,8 +41,7 @@ __builtin_itoa:
     inc r8 ; r8 == 1 => negative
 
 .positive:
-    mov r9, 31 ; r9: index
-    mov byte [__itoa_buf+r9], 10 ; write <newline> at the end
+    mov r9, 32 ; r9: index
 
 .loop:
     dec r9
@@ -63,16 +65,46 @@ __builtin_itoa:
     sub rdx, r9 ; length
     ret"""
 
-_builtin_write = """
-; rdi: fd, rsi: str_ptr, rdx: str_len
-__builtin_write:
+
+_builtin_stdout = """
+; rdi: str_ptr, rsi: str_len
+stdout:
+    push rbp
+    mov rbp, rsp
+
+    mov r9, rdi
+    mov r10, rsi
+
     mov rax, 1
+    mov rdi, 1 ; stdout
+    mov rsi, r9
+    mov rdx, r10
     syscall
+
+    pop rbp
+    ret"""
+
+_builtin_stderr = """
+; rdi: str_ptr, rsi: str_len
+stderr:
+    push rbp
+    mov rbp, rsp
+
+    mov r9, rdi
+    mov r10, rsi
+
+    mov rax, 1
+    mov rdi, 2 ; stderr
+    mov rsi, r9
+    mov rdx, r10
+    syscall
+
+    pop rbp
     ret"""
 
 _builtin_c_strlen = """
 ; rdi: str_ptr
-__builtin_c_strlen:
+c_strlen:
     xor rax, rax
 
 .loop:

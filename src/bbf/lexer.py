@@ -16,12 +16,6 @@ class TokenType(StrEnum):
     Int = auto()
     String = auto()
 
-    # Builtin Functions
-    Exit = auto()
-    Print = auto()
-    Eprint = auto()
-    Atoi = auto()
-
     # Keywords
     If = auto()
     Then = auto()
@@ -48,6 +42,7 @@ class TokenType(StrEnum):
     Greater = auto()
     Less = auto()
     Dot = auto()
+    Comma = auto()
 
     # Double Char Tokens
     GreaterEqual = auto()
@@ -60,11 +55,6 @@ class TokenType(StrEnum):
 
 
 BUILTINS = {
-    # Builtin Functions
-    "exit": TokenType.Exit,
-    "print": TokenType.Print,
-    "eprint": TokenType.Eprint,
-    "atoi": TokenType.Atoi,
     # Types
     "String": TokenType.String,
     "Int": TokenType.Int,
@@ -162,6 +152,9 @@ class Lexer:
             self.advance()
         elif ch == ".":
             token = self._create_token(ttype=TokenType.Dot, value=".")
+            self.advance()
+        elif ch == ",":
+            token = self._create_token(ttype=TokenType.Comma, value=",")
             self.advance()
         elif ch == ">":
             self.advance()

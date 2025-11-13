@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import NamedTuple
 
 
 class VarType(Enum):
     Int = 8
     String = 16
+    Void = 0
 
 
 @dataclass
@@ -38,3 +40,42 @@ class SymbolTable:
             if varinfo is not None:
                 return varinfo
             cur = cur.parent
+
+
+class FnArg(NamedTuple):
+    name: str
+    vartype: VarType
+
+
+class FnInfo(NamedTuple):
+    args: list[FnArg]
+    return_type: VarType
+
+
+# TODO: Implement function overloads e.g. for print
+BUILTIN_FNS = {
+    "exit": FnInfo(
+        args=[FnArg(name="x", vartype=VarType.Int)],
+        return_type=VarType.Void,
+    ),
+    "atoi": FnInfo(
+        args=[FnArg(name="x", vartype=VarType.String)], return_type=VarType.Int
+    ),
+    "itoa": FnInfo(
+        args=[FnArg(name="x", vartype=VarType.Int)], return_type=VarType.String
+    ),
+    "stdout": FnInfo(
+        args=[FnArg(name="x", vartype=VarType.String)], return_type=VarType.Void
+    ),
+    "stderr": FnInfo(
+        args=[FnArg(name="x", vartype=VarType.String)], return_type=VarType.Void
+    ),
+}
+
+
+class FunctionTable:
+    def __init__(self) -> None:
+        self.fns = BUILTIN_FNS
+
+    def lookup(self, name: str) -> FnInfo | None:
+        return self.fns.get(name)
