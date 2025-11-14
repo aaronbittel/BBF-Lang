@@ -1,9 +1,31 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from bbf.lexer import Token, TokenType
-from bbf.symbol_table import VarType
+from bbf.nodes.expr import (
+    Argv,
+    Binary,
+    Expr,
+    FnCall,
+    Grouping,
+    Identifier,
+    IntegerLit,
+    StringLit,
+    Unary,
+)
+from bbf.nodes.program import ProgTopLevelStmt
+from bbf.nodes.stmt import (
+    Assignment,
+    Block,
+    Declaration,
+    DoBlock,
+    ElifStmt,
+    ExprStmt,
+    ForStmt,
+    IfStmt,
+    Range,
+    Stmt,
+)
+from bbf.nodes.toplevel import TopLevel, TopLevelStmt
 
 
 class ParserError(Exception):
@@ -38,111 +60,178 @@ class Parser:
         self.tokens = tokens
         self.index = 0
 
-    def parse_program(self) -> NodeProgram:
-        stmts: list[NodeStmt] = []
+    def parse_program(self) -> ProgTopLevelStmt:
+        stmts: list[TopLevel] = []
         while not self.is_eof():
-            stmts.append(self.parse_stmt())
-        return NodeProgram(NodeStmtScope(stmts))
+            stmts.append(self.parse_toplevel_stmt())
+        return ProgTopLevelStmt(stmts)
 
-    def parse_stmt(self) -> NodeStmt:
+    def parse_toplevel_stmt(self) -> TopLevel:
+        # if self.check(TokenType.Fn):
+        #     return self.parse_fndef_stmt()
+        return TopLevelStmt(self.parse_stmt())
+
+    # def parse_fndef_stmt(self) -> FunctionDefinition:
+    #     self.consume(TokenType.Fn, "Expected `fn` in function definition")
+    #     name = self.consume(
+    #         TokenType.Identifier, "Expected `identifier` in function definition"
+    #     )
+    #     self.consume(TokenType.OpenParen, "Expected `(` in function definition")
+    #     args: list[FnDefArg] = []
+    #     if not self.check(TokenType.CloseParen):
+    #         args = self.function_defintion_arguments()
+    #     self.consume(TokenType.CloseParen, "Expected `)` in function definition")
+    #     self.consume(TokenType.Minus, "Expected `-` in function definition")
+    #     self.consume(TokenType.Greater, "Expected `>` in function definition")
+    #     return_token = self.fn_return()
+    #     self.consume(TokenType.Do, "Expected `do` in function definition")
+    #     if self.match(TokenType.End):
+    #         return FunctionDefinition(name, args, return_token)
+    #     block = self.parse_function_statement()
+    #     return FunctionDefinition(name, args, return_token, block)
+
+    # def parse_function_statement(self) -> FunctionStatement:
+    #     if self.check(TokenType.Return):
+    #         self.parse_return_statement()
+    #     return self.parse_stmt()
+
+    # def parse_return_statement(self) -> ReturnStatement:
+    #     self.consume(TokenType.Return, "Expected `return` for return statement")
+    #     expr = self.expression()
+    #     return ReturnStatement(expr)
+
+    def parse_stmt(self) -> Stmt:
+        if self.check(TokenType.If):
+            return self.parse_if()
+        if self.check(TokenType.For):
+            return self.parse_for()
+        if self.check(TokenType.Do):
+            return self.parse_do_block()
         if self.check(TokenType.Identifier) and self.check(TokenType.Colon, offset=1):
-            stmt = self.parse_decl_stmt()
-        elif self.check(TokenType.Identifier) and self.check(TokenType.Equal, offset=1):
-            stmt = self.parse_assign_stmt()
-        elif self.check(TokenType.If):
-            stmt = self.parse_if_stmt()
-        elif self.check(TokenType.For):
-            stmt = self.parse_for_stmt()
-        elif self.check(TokenType.Do):
-            stmt = self.parse_scope_stmt()
-        elif self.check(TokenType.Identifier) and self.check(
-            TokenType.OpenParen, offset=1
-        ):
-            stmt = self.fn_call()
-        else:
-            token = self.peek()
-            raise ParserError(token=token, msg=f"unexpected token: {token.value}")
-        return NodeStmt(stmt)
+            return self.parse_declaration()
+        if self.check(TokenType.Identifier) and self.check(TokenType.Equal, offset=1):
+            return self.parse_assignment()
+        return self.parse_expression_stmt()
 
-    def parse_decl_stmt(self) -> NodeStmtDecl:
-        ident = self.consume(TokenType.Identifier, "Expected identifier in declaration")
+    def parse_expression_stmt(self) -> ExprStmt:
+        expr = self.expression()
+        return ExprStmt(expr)
+
+    # def function_defintion_arguments(self) -> list[FnDefArg]:
+    #     args = [self.function_defintion_argument()]
+    #     while self.match(TokenType.Comma):
+    #         args.append(self.function_defintion_argument())
+    #     return args
+
+    # def function_defintion_argument(self) -> FnDefArg:
+    #     name = self.consume(
+    #         TokenType.Identifier,
+    #         "Expected `identifier` for function argument definition",
+    #     )
+    #     self.consume(TokenType.Colon, "Expected `:` in function argument definition")
+    #     if not self.match(TokenType.Int, TokenType.String, TokenType.Void):
+    #         raise ParserExpectError(
+    #             self.peek(),
+    #             "Expected `VarType` for function argument definition",
+    #             TokenType.Int,
+    #             TokenType.String,
+    #             TokenType.Void,
+    #         )
+    #     ttype = self.previous()
+    #     return FnDefArg(name, ttype)
+
+    # def fn_return(self) -> Token:
+    #     if self.match(TokenType.Int, TokenType.String, TokenType.Void):
+    #         return self.previous()
+    #     raise ParserExpectError(
+    #         self.peek(),
+    #         "Expected `VarType` for function return type declaration",
+    #         TokenType.Int,
+    #         TokenType.String,
+    #         TokenType.Void,
+    #     )
+
+    # def parse_stmt(self) -> Stmt:
+    #     if self.check(TokenType.Identifier) and self.check(TokenType.Colon, offset=1):
+    #         return self.parse_declaration()
+    #     if self.check(TokenType.Identifier) and self.check(TokenType.Equal, offset=1):
+    #         return self.parse_assignment()
+    #     if self.check(TokenType.If):
+    #         return self.parse_if()
+    #     if self.check(TokenType.For):
+    #         return self.parse_for_stmt()
+    #     if self.check(TokenType.Do):
+    #         return self.parse_do_block()
+    #     if self.check(TokenType.Identifier) and self.check(
+    #         TokenType.OpenParen, offset=1
+    #     ):
+    #         return self.parse_function_call()
+    #
+    #     token = self.peek()
+    #     raise ParserError(token=token, msg=f"unexpected token: {token.value}")
+
+    def parse_declaration(self) -> Declaration:
+        name = self.consume(TokenType.Identifier, "Expected identifier in declaration")
         self.consume(TokenType.Colon, "Expected `:` in declaration for type")
-        if self.match(TokenType.Int):
-            ttype = VarType.Int
-        elif self.match(TokenType.String):
-            ttype = VarType.String
-        else:
+        if not self.match(TokenType.Int, TokenType.String, TokenType.Void):
             raise ParserError(
                 token=self.peek(),
                 msg="No type annotation provided",
             )
+        ttype = self.previous()
         self.consume(TokenType.Equal, "Expected `=` in declaration")
         expr = self.expression()
-        return NodeStmtDecl(ident=ident, expr=expr, ttype=ttype)
+        return Declaration(name, ttype, expr)
 
-    def parse_assign_stmt(self) -> NodeStmtAssign:
-        ident = self.consume(TokenType.Identifier, "Expected identifier in assign")
+    def parse_assignment(self) -> Assignment:
+        name = self.consume(TokenType.Identifier, "Expected identifier in assign")
         self.consume(TokenType.Equal, "Expected `=` in assign")
         expr = self.expression()
-        return NodeStmtAssign(ident=ident, expr=expr)
+        return Assignment(name, expr)
 
-    def parse_if_stmt(self) -> NodeStmtIf:
-        # TODO: can I implement this without .previous() ?
+    def parse_if(self) -> Stmt:
         self.consume(TokenType.If, "Expected `if` in if-statement")
         condition = self.expression()
         self.consume(TokenType.Then, "Expected `then` after if-condition")
-        if_stmts: list[NodeStmt] = []
+        if_block = Block()
         while not self.match(TokenType.End, TokenType.Else, TokenType.Elif):
             s = self.parse_stmt()
-            if_stmts.append(s)
-        scope = NodeStmtScope(if_stmts)
-        elifs: list[NodeStmtElif] = []
+            if_block.add(s)
+        elif_branches: list[ElifStmt] = []
         if self.previous().ttype == TokenType.Elif:
             while True:
                 elif_condition = self.expression()
                 self.consume(TokenType.Then, "Expected `then` after elif-condition")
-                elif_stmts: list[NodeStmt] = []
+                elif_block = Block()
                 while not self.match(TokenType.End, TokenType.Else, TokenType.Elif):
-                    s = self.parse_stmt()
-                    elif_stmts.append(s)
-                elifs.append(
-                    NodeStmtElif(
-                        condition=elif_condition, scope=NodeStmtScope(elif_stmts)
-                    )
-                )
+                    elif_block.add(self.parse_stmt())
+                elif_branches.append(ElifStmt(elif_condition, elif_block))
                 if self.previous().ttype != TokenType.Elif:
                     break
         if self.previous().ttype == TokenType.Else:
-            else_stmts: list[NodeStmt] = []
+            else_block = Block()
             while not self.check(TokenType.End):
-                s = self.parse_stmt()
-                else_stmts.append(s)
+                else_block.add(self.parse_stmt())
             self.consume(TokenType.End, "Expected `end` after if-statement")
-            return NodeStmtIf(
-                condition=condition,
-                scope=scope,
-                else_scope=NodeStmtScope(else_stmts),
-                elifs=elifs,
-            )
+            return IfStmt(condition, if_block, elif_branches, else_block)
         if self.previous().ttype == TokenType.End:
-            return NodeStmtIf(condition=condition, scope=scope, elifs=elifs)
+            return IfStmt(condition, if_block, elif_branches)
         raise ParserError(
             token=self.previous(),
             msg="Expected one of `end`, `else` or `elif` keywords",
         )
 
-    def parse_for_stmt(self) -> NodeStmtFor:
+    def parse_for(self) -> ForStmt:
         self.consume(TokenType.For, "Expected `for` in for loop")
-        ident = self.consume(TokenType.Identifier, "Expected `Identifier` in for loop")
+        loop_ident = self.consume(
+            TokenType.Identifier, "Expected `Identifier` in for loop"
+        )
         self.consume(TokenType.In, "Expected `in` in for loop")
         range_expr = self.range_expr()
-        self.consume(TokenType.Do, "Expected `do` in for loop")
-        stmts: list[NodeStmt] = []
-        while not self.match(TokenType.End):
-            stmts.append(self.parse_stmt())
-        return NodeStmtFor(ident, range_expr, scope=NodeStmtScope(stmts))
+        block = self.block()
+        return ForStmt(loop_ident, range_expr, block)
 
-    def range_expr(self) -> NodeExprRange:
+    def range_expr(self) -> Range:
         start = self.expression()
         self.consume(TokenType.Dot, "Expected `.` in range expression")
         self.consume(TokenType.Dot, "Expected `.` in range expression")
@@ -150,29 +239,32 @@ class Parser:
         if self.check(TokenType.Equal):
             self.advance()
             inclusive = True
-        end = self.expression()
-        return NodeExprRange(start, end, inclusive)
+        stop = self.expression()
+        return Range(start, stop, inclusive)
 
-    def parse_scope_stmt(self) -> NodeStmtScope:
+    def parse_do_block(self) -> DoBlock:
+        return DoBlock(self.block())
+
+    def block(self) -> Block:
         self.consume(TokenType.Do, "Expected `do` in scope statement")
-        stmts: list[NodeStmt] = []
+        block = Block()
         while not self.check(TokenType.End):
-            stmts.append(self.parse_stmt())
+            block.add(self.parse_stmt())
         self.consume(TokenType.End, "Expected `end` to end scope statement")
-        return NodeStmtScope(stmts)
+        return block
 
-    def expression(self) -> NodeExpr:
+    def expression(self) -> Expr:
         return self.equality()
 
-    def equality(self) -> NodeExpr:
+    def equality(self) -> Expr:
         expr = self.comparison()
         while self.match(TokenType.BangEqual, TokenType.EqualEqual):
             operator = self.previous()
             right = self.comparison()
-            expr = NodeExpr(NodeExprBinary(expr, operator, right))
+            expr = Binary(expr, operator, right)
         return expr
 
-    def comparison(self) -> NodeExpr:
+    def comparison(self) -> Expr:
         expr = self.term()
         while self.match(
             TokenType.Greater,
@@ -182,93 +274,90 @@ class Parser:
         ):
             operator = self.previous()
             right = self.term()
-            expr = NodeExpr(NodeExprBinary(expr, operator, right))
+            expr = Binary(expr, operator, right)
         return expr
 
-    def term(self) -> NodeExpr:
+    def term(self) -> Expr:
         expr = self.factor()
         while self.match(TokenType.Minus, TokenType.Plus):
             operator = self.previous()
             right = self.factor()
-            expr = NodeExpr(NodeExprBinary(expr, operator, right))
+            expr = Binary(expr, operator, right)
         return expr
 
-    def factor(self) -> NodeExpr:
+    def factor(self) -> Expr:
         expr = self.unary()
         while self.match(TokenType.Slash, TokenType.Star, TokenType.Percent):
             operator = self.previous()
             right = self.unary()
-            expr = NodeExpr(NodeExprBinary(expr, operator, right))
+            expr = Binary(expr, operator, right)
         return expr
 
-    def unary(self) -> NodeExpr:
+    def unary(self) -> Expr:
         if self.match(TokenType.Minus):
             operator = self.previous()
             right = self.unary()
-            return NodeExpr(NodeExprUnary(operator, right))
+            return Unary(operator, right)
         if self.match(TokenType.Plus):
             operator = self.previous()
             right = self.unary()
-            return NodeExpr(NodeExprUnary(operator, right))
+            return Unary(operator, right)
         if self.match(TokenType.Not):
             operator = self.previous()
             right = self.unary()
-            return NodeExpr(NodeExprUnary(operator, right))
+            return Unary(operator, right)
         return self.primary()
 
-    def primary(self) -> NodeExpr:
+    def primary(self) -> Expr:
         if self.check(TokenType.IntegerLit):
-            return NodeExpr(
-                NodeExprIntLit(
-                    self.consume(TokenType.IntegerLit, msg="Expected `IntegerLit`")
-                )
+            return IntegerLit(
+                self.consume(TokenType.IntegerLit, msg="Expected `IntegerLit`")
             )
         if self.check(TokenType.Identifier) and self.peek().value == "argv":
-            return NodeExpr(self.argv())
+            return self.argv()
         if self.check(TokenType.Identifier) and self.check(
             TokenType.OpenParen, offset=1
         ):
-            return NodeExpr(self.fn_call())
+            return self.fn_call()
         if self.check(TokenType.Identifier):
-            return NodeExpr(
-                NodeExprIdent(
-                    self.consume(TokenType.Identifier, "Expected `Identifier`")
-                )
+            return Identifier(
+                self.consume(TokenType.Identifier, "Expected `Identifier`")
             )
         if self.check(TokenType.OpenParen):
             self.consume(TokenType.OpenParen, "Expected `(` in expression")
             expr = self.expression()
             self.consume(TokenType.CloseParen, "Expected ')' after expression.")
-            return NodeExpr(NodeExprGrouping(expr))
+            return Grouping(expr)
         if self.check(TokenType.StringLit):
-            return NodeExpr(
-                NodeExprStringLit(
-                    self.consume(TokenType.StringLit, "Expected `StringLiteral`")
-                )
+            return StringLit(
+                self.consume(TokenType.StringLit, "Expected `StringLiteral`")
             )
         assert False, f"unreachable: {self.peek()}"
 
-    def fn_call(self) -> NodeExprFnCall:
+    def parse_function_call(self) -> FnCall:
+        return self.fn_call()
+
+    def fn_call(self) -> FnCall:
         name = self.consume(TokenType.Identifier, "Expected `name` for function call")
         self.consume(TokenType.OpenParen, "Expected `(` for function call")
-        args_list: list[NodeExpr] = []
+        args_list: list[Expr] = []
         if not self.check(TokenType.CloseParen):
             args_list = self.args_list()
         self.consume(TokenType.CloseParen, "Expected `)` for function call")
-        return NodeExprFnCall(name, args_list)
+        return FnCall(name, args_list)
 
-    def args_list(self) -> list[NodeExpr]:
-        args: list[NodeExpr] = [self.expression()]
+    def args_list(self) -> list[Expr]:
+        args: list[Expr] = [self.expression()]
         while self.match(TokenType.Comma):
             args.append(self.expression())
         return args
 
-    def argv(self) -> NodeExprArgv:
+    def argv(self) -> Expr:
         self.consume(TokenType.Identifier, "Expected `argv`")
         self.consume(TokenType.OpenBracket, "Expected `[` in argv access")
         expr = self.expression()
         self.consume(TokenType.CloseBracket, "Expected `]` in argv access")
-        return NodeExprArgv(expr)
+        return Argv(expr)
 
     def peek(self, offset: int = 0) -> Token:
         return self.tokens[self.index + offset]
@@ -305,186 +394,3 @@ class Parser:
 
 # TODO: Remove string formatting from Nodes and implement some kind of Visitor that
 # pretty prints the NodeProgram AST
-
-
-@dataclass
-class NodeProgram:
-    scope: NodeStmtScope
-
-    def __str__(self) -> str:
-        return str(self.scope)
-
-
-@dataclass
-class NodeStmt:
-    stmt: (
-        NodeStmtDecl
-        | NodeStmtIf
-        | NodeStmtFor
-        | NodeStmtAssign
-        | NodeStmtScope
-        | NodeExprFnCall
-    )
-
-    def __str__(self) -> str:
-        return str(self.stmt)
-
-
-@dataclass
-class NodeStmtDecl:
-    ident: Token
-    ttype: VarType
-    expr: NodeExpr
-
-    def __str__(self) -> str:
-        return f"decl[{self.ttype.name}]({self.ident.value} = {self.expr})"
-
-
-@dataclass
-class NodeStmtAssign:
-    ident: Token
-    expr: NodeExpr
-
-    def __str__(self) -> str:
-        return f"assign({self.ident.value} = {self.expr})"
-
-
-@dataclass
-class NodeStmtElif:
-    condition: NodeExpr
-    scope: NodeStmtScope
-
-    def __str__(self) -> str:
-        return f"elif {self.condition} then\n{self.scope}"
-
-
-@dataclass
-class NodeStmtIf:
-    condition: NodeExpr
-    scope: NodeStmtScope
-    elifs: list[NodeStmtElif]
-    else_scope: NodeStmtScope | None = None
-
-    def __str__(self) -> str:
-        out = f"if {self.condition} then\n"
-        out += str(self.scope)
-        if self.elifs is not None:
-            for el in self.elifs:
-                out += str(el)
-        if self.else_scope is not None:
-            out += "else\n\t{else_scope}\n"
-        out += "end"
-        return out
-
-
-@dataclass
-class NodeExprRange:
-    start: NodeExpr
-    end: NodeExpr
-    inclusive: bool
-
-    def __str__(self) -> str:
-        return f"{self.start}..{'=' if self.inclusive else ''}{self.end}"
-
-
-@dataclass
-class NodeStmtFor:
-    loop_ident: Token
-    range_expr: NodeExprRange
-    scope: NodeStmtScope
-
-    def __str__(self) -> str:
-        return f"for {self.loop_ident.value} in {self.range_expr} do{self.scope}\nend"
-
-
-@dataclass
-class NodeStmtScope:
-    stmts: list[NodeStmt]
-
-    def __str__(self) -> str:
-        return f"Scoped({'\n\t'.join(str(stmt) for stmt in self.stmts)})"
-
-
-@dataclass
-class NodeExpr:
-    var: (
-        NodeExprIntLit
-        | NodeExprStringLit
-        | NodeExprIdent
-        | NodeExprBinary
-        | NodeExprUnary
-        | NodeExprGrouping
-        | NodeExprArgv
-        | NodeExprFnCall
-    )
-
-    def __str__(self) -> str:
-        return str(self.var)
-
-
-@dataclass
-class NodeExprFnCall:
-    name: Token
-    args_list: list[NodeExpr]
-
-    def __str__(self) -> str:
-        return f"{self.name.value}({', '.join(str(e) for e in self.args_list)})"
-
-
-@dataclass
-class NodeExprIntLit:
-    token: Token
-
-    def __str__(self) -> str:
-        return self.token.value
-
-
-@dataclass
-class NodeExprStringLit:
-    token: Token
-
-    def __str__(self) -> str:
-        return f"{repr(self.token.value)}"
-
-
-@dataclass
-class NodeExprIdent:
-    token: Token
-
-    def __str__(self) -> str:
-        return self.token.value
-
-
-@dataclass
-class NodeExprBinary:
-    lhs: NodeExpr
-    operator: Token
-    rhs: NodeExpr
-
-    def __str__(self) -> str:
-        return f"( {self.lhs} {self.operator.value} {self.rhs} )"
-
-
-@dataclass
-class NodeExprUnary:
-    operator: Token
-    expr: NodeExpr
-
-    def __str__(self) -> str:
-        return f"( {self.operator.value} {self.expr} )"
-
-
-@dataclass
-class NodeExprGrouping:
-    expr: NodeExpr
-
-    def __str__(self) -> str:
-        return f"( {self.expr} )"
-
-
-@dataclass
-class NodeExprArgv:
-    expr: NodeExpr
-
-    def __str__(self) -> str:
-        return f"argv[{self.expr}]"

@@ -1,0 +1,13 @@
+do
+    for i in 1..argc do
+        if i == 1 then
+            stdout("Arg 1\n")
+        elif i == 2 then
+            stdout("Arg 2\n")
+        elif i == 3 then
+            stdout("Arg 3\n")
+        else
+            stdout("Arg 4+\n")
+        end
+    end
+end

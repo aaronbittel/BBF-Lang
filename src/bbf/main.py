@@ -3,7 +3,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from bbf.generation import CodeGenerator
+from bbf.asm_codegen import AsmCodeGen
+from bbf.ast_printer import ASTPrinter
+from bbf.emitter import Emitter
 from bbf.lexer import Lexer, dump_tokens
 from bbf.parser import Parser
 from bbf.source import Source
@@ -14,36 +16,36 @@ BIN_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run BBF compiler")
-    parser.add_argument("input_path", type=Path, help="Path to input .bbf file")
-    parser.add_argument(
+    argparser = argparse.ArgumentParser(description="Run BBF compiler")
+    argparser.add_argument("input_path", type=Path, help="Path to input .bbf file")
+    argparser.add_argument(
         "--step",
         default="gen",
         choices=["lexer", "parser", "gen"],
         help="Compilation step (default: gen)",
     )
-    parser.add_argument(
+    argparser.add_argument(
         "--run",
         "-r",
         nargs="*",
         metavar="ARGS",
         help="Run the program after successful compilation (optionally with ARGS as argv)",
     )
-    parser.add_argument(
+    argparser.add_argument(
         "--quiet",
         "-q",
         action="store_true",
         help="Quiet mode. Don't print any info about compilation phases.",
     )
-    args = parser.parse_args()
+    args = argparser.parse_args()
 
     input_path: Path = args.input_path
     step: str = args.step
-    run_argv: list[str] = args.run
+    run_argv: list[str] | None = args.run
     quiet: bool = args.quiet
 
-    with args.input_path.open(mode="r") as f:
-        src = f.read()
+    with args.input_path.open(mode="r") as out:
+        src = out.read()
 
     if not quiet:
         print(f"[INFO] Read input file: {input_path}")
@@ -65,22 +67,25 @@ def main() -> None:
 
     parser = Parser(tokens)
     prog = parser.parse_program()
-
     if not quiet:
-        print("[INFO] Parsed into:")
-        print(prog)
+        print("[INFO] Parsed into AST:")
+        ast_printer = ASTPrinter()
+
+        for toplevel in prog.stmts:
+            toplevel.accept(ast_printer)
         print("=====================")
 
     if step == "parser":
         sys.exit(0)
 
+    emitter = Emitter()
+    asm_codegen = AsmCodeGen(emitter)
+    asm_codegen.generate_prog(prog)
     output_asm = Path(f"./bin/{input_path.stem}.asm")
-    code_gen = CodeGenerator(prog=prog)
     if not quiet:
         print(f"[INFO] Writing assembly output to {output_asm}")
-    code_gen.gen_prog()
-    with output_asm.open(mode="w") as f:
-        code_gen.write_to(f)
+    with output_asm.open(mode="w") as out:
+        emitter.write_to(out)
 
     output_dir = output_asm.parent
     out_filename = output_asm.stem

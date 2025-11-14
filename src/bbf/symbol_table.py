@@ -4,11 +4,23 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import NamedTuple
 
+from bbf.lexer import Token, TokenType
+
 
 class VarType(Enum):
     Int = 8
     String = 16
     Void = 0
+
+    @classmethod
+    def from_token(cls, token: Token) -> VarType:
+        if token.ttype == TokenType.Int:
+            return cls.Int
+        if token.ttype == TokenType.String:
+            return cls.String
+        if token.ttype == TokenType.Void:
+            return cls.Void
+        assert False, f"unreachable: can't match token {token} to `VarType`"
 
 
 @dataclass
@@ -22,11 +34,13 @@ class SymbolTable:
         self.offsets: dict[str, VarInfo] = {}
         self.next_offset = next_offset
         self.parent = parent
+        self.reserved_space = 0
 
     def define(self, name: str, ttype: VarType) -> int:
         offset = self.next_offset
         self.offsets[name] = VarInfo(offset=offset, ttype=ttype)
         self.next_offset -= ttype.value
+        self.reserved_space += ttype.value
         return offset
 
     def lookup(self, name: str) -> VarInfo | None:
@@ -40,6 +54,7 @@ class SymbolTable:
             if varinfo is not None:
                 return varinfo
             cur = cur.parent
+        return None
 
 
 class FnArg(NamedTuple):

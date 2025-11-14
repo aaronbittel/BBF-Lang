@@ -1,0 +1,41 @@
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from bbf.lexer import Token
+from bbf.nodes.stmt import Block, Stmt
+
+if TYPE_CHECKING:
+    from bbf.nodes.visitor import Visitor
+
+
+class TopLevel(ABC):
+    @abstractmethod
+    def accept(self, visitor: Visitor) -> None: ...
+
+
+@dataclass
+class FnDef(TopLevel):
+    name: Token
+    params: list[Param]
+    return_type: Token
+    body: Block
+
+    def accept(self, visitor: Visitor) -> None:
+        return visitor.visit_fndef(self)
+
+
+@dataclass
+class TopLevelStmt(TopLevel):
+    stmt: Stmt
+
+    def accept(self, visitor: Visitor) -> None:
+        return visitor.visit_toplevelstmt(self)
+
+
+@dataclass
+class Param:
+    name: Token
+    vartype: Token

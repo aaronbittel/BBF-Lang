@@ -1,5 +1,5 @@
-x = 12
-y = x
-z = x
-z = y + 1
+x: Int = 12
+y: Int = x
+z: Int = x
+z: Int = y + 1
 exit(z)

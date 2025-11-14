@@ -8,11 +8,13 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from bbf.generation import CodeGenerator
+from bbf.asm_codegen import AsmCodeGen
+from bbf.emitter import Emitter
 from bbf.lexer import Lexer
 from bbf.parser import (
     Parser,
 )
+from bbf.source import Source
 from bbf.utils import blue, eprint, green, red
 
 # TODO: Record exitcode and compare exitcode
@@ -23,12 +25,12 @@ CASES_DIR = Path("./tests/cases/")
 CASES_DIR.mkdir(exist_ok=True, parents=True)
 
 
-parser = argparse.ArgumentParser(
+argparser = argparse.ArgumentParser(
     description="BBF Language Snapshot Tester and Recorder",
     epilog="Use `run` to check snapshots or `record` to update them.",
 )
 
-subparsers = parser.add_subparsers(
+subparsers = argparser.add_subparsers(
     dest="command",
     required=True,
     title="subcommands",
@@ -185,7 +187,7 @@ def output_snapshot_path(path: Path) -> Path:
 
 
 if __name__ == "__main__":
-    args = parser.parse_args()
+    args = argparser.parse_args()
 
     if args.command == "record":
         steps: list[str] = (
@@ -198,7 +200,7 @@ if __name__ == "__main__":
             sys.exit(1)
 
         src = path.read_text()
-        lexer = Lexer(path, src)
+        lexer = Lexer(Source(src, path))
         tokens = lexer.tokenize()
 
         if "lexer" in steps:
@@ -221,11 +223,12 @@ if __name__ == "__main__":
             sys.exit(0)
 
         if "gen" in steps:
-            code_gen = CodeGenerator(prog)
-            code_gen.gen_prog()
+            emitter = Emitter()
+            asm_codegen = AsmCodeGen(emitter)
+            asm_codegen.generate_prog(prog)
             gen_snapshot_asm = gen_snapshot_path(path)
             with gen_snapshot_asm.open("w", encoding="utf-8") as f:
-                code_gen.write_to(f)
+                asm_codegen.write_to(f)
                 # NOTE: Currently write output snapshot manually
 
                 # with tempfile.TemporaryDirectory() as tmp_build_dir:
@@ -335,11 +338,11 @@ if __name__ == "__main__":
                     missing_snapshots.append((path, "gen"))
                 else:
                     print("\tgen: ", end="")
-                    code_gen = CodeGenerator(prog)
-                    code_gen.gen_prog()
+                    asm_codegen = AsmCodeGen(prog)
+                    asm_codegen.gen_prog()
 
                     expected_lines = gen_snapshot_asm.read_text().splitlines()
-                    actual_gen_lines = code_gen.emitter.lines
+                    actual_gen_lines = asm_codegen.emitter.lines
                     diff_lines = calculate_diff_lines(expected_lines, actual_gen_lines)
                     if len(diff_lines) == 0:
                         print(green("   [SUCCESS]"))

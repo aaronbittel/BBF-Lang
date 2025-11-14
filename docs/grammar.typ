@@ -1,77 +1,68 @@
-#set page(margin: 1cm)
+#set page(margin: 1cm, fill: rgb("#B0B0B0"))
 #show math.equation: set block(breakable: true)
 
-#align(center)[= Grammar for BBF-Lang]
+#align(center)[= Grammar for BBFLang]
 #v(1em)
 
 #let e(x) = math.text("\"" + str(x) + "\"")
+#let k(x) = math.text("'" + str(x) + "'")
 
 #block(breakable: true)
 $
-"Program" arrow & "{TopLevel}" \
-"TopLevel" arrow & "FunctionDefiniton" | "GlobalStatement" \
-"GlobalStatement" arrow & cases(
-  "Declaration",
-  "Assignment",
+"Program" arrow & {"TopLevelStatement"} "EOF" \
+"TopLevelStatement" arrow & cases(
+  "FunctionDefinition",
+  "Statement"
+) \
+"Statement" arrow & cases(
+  "CompoundStatement",
+  "SimpleStatement",
+) \
+"CompoundStatement" arrow & cases(
   "IfStatement",
   "ForStatement",
   "DoBlock",
-  "FunctionCall",
 ) \
-"FunctionDefiniton" arrow &
-  #e("fn") "Identifier" #e("(") ["FuncDefArgs"] #e(")") \"arrow\" "VarType" #e("do") \
-  & {"FunctionStatement"} \
-  & #e("end") \
-"FunctionStatement" arrow & "GlobalStatement" | "ReturnStatement" \
-"ReturnStatement" arrow & #e("return") "Expression" \
-"Declaration" arrow & "Identifier" #e(":") "VarType" #e("=") "Expression" \
-"Assignment" arrow & "Identifier" #e("=") "Expression" \
-
-"IfStatement" arrow &
-  #e("if") "Condition" #e("then") \
-  & "Block" \
-  & {"ElifClause"} \
-  & ["ElseClause"] \
-  & #e("end") \
-"ElifClause" arrow & #e("elif") "Condition" #e("then") "Block" \
-"ElseClause" arrow & #e("else") "Block" \
-"ForStatement" arrow & #e("for") "Identifier" #e("in") "Range" #e("do") "Block" #e("end") \
-"Range" arrow & "Expression"..[#e("=")]"Expression" \
-"Block" arrow & {"FunctionStatement"} \
-"DoBlock" arrow & #e("do") "Block" #e("end") \
-
-"FuncDefArgs" arrow & "FuncDefArg" {#e(",") "FuncDefArg"} \
-"FuncDefArg" arrow & "Identifier" #e(":") "VarType" \
-"FunctionCall" arrow & "Identifier" #e("(") ["ArgList"] #e(")") \
-"ArgList" arrow & "Expression" {#e(",") "Expression"} \
-"Condition" arrow & "Expression" \
-"Identifier" arrow & "Letter" ("Letter" | "Digit" )* \
-"VarType" arrow & cases(
-  "Int",
-  "String",
-  "Void",
+"SimpleStatement" arrow & cases(
+  "Declaration",
+  "Assignment",
+  "ExpressionStmt",
 ) \
-$
-#pagebreak()
-$
+"ExpressionStmt" arrow & "Expression" \
+"IfStatement" arrow & cases(
+  #k("if") "Expression" #k("then") "Block" "ElifStatement",
+  #k("if") "Expression" #k("then") "Block" ["ElseBlock"] #k("end"),
+) \
+"ElifStatement" arrow & cases(
+  #k("elif") "Expression" #k("then") "Block" "ElifStatement",
+  #k("elif") "Expression" #k("then") "Block" ["ElseBlock"] #k("end"),
+) \
+"ElseBlock" arrow & #k("else") "Block" \
+"ForStatement" arrow & #k("for") italic("Name") #k("in") "Range" #k("do") "Block" #k("end") \
+"Range" arrow & "Expression" #e("..") [#e("=")] "Expression" \
+"DoBlock" arrow & #k("do") "Block" #k("end")\
+"Block" arrow & {"Statement"} \
+"Declaration" arrow & italic("Name") #e(":") "VarType" #e("=") "Expression" \
+"Assignment" arrow & italic("Name") #e("=") "Expression" \
 "Expression" arrow & "Equality" \
 "Equality" arrow & "Comparison" ( (#e("!=") | #e("==")) "Comparison" )* \
 "Comparison" arrow & "Term" ((#e(">") | #e(">=") | #e("<") | #e("<=")) "Term")* \
 "Term" arrow & "Factor" ((#e("-") | #e("+")) "Factor")* \
 "Factor" arrow & "Unary" ((#e("/") | #e("*") | #e("%")) "Unary")* \
-"Unary" arrow & ( #e("-") | #e("+") | "not") "Unary" \ & | "Primary" \
+"Unary" arrow & cases(
+  ( #e("-") | #e("+") | "not") "Unary",
+  "Primary",
+) \
 "Primary" arrow & cases(
-  "IntegerLit",
-  "StringLit",
-  "Identifier",
+  italic("IntegerLit"),
+  italic("StringLit"),
+  italic("Name"),
   #e("(") "Expression" #e(")"),
   "argv" #e("[") "Expression" #e("]"),
-  "FunctionCall",
+  italic("Name") #e("(") ["Arguments"] #e(")"),
 ) \
-"IntegerLit" arrow & (#e("+") | #e("-"))? "Digit" ( #e("_") "Digit" | "Digit" )* \
-"StringLit" arrow & #e("\"") ("~"#e("\""))* #e("\"") \
-"Letter" arrow & #e("A")..#e("Z") | #e("a")..#e("z") | #e("_") \
-"Digit" arrow & #e("0")..#e("9") \
+"Arguments" arrow & cases(
+  "Expression",
+  "Expression" #e(",") "Arguments"
+) \
 $
-
-

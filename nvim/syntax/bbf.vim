@@ -7,7 +7,7 @@ syntax clear
 syntax keyword bbfKeyword if then end else elif for do step in not
 "
 " Built-in functions
-syntax keyword bbfBuiltin exit atoi stdout stderr
+syntax keyword bbfBuiltin exit atoi itoa stdout stderr
 
 " Match identifiers
 syntax match bbfIdentifier "\<[a-zA-Z_][a-zA-Z0-9_]*\>"

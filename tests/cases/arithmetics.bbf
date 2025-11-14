@@ -1,0 +1,7 @@
+stdout(itoa(13 + 3)) stdout("\n")
+stdout(itoa(13 - 3)) stdout("\n")
+stdout(itoa(13 * 3)) stdout("\n")
+stdout(itoa(13 / 3)) stdout("\n")
+stdout(itoa(13 % 3)) stdout("\n")
+stdout(itoa(10 + 2 * 4 - 12)) stdout("\n")
+stdout(itoa((10 + 2) * 4 - 12)) stdout("\n")

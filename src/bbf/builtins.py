@@ -61,8 +61,8 @@ itoa:
 
 .return:
     lea rax, [__itoa_buf + r9] ; pointer to start of string
-    mov rdx, 32
-    sub rdx, r9 ; length
+    mov rdi, 32
+    sub rdi, r9 ; length
     ret"""
 
 

@@ -15,6 +15,7 @@ class TokenType(StrEnum):
     # Types
     Int = auto()
     String = auto()
+    Void = auto()
 
     # Keywords
     If = auto()
@@ -26,6 +27,8 @@ class TokenType(StrEnum):
     For = auto()
     Do = auto()
     In = auto()
+    Fn = auto()
+    Return = auto()
 
     # Single Char Tokens
     OpenParen = auto()
@@ -58,6 +61,7 @@ BUILTINS = {
     # Types
     "String": TokenType.String,
     "Int": TokenType.Int,
+    "Void": TokenType.Void,
     # Keywords
     "if": TokenType.If,
     "then": TokenType.Then,
@@ -68,6 +72,8 @@ BUILTINS = {
     "for": TokenType.For,
     "do": TokenType.Do,
     "in": TokenType.In,
+    "fn": TokenType.Fn,
+    "return": TokenType.Return,
 }
 
 
