@@ -6,6 +6,9 @@ FILENAME = test01
 gen:
 	@uv run bbf $(FILENAME).bbf --step gen
 
+typechecker:
+	@uv run bbf $(FILENAME).bbf --step typechecker
+
 parser:
 	@uv run bbf $(FILENAME).bbf --step parser
 
@@ -22,4 +25,4 @@ fix:
 	@uv tool run ruff check --fix .
 	@uv run mypy . --check-untyped-defs
 
-.PHONY = run gen parser lexer debug
+.PHONY = run gen parser lexer debug typechecker

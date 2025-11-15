@@ -9,6 +9,7 @@ from bbf.emitter import Emitter
 from bbf.lexer import Lexer, dump_tokens
 from bbf.parser import Parser
 from bbf.source import Source
+from bbf.type_checker import TypeChecker
 from bbf.utils import GREEN, RED, RESET, eprint, green, red
 
 BIN_DIR = Path("./bin")
@@ -21,7 +22,7 @@ def main() -> None:
     argparser.add_argument(
         "--step",
         default="gen",
-        choices=["lexer", "parser", "gen"],
+        choices=["lexer", "parser", "typechecker", "gen"],
         help="Compilation step (default: gen)",
     )
     argparser.add_argument(
@@ -69,14 +70,24 @@ def main() -> None:
     prog = parser.parse_program()
     if not quiet:
         print("[INFO] Parsed into AST:")
-        ast_printer = ASTPrinter()
 
-        for toplevel in prog.stmts:
-            toplevel.accept(ast_printer)
+    ast_printer = ASTPrinter()
+    for toplevel in prog.stmts:
+        toplevel.accept(ast_printer)
+    if not quiet:
         print("=====================")
 
     if step == "parser":
         sys.exit(0)
+
+    if not quiet:
+        print("[INFO] Type Checking AST:")
+    type_checker = TypeChecker()
+    for toplevel in prog.stmts:
+        toplevel.accept(type_checker)
+    if not quiet:
+        print(green("[INFO] Successfully type checked!"))
+        print("=====================")
 
     emitter = Emitter()
     asm_codegen = AsmCodeGen(emitter)

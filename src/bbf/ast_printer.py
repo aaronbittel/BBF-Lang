@@ -31,25 +31,20 @@ class ASTPrinter(Visitor[None]):
     def __init__(self) -> None:
         self.indent = 0
 
-    def visit_progtoplevelstmt(
-        self, programtoplevelstatement: ProgTopLevelStmt
-    ) -> None:
-        for stmt in programtoplevelstatement.stmts:
+    def visit_progtoplevelstmt(self, progtoplevelstmt: ProgTopLevelStmt) -> None:
+        for stmt in progtoplevelstmt.stmts:
             stmt.accept(self)
 
-    def visit_toplevelstmt(self, toplevelstatement: TopLevelStmt) -> None:
-        toplevelstatement.stmt.accept(self)
+    def visit_toplevelstmt(self, toplevelstmt: TopLevelStmt) -> None:
+        toplevelstmt.stmt.accept(self)
 
-    def visit_fndef(self, functiondefinition: FnDef) -> None:
+    def visit_fndef(self, fndef: FnDef) -> None:
         params = ", ".join(
-            f"{param.name.value}: {param.vartype.value}"
-            for param in functiondefinition.params
+            f"{param.name.value}: {param.ttype.value}" for param in fndef.params
         )
-        print(
-            f"fn {functiondefinition.name.value}({params}) -> {functiondefinition.return_type.value} do"
-        )
+        print(f"fn {fndef.name.value}({params}) -> {fndef.return_ttype.value} do")
         with self.indent_block():
-            for stmt in functiondefinition.body.stmts:
+            for stmt in fndef.body.stmts:
                 stmt.accept(self)
         print("end")
 
@@ -88,9 +83,9 @@ class ASTPrinter(Visitor[None]):
             returnstmt.expr.accept(self)
         print()
 
-    def visit_exprstmt(self, expressionstmt: ExprStmt) -> None:
+    def visit_exprstmt(self, exprstmt: ExprStmt) -> None:
         self._ident()
-        expressionstmt.expr.accept(self)
+        exprstmt.expr.accept(self)
         print()
 
     def _visit_range(self, rangeexpr: Range) -> None:

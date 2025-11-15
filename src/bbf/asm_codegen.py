@@ -75,7 +75,7 @@ class AsmCodeGen(Visitor):
     def visit_forstmt(self, stmt: ForStmt) -> None:
         # NOTE: currently for loops just declare a variable that will not be cleaned up after the loop
         loop_ident, range_expr, block = stmt.loop_ident, stmt.range_expr, stmt.block
-        with self.new_scope(block):
+        with self.new_scope():
             # NOTE: loop var is a new variable scoped to the loop scope
             loop_ident_offset = self.symbol_table.define(
                 loop_ident.value, ttype=VarType.Int
@@ -107,7 +107,7 @@ class AsmCodeGen(Visitor):
             self.loop_count += 1
 
     def visit_doblock(self, doblock: DoBlock) -> None:
-        with self.new_scope(doblock.block):
+        with self.new_scope():
             for stmt in doblock.block:
                 stmt.accept(self)
 
@@ -130,7 +130,7 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(f"je {next_label}")
 
         # --- IF block ---
-        with self.new_scope(ifstmt.if_block):
+        with self.new_scope():
             for s in ifstmt.if_block:
                 s.accept(self)
         self.emitter.emit(f"jmp {end_label}")
@@ -149,7 +149,7 @@ class AsmCodeGen(Visitor):
                 self.emitter.emit("pop rax")
                 self.emitter.emit("cmp rax, 0")
                 self.emitter.emit(f"je {next_label}")
-                with self.new_scope(elif_block.block):
+                with self.new_scope():
                     for s in elif_block.block:
                         s.accept(self)
                 self.emitter.emit(f"jmp {end_label}")
@@ -158,7 +158,7 @@ class AsmCodeGen(Visitor):
         # --- ELSE block ---
         self.emitter.emit(f"{else_label}:", indent=0)
         if ifstmt.else_block:
-            with self.new_scope(ifstmt.else_block):
+            with self.new_scope():
                 for s in ifstmt.else_block:
                     s.accept(self)
 
@@ -166,6 +166,9 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(f"{end_label}:", indent=0)
 
     def visit_returnstmt(self, returnstmt: ReturnStmt) -> None:
+        if returnstmt.expr is not None:
+            returnstmt.expr.accept(self)
+            self.emitter.emit("pop rax")
         self.emitter.emit("jmp .epilogue")
 
     def visit_exprstmt(self, expr_stmt: ExprStmt) -> None:
@@ -253,18 +256,22 @@ class AsmCodeGen(Visitor):
             # TODO: Check if type of fn param matches var type
             expr_arg.accept(self)
             if fn_arg.vartype == VarType.Int:
-                assert reg_i + 1 < len(regs_order), (
+                assert reg_i < len(regs_order), (
                     "Currently can't handle more physcial args than 6"
                 )
                 self.emitter.emit(f"pop {regs_order[reg_i]}")
                 reg_i += 1
             elif fn_arg.vartype == VarType.String:
-                assert reg_i + 2 < len(regs_order), (
+                assert reg_i + 1 < len(regs_order), (
                     "Currently can't handle more physcial args than 6"
                 )
                 self.emitter.emit(f"pop {regs_order[reg_i + 1]} ; str_len")
                 self.emitter.emit(f"pop {regs_order[reg_i]} ; str_ptr")
                 reg_i += 2
+            else:
+                raise CodeGenError(
+                    f"ERROR: Unexpected vartype `{fn_arg.vartype}` for `{fn_arg.name}` in `{fn_name}`"
+                )
 
         self.emitter.emit(f"call {fn_name} ; return_type: {fninfo.return_type.name}")
         if fninfo.return_type == VarType.Int:
@@ -389,11 +396,12 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("push rax ; str_len")
 
     @contextmanager
-    def new_scope(self, block: Block):
+    def new_scope(self, is_function: bool = False):
         try:
             old_table = self.symbol_table
+            starting_offset = -8 if is_function else self.symbol_table.next_offset
             self.symbol_table = SymbolTable(
-                parent=self.symbol_table, next_offset=self.symbol_table.next_offset
+                parent=self.symbol_table, next_offset=starting_offset
             )
             yield
         finally:
@@ -440,8 +448,40 @@ class AsmCodeGen(Visitor):
             self.emitter.emit("mov rbp, rsp")
             self.emitter.emit()
 
-            self.emitter.emit("; fn body")
-            with self.new_scope(fndef.body):
+            reg_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+            reg_i = 0
+
+            with self.new_scope(is_function=True):
+                for param in fndef.params:
+                    vartype = VarType.from_token(param.ttype)
+                    self.emitter.emit(
+                        f"sub rsp, {vartype.value} ; reserve space for param {param.name.value}"
+                    )
+                    offset = self.symbol_table.define(param.name.value, vartype)
+
+                    if vartype == VarType.Int:
+                        assert reg_i <= 5, (
+                            "More than 6 registers used (strings take up 2)"
+                        )
+                        self.emitter.emit(f"mov [rbp{offset:+d}], {reg_order[reg_i]}")
+                        reg_i += 1
+                    elif vartype == VarType.String:
+                        assert reg_i + 1 <= 5, (
+                            "More than 6 registers used (strings take up 2)"
+                        )
+                        self.emitter.emit(
+                            f"mov [rbp{offset:+d}], {reg_order[reg_i]} ; store str_ptr"
+                        )
+                        self.emitter.emit(
+                            f"mov [rbp{offset - 8:+d}], {reg_order[reg_i + 1]} ; store str_len"
+                        )
+                        reg_i += 2
+                    else:
+                        raise CodeGenError(
+                            f"ERROR: {param.name.position}: Unsupported VarType `{vartype}`"
+                        )
+
+                self.emitter.emit("; fn body")
                 for stmt in fndef.body:
                     stmt.accept(self)
 

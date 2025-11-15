@@ -1,1 +1,1 @@
-x = 123asdf sadfas
+x: Int = 123asdf

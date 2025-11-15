@@ -1,0 +1,2 @@
+x: Int = 12
+x = "Hello, World!"

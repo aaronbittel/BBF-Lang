@@ -20,7 +20,7 @@ class TopLevel(ABC):
 class FnDef(TopLevel):
     name: Token
     params: list[Param]
-    return_type: Token
+    return_ttype: Token
     body: Block
 
     def accept[T](self, visitor: Visitor[T]) -> T:
@@ -38,4 +38,4 @@ class TopLevelStmt(TopLevel):
 @dataclass
 class Param:
     name: Token
-    vartype: Token
+    ttype: Token

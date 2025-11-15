@@ -4,8 +4,12 @@
 syntax clear
 
 " Keywords (reserved words)
-syntax keyword bbfKeyword if then end else elif for do step in not fn return
-"
+syntax keyword bbfKeyword if then end else elif for do step in not return
+
+syntax keyword bbfStatement fn nextgroup=bbfFunction skipwhite
+
+syntax match bbfFunction "[a-zA-Z_][a-zA-Z0-9_]*\ze("
+
 " Built-in functions
 syntax keyword bbfBuiltin exit atoi itoa stdout stderr
 
@@ -36,6 +40,8 @@ highlight default link bbfBuiltin Function
 highlight default link bbfType Type
 highlight default link bbfNumber Number
 highlight default link bbfString String
+highlight default link bbfStatement Keyword
+highlight default link bbfFunction Function
 highlight default link bbfOperator Operator
 highlight default link bbfIdentifier Identifier
 highlight default link bbfComment Comment

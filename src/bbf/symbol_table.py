@@ -23,6 +23,9 @@ class VarType(Enum):
             return cls.Void
         assert False, f"unreachable: can't match token {token} to `VarType`"
 
+    def __str__(self) -> str:
+        return self.name
+
 
 @dataclass
 class VarInfo:
@@ -76,10 +79,10 @@ class FnInfo(NamedTuple):
     def from_node(cls, fndef: FnDef) -> Self:
         name = fndef.name.value
         args = [
-            FnArg(param.name.value, VarType.from_token(param.vartype))
+            FnArg(param.name.value, VarType.from_token(param.ttype))
             for param in fndef.params
         ]
-        return_type = VarType.from_token(fndef.return_type)
+        return_type = VarType.from_token(fndef.return_ttype)
         return cls(name, args, return_type)
 
     def __str__(self) -> str:
