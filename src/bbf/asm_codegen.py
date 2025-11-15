@@ -190,6 +190,10 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(f"push qword [{len_label}]")
 
     def visit_identifier(self, ident: Identifier) -> None:
+        # FIX: hack: Improve when implementing globals?
+        if ident.token.value == "argc":
+            self.emitter.emit("push qword [__argc]")
+            return
         varinfo = self.symbol_table.lookup(ident.token.value)
         if varinfo is None:
             is_numeric_with_underscores = lambda value: all(
@@ -371,8 +375,10 @@ class AsmCodeGen(Visitor):
 
         self.emitter.emit("pop rax")
         self.emitter.emit("imul rax, 8 ; calc offset into argv")
-        self.emitter.emit("lea rbx, [rbp + rax + 8] ; +8 to skip argc")
-        self.emitter.emit("mov rdi, [rbx]")
+
+        self.emitter.emit("mov rbx, [__argv] ; addr of ptr to arg[0]")
+        self.emitter.emit("add rbx, rax ; addr of ptr to arg[i]")
+        self.emitter.emit("mov rdi, [rbx] ; ptr to arg[i]")
 
         self.emitter.emit("push rdi ; str_len")
         self.emitter.emit("call c_strlen")
@@ -398,8 +404,12 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("_start:", indent=0)
         self.emitter.emit("; init base pointer")
         self.emitter.emit("mov rbp, rsp")
-        self.emitter.emit("mov [__argc], [rbp]")
-        self.emitter.emit("mov [__argv], [rbp+8]")
+        self.emitter.emit()
+        self.emitter.emit("; save argc and argv into .bss")
+        self.emitter.emit("mov rax, [rbp] ")
+        self.emitter.emit("mov [__argc], rax")
+        self.emitter.emit("lea rax, [rbp+8] ; addr of rbp + 8")
+        self.emitter.emit("mov [__argv], rax")
         self.emitter.emit("")
 
     def program_epilogue(self):
@@ -456,8 +466,8 @@ class AsmCodeGen(Visitor):
     def bss_section(self) -> None:
         self.emitter.emit("")
         self.emitter.emit("section .bss", indent=0)
-        self.emitter.emit("__argc: resq 1")
-        self.emitter.emit("__argv: resq 1")
+        self.emitter.emit("__argc: resq 1 ; argc")
+        self.emitter.emit("__argv: resq 1 ; addr of ptr to argv[0]")
         self.emitter.emit("__itoa_buf: resb 32")
 
 
