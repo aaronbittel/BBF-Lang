@@ -28,7 +28,7 @@ from bbf.nodes.stmt import (
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
-from bbf.symbol_table import FunctionTable, SymbolTable, VarInfo, VarType
+from bbf.symbol_table import FnInfo, FunctionTable, SymbolTable, VarInfo, VarType
 
 
 class AsmCodeGen(Visitor):
@@ -37,21 +37,23 @@ class AsmCodeGen(Visitor):
 
         self.symbol_table = SymbolTable()
         # TODO: move this into symboltable again
-        self.symbol_table.offsets = {"argc": VarInfo(offset=0, ttype=VarType.Int)}
         self.function_table = FunctionTable()
         self.strings: list[str] = []
         self.if_label_count = 0
         self.elif_label_count = 0
         self.loop_count = 0
         self.comparison_count = 0
+        self.user_fndefs: list[FnDef] = []
 
     def generate_prog(self, program: Program) -> None:
         self.program_prologue()
         program.accept(self)
-        self.emitter.emit(
-            f"add rsp, {self.symbol_table.reserved_space} ; free reserved space"
-        )
+        if self.symbol_table.reserved_space > 0:
+            self.emitter.emit(
+                f"add rsp, {self.symbol_table.reserved_space} ; free reserved space"
+            )
         self.program_epilogue()
+        self.user_defined_fns()
         self.builtins()
         self.static_section()
         self.bss_section()
@@ -64,7 +66,8 @@ class AsmCodeGen(Visitor):
         toplevelstmt.stmt.accept(self)
 
     def visit_fndef(self, fndef: FnDef) -> None:
-        raise NotImplementedError
+        self.function_table.define(FnInfo.from_node(fndef))
+        self.user_fndefs.append(fndef)
 
     def visit_forstmt(self, stmt: ForStmt) -> None:
         # NOTE: currently for loops just declare a variable that will not be cleaned up after the loop
@@ -393,12 +396,43 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("_start:", indent=0)
         self.emitter.emit("; init base pointer")
         self.emitter.emit("mov rbp, rsp")
+        self.emitter.emit("mov [__argc], [rbp]")
+        self.emitter.emit("mov [__argv], [rbp+8]")
         self.emitter.emit("")
 
     def program_epilogue(self):
+        self.emitter.emit()
         self.emitter.emit("; default exit 0")
         self.emitter.emit("mov rdi, 0")
         self.emitter.emit("call exit")
+
+    def user_defined_fns(self):
+        self.emitter.emit()
+        self.emitter.emit("; USER FUNCTIONS", indent=0)
+        self.emitter.emit()
+        for fndef in self.user_fndefs:
+            assert len(fndef.params) <= 6, (
+                "Functions with more than 6 params (next param on the stack) are currently not supported"
+            )
+
+            self.emitter.emit("; arg0 | arg1 | arg2 | arg3 | arg4 | arg5", indent=0)
+            self.emitter.emit("; rdi  | rsi  | rdx  | rcx  |  r8  |  r9", indent=0)
+            self.emitter.emit(f"{fndef.name.value}:", indent=0)
+
+            self.emitter.emit("; fn prologue")
+            self.emitter.emit("push rbp")
+            self.emitter.emit("mov rbp, rsp")
+            self.emitter.emit()
+
+            self.emitter.emit("; fn body")
+            with self.new_scope(fndef.body):
+                for stmt in fndef.body:
+                    stmt.accept(self)
+
+            self.emitter.emit()
+            self.emitter.emit("; fn epilogue")
+            self.emitter.emit("pop rbp")
+            self.emitter.emit("ret")
 
     def builtins(self) -> None:
         self.emitter.emit("")
@@ -420,6 +454,8 @@ class AsmCodeGen(Visitor):
     def bss_section(self) -> None:
         self.emitter.emit("")
         self.emitter.emit("section .bss", indent=0)
+        self.emitter.emit("__argc: resq 1")
+        self.emitter.emit("__argv: resq 1")
         self.emitter.emit("__itoa_buf: resb 32")
 
 

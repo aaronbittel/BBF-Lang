@@ -9,42 +9,49 @@
 
 #block(breakable: true)
 $
-"Program" arrow & {"TopLevelStatement"} "EOF" \
-"TopLevelStatement" arrow & cases(
-  "FunctionDefinition",
-  "Statement"
+"Program" arrow & {"TopLevelStmt"} "EOF" \
+"TopLevelStmt" arrow & cases(
+  "FnDef",
+  "Stmt"
 ) \
-"Statement" arrow & cases(
-  "CompoundStatement",
-  "SimpleStatement",
+"Stmt" arrow & cases(
+  "CompoundStmt",
+  "SimpleStmt",
 ) \
-"CompoundStatement" arrow & cases(
-  "IfStatement",
-  "ForStatement",
+"CompoundStmt" arrow & cases(
+  "IfStmt",
+  "ForStmt",
   "DoBlock",
 ) \
-"SimpleStatement" arrow & cases(
+"SimpleStmt" arrow & cases(
   "Declaration",
   "Assignment",
-  "ExpressionStmt",
+  "ExprStmt",
+  "ReturnStmt"
 ) \
-"ExpressionStmt" arrow & "Expression" \
-"IfStatement" arrow & cases(
-  #k("if") "Expression" #k("then") "Block" "ElifStatement",
-  #k("if") "Expression" #k("then") "Block" ["ElseBlock"] #k("end"),
+"ExprStmt" arrow & "Expr" \
+"FnDef" arrow & #k("fn") italic("Name") #e("(") {"Params"} #e(")") \" arrow \" italic("VarType") #k("do") "Block" #k("end") \
+"Params" arrow & cases(
+  italic("Name") #e(":") italic("VarType"),
+  italic("Name") #e(":") italic("VarType") #e(",") "Params",
 ) \
-"ElifStatement" arrow & cases(
-  #k("elif") "Expression" #k("then") "Block" "ElifStatement",
-  #k("elif") "Expression" #k("then") "Block" ["ElseBlock"] #k("end"),
+"IfStmt" arrow & cases(
+  #k("if") "Expr" #k("then") "Block" "ElifStmt",
+  #k("if") "Expr" #k("then") "Block" ["ElseBlock"] #k("end"),
+) \
+"ElifStmt" arrow & cases(
+  #k("elif") "Expr" #k("then") "Block" "ElifStmt",
+  #k("elif") "Expr" #k("then") "Block" ["ElseBlock"] #k("end"),
 ) \
 "ElseBlock" arrow & #k("else") "Block" \
-"ForStatement" arrow & #k("for") italic("Name") #k("in") "Range" #k("do") "Block" #k("end") \
-"Range" arrow & "Expression" #e("..") [#e("=")] "Expression" \
+"ForStmt" arrow & #k("for") italic("Name") #k("in") "Range" #k("do") "Block" #k("end") \
+"Range" arrow & "Expr" #e("..") [#e("=")] "Expr" \
 "DoBlock" arrow & #k("do") "Block" #k("end")\
-"Block" arrow & {"Statement"} \
-"Declaration" arrow & italic("Name") #e(":") "VarType" #e("=") "Expression" \
-"Assignment" arrow & italic("Name") #e("=") "Expression" \
-"Expression" arrow & "Equality" \
+"Block" arrow & {"Stmt"} \
+"Declaration" arrow & italic("Name") #e(":") "VarType" #e("=") "Expr" \
+"Assignment" arrow & italic("Name") #e("=") "Expr" \
+"ReturnStmt" arrow & #k("return") ["Expr"] \
+"Expr" arrow & "Equality" \
 "Equality" arrow & "Comparison" ( (#e("!=") | #e("==")) "Comparison" )* \
 "Comparison" arrow & "Term" ((#e(">") | #e(">=") | #e("<") | #e("<=")) "Term")* \
 "Term" arrow & "Factor" ((#e("-") | #e("+")) "Factor")* \
@@ -57,12 +64,12 @@ $
   italic("IntegerLit"),
   italic("StringLit"),
   italic("Name"),
-  #e("(") "Expression" #e(")"),
-  "argv" #e("[") "Expression" #e("]"),
+  #e("(") "Expr" #e(")"),
+  "argv" #e("[") "Expr" #e("]"),
   italic("Name") #e("(") ["Arguments"] #e(")"),
 ) \
 "Arguments" arrow & cases(
-  "Expression",
-  "Expression" #e(",") "Arguments"
+  "Expr",
+  "Expr" #e(",") "Arguments"
 ) \
 $

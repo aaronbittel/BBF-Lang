@@ -71,34 +71,34 @@ class Parser:
         #     return self.parse_fndef_stmt()
         return TopLevelStmt(self.parse_stmt())
 
-    # def parse_fndef_stmt(self) -> FunctionDefinition:
-    #     self.consume(TokenType.Fn, "Expected `fn` in function definition")
-    #     name = self.consume(
-    #         TokenType.Identifier, "Expected `identifier` in function definition"
-    #     )
-    #     self.consume(TokenType.OpenParen, "Expected `(` in function definition")
-    #     args: list[FnDefArg] = []
-    #     if not self.check(TokenType.CloseParen):
-    #         args = self.function_defintion_arguments()
-    #     self.consume(TokenType.CloseParen, "Expected `)` in function definition")
-    #     self.consume(TokenType.Minus, "Expected `-` in function definition")
-    #     self.consume(TokenType.Greater, "Expected `>` in function definition")
-    #     return_token = self.fn_return()
-    #     self.consume(TokenType.Do, "Expected `do` in function definition")
-    #     if self.match(TokenType.End):
-    #         return FunctionDefinition(name, args, return_token)
-    #     block = self.parse_function_statement()
-    #     return FunctionDefinition(name, args, return_token, block)
+    def parse_fndef(self) -> FnDef:
+        self.consume(TokenType.Fn, "Expected `fn` in function definition")
+        name = self.consume(
+            TokenType.Identifier, "Expected `identifier` in function definition"
+        )
+        self.consume(TokenType.OpenParen, "Expected `(` in function definition")
+        args: list[Param] = []
+        if not self.check(TokenType.CloseParen):
+            args = self.fndef_params()
+        self.consume(TokenType.CloseParen, "Expected `)` in function definition")
+        self.consume(TokenType.Minus, "Expected `-` in function definition")
+        self.consume(TokenType.Greater, "Expected `>` in function definition")
+        return_token = self.parse_fnreturn()
+        self.consume(TokenType.Do, "Expected `do` in function definition")
+        block = self.parse_block()
+        return FnDef(name, args, return_token, block)
 
-    # def parse_function_statement(self) -> FunctionStatement:
-    #     if self.check(TokenType.Return):
-    #         self.parse_return_statement()
-    #     return self.parse_stmt()
-
-    # def parse_return_statement(self) -> ReturnStatement:
-    #     self.consume(TokenType.Return, "Expected `return` for return statement")
-    #     expr = self.expression()
-    #     return ReturnStatement(expr)
+    def parse_return_stmt(self) -> ReturnStmt:
+        # TODO: add empty return: First check if next token is a valid beginning of a
+        # expression
+        self.consume(TokenType.Return, "Expected `return` for return statement")
+        # current = self.index
+        try:
+            expr = self.expr()
+            return ReturnStmt(expr)
+        except ParserError:
+            print("[INFO] return statement without expr ?")
+        return ReturnStmt()
 
     def parse_stmt(self) -> Stmt:
         if self.check(TokenType.If):
@@ -111,64 +111,52 @@ class Parser:
             return self.parse_declaration()
         if self.check(TokenType.Identifier) and self.check(TokenType.Equal, offset=1):
             return self.parse_assignment()
-        return self.parse_expression_stmt()
+        if self.check(TokenType.Return):
+            return self.parse_return_stmt()
+        return self.parse_expr_stmt()
 
-    def parse_expression_stmt(self) -> ExprStmt:
-        expr = self.expression()
-        return ExprStmt(expr)
+    def parse_expr_stmt(self) -> ExprStmt:
+        return ExprStmt(self.expr())
 
-    # def function_defintion_arguments(self) -> list[FnDefArg]:
-    #     args = [self.function_defintion_argument()]
-    #     while self.match(TokenType.Comma):
-    #         args.append(self.function_defintion_argument())
-    #     return args
+    def fndef_params(self) -> list[Param]:
+        args = [self.fndef_param()]
+        while self.match(TokenType.Comma):
+            args.append(self.fndef_param())
+        return args
 
-    # def function_defintion_argument(self) -> FnDefArg:
-    #     name = self.consume(
-    #         TokenType.Identifier,
-    #         "Expected `identifier` for function argument definition",
-    #     )
-    #     self.consume(TokenType.Colon, "Expected `:` in function argument definition")
-    #     if not self.match(TokenType.Int, TokenType.String, TokenType.Void):
-    #         raise ParserExpectError(
-    #             self.peek(),
-    #             "Expected `VarType` for function argument definition",
-    #             TokenType.Int,
-    #             TokenType.String,
-    #             TokenType.Void,
-    #         )
-    #     ttype = self.previous()
-    #     return FnDefArg(name, ttype)
+    def fndef_param(self) -> Param:
+        name = self.consume(
+            TokenType.Identifier,
+            "Expected `identifier` for function argument definition",
+        )
+        self.consume(TokenType.Colon, "Expected `:` in function argument definition")
+        if not self.match(TokenType.Int, TokenType.String, TokenType.Void):
+            raise ParserExpectError(
+                self.peek(),
+                "Expected `VarType` for function argument definition",
+                TokenType.Int,
+                TokenType.String,
+                TokenType.Void,
+            )
+        vartype = self.previous()
+        return Param(name, vartype)
 
-    # def fn_return(self) -> Token:
-    #     if self.match(TokenType.Int, TokenType.String, TokenType.Void):
-    #         return self.previous()
-    #     raise ParserExpectError(
-    #         self.peek(),
-    #         "Expected `VarType` for function return type declaration",
-    #         TokenType.Int,
-    #         TokenType.String,
-    #         TokenType.Void,
-    #     )
+    def parse_fnreturn(self) -> Token:
+        if self.match(TokenType.Int, TokenType.String, TokenType.Void):
+            return self.previous()
+        raise ParserExpectError(
+            self.peek(),
+            "Expected `VarType` for function return type declaration",
+            TokenType.Int,
+            TokenType.String,
+            TokenType.Void,
+        )
 
-    # def parse_stmt(self) -> Stmt:
-    #     if self.check(TokenType.Identifier) and self.check(TokenType.Colon, offset=1):
-    #         return self.parse_declaration()
-    #     if self.check(TokenType.Identifier) and self.check(TokenType.Equal, offset=1):
-    #         return self.parse_assignment()
-    #     if self.check(TokenType.If):
-    #         return self.parse_if()
-    #     if self.check(TokenType.For):
-    #         return self.parse_for_stmt()
-    #     if self.check(TokenType.Do):
-    #         return self.parse_do_block()
-    #     if self.check(TokenType.Identifier) and self.check(
-    #         TokenType.OpenParen, offset=1
-    #     ):
-    #         return self.parse_function_call()
-    #
-    #     token = self.peek()
-    #     raise ParserError(token=token, msg=f"unexpected token: {token.value}")
+    def parse_block(self) -> Block:
+        block = Block()
+        while not self.match(TokenType.End):
+            block.add(self.parse_stmt())
+        return block
 
     def parse_declaration(self) -> Declaration:
         name = self.consume(TokenType.Identifier, "Expected identifier in declaration")
@@ -180,18 +168,18 @@ class Parser:
             )
         ttype = self.previous()
         self.consume(TokenType.Equal, "Expected `=` in declaration")
-        expr = self.expression()
+        expr = self.expr()
         return Declaration(name, ttype, expr)
 
     def parse_assignment(self) -> Assignment:
         name = self.consume(TokenType.Identifier, "Expected identifier in assign")
         self.consume(TokenType.Equal, "Expected `=` in assign")
-        expr = self.expression()
+        expr = self.expr()
         return Assignment(name, expr)
 
     def parse_if(self) -> Stmt:
         self.consume(TokenType.If, "Expected `if` in if-statement")
-        condition = self.expression()
+        condition = self.expr()
         self.consume(TokenType.Then, "Expected `then` after if-condition")
         if_block = Block()
         while not self.match(TokenType.End, TokenType.Else, TokenType.Elif):
@@ -200,7 +188,7 @@ class Parser:
         elif_branches: list[ElifStmt] = []
         if self.previous().ttype == TokenType.Elif:
             while True:
-                elif_condition = self.expression()
+                elif_condition = self.expr()
                 self.consume(TokenType.Then, "Expected `then` after elif-condition")
                 elif_block = Block()
                 while not self.match(TokenType.End, TokenType.Else, TokenType.Elif):
@@ -232,14 +220,14 @@ class Parser:
         return ForStmt(loop_ident, range_expr, block)
 
     def range_expr(self) -> Range:
-        start = self.expression()
+        start = self.expr()
         self.consume(TokenType.Dot, "Expected `.` in range expression")
         self.consume(TokenType.Dot, "Expected `.` in range expression")
         inclusive = False
         if self.check(TokenType.Equal):
             self.advance()
             inclusive = True
-        stop = self.expression()
+        stop = self.expr()
         return Range(start, stop, inclusive)
 
     def parse_do_block(self) -> DoBlock:
@@ -253,7 +241,7 @@ class Parser:
         self.consume(TokenType.End, "Expected `end` to end scope statement")
         return block
 
-    def expression(self) -> Expr:
+    def expr(self) -> Expr:
         return self.equality()
 
     def equality(self) -> Expr:
@@ -325,14 +313,15 @@ class Parser:
             )
         if self.check(TokenType.OpenParen):
             self.consume(TokenType.OpenParen, "Expected `(` in expression")
-            expr = self.expression()
+            expr = self.expr()
             self.consume(TokenType.CloseParen, "Expected ')' after expression.")
             return Grouping(expr)
         if self.check(TokenType.StringLit):
             return StringLit(
                 self.consume(TokenType.StringLit, "Expected `StringLiteral`")
             )
-        assert False, f"unreachable: {self.peek()}"
+        token = self.peek()
+        raise ParserError(token, f"Unknown statement beginning with `{token.value}`")
 
     def parse_function_call(self) -> FnCall:
         return self.fn_call()
@@ -347,15 +336,15 @@ class Parser:
         return FnCall(name, args_list)
 
     def args_list(self) -> list[Expr]:
-        args: list[Expr] = [self.expression()]
+        args: list[Expr] = [self.expr()]
         while self.match(TokenType.Comma):
-            args.append(self.expression())
+            args.append(self.expr())
         return args
 
     def argv(self) -> Expr:
         self.consume(TokenType.Identifier, "Expected `argv`")
         self.consume(TokenType.OpenBracket, "Expected `[` in argv access")
-        expr = self.expression()
+        expr = self.expr()
         self.consume(TokenType.CloseBracket, "Expected `]` in argv access")
         return Argv(expr)
 
