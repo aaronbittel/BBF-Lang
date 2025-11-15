@@ -20,5 +20,6 @@ debug: gen
 
 fix:
 	@uv tool run ruff check --fix .
+	@uv run mypy . --check-untyped-defs
 
 .PHONY = run gen parser lexer debug
