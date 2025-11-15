@@ -23,9 +23,10 @@ from bbf.nodes.stmt import (
     ForStmt,
     IfStmt,
     Range,
+    ReturnStmt,
     Stmt,
 )
-from bbf.nodes.toplevel import TopLevel, TopLevelStmt
+from bbf.nodes.toplevel import FnDef, Param, TopLevel, TopLevelStmt
 
 
 class ParserError(Exception):

@@ -21,6 +21,7 @@ from bbf.nodes.stmt import (
     ForStmt,
     IfStmt,
     Range,
+    ReturnStmt,
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
@@ -80,6 +81,12 @@ class ASTPrinter(Visitor):
             self._ident("else", "\n")
             self._visit_block(ifstmt.else_block)
         self._ident("end", end="\n")
+
+    def visit_returnstmt(self, returnstmt: ReturnStmt) -> None:
+        self._ident("return", end=" ")
+        if returnstmt.expr is not None:
+            returnstmt.expr.accept(self)
+        print()
 
     def visit_exprstmt(self, expressionstmt: ExprStmt) -> None:
         self._ident()

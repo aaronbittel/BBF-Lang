@@ -25,6 +25,7 @@ from bbf.nodes.stmt import (
     ForStmt,
     IfStmt,
     Range,
+    ReturnStmt,
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
@@ -163,6 +164,9 @@ class AsmCodeGen(Visitor):
 
         # --- END ---
         self.emitter.emit(f"{end_label}:", indent=0)
+
+    def visit_returnstmt(self, returnstmt: ReturnStmt) -> None:
+        self.emitter.emit("jmp .epilogue")
 
     def visit_exprstmt(self, expr_stmt: ExprStmt) -> None:
         expr_stmt.expr.accept(self)
@@ -442,7 +446,8 @@ class AsmCodeGen(Visitor):
                     stmt.accept(self)
 
             self.emitter.emit()
-            self.emitter.emit("; fn epilogue")
+            self.emitter.emit(".epilogue:", indent=0)
+            self.emitter.emit("mov rsp, rbp")
             self.emitter.emit("pop rbp")
             self.emitter.emit("ret")
 

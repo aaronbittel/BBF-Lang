@@ -73,6 +73,14 @@ class ExprStmt(Stmt):
 
 
 @dataclass
+class ReturnStmt(Stmt):
+    expr: Expr | None = None
+
+    def accept(self, visitor: Visitor) -> None:
+        return visitor.visit_returnstmt(self)
+
+
+@dataclass
 class ElifStmt:
     condition: Expr
     block: Block

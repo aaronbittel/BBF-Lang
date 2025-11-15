@@ -1,0 +1,7 @@
+fn print_argv() -> Void do
+    for i in 1..argc do
+        stdout("Arg ") stdout(itoa(i)) stdout(": ") stdout(argv[i]) stdout("\n")
+    end
+end
+
+print_argv()
