@@ -67,8 +67,8 @@ class Parser:
         return ProgTopLevelStmt(stmts)
 
     def parse_toplevel_stmt(self) -> TopLevel:
-        # if self.check(TokenType.Fn):
-        #     return self.parse_fndef_stmt()
+        if self.check(TokenType.Fn):
+            return self.parse_fndef()
         return TopLevelStmt(self.parse_stmt())
 
     def parse_fndef(self) -> FnDef:

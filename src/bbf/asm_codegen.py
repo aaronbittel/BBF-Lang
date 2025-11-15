@@ -28,7 +28,7 @@ from bbf.nodes.stmt import (
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
-from bbf.symbol_table import FnInfo, FunctionTable, SymbolTable, VarInfo, VarType
+from bbf.symbol_table import FnInfo, FunctionTable, SymbolTable, VarType
 
 
 class AsmCodeGen(Visitor):
@@ -47,13 +47,15 @@ class AsmCodeGen(Visitor):
 
     def generate_prog(self, program: Program) -> None:
         self.program_prologue()
+        self.emitter.emit("; program")
         program.accept(self)
         if self.symbol_table.reserved_space > 0:
             self.emitter.emit(
                 f"add rsp, {self.symbol_table.reserved_space} ; free reserved space"
             )
         self.program_epilogue()
-        self.user_defined_fns()
+        if len(self.user_fndefs) > 0:
+            self.user_defined_fns()
         self.builtins()
         self.static_section()
         self.bss_section()
@@ -201,11 +203,11 @@ class AsmCodeGen(Visitor):
             raise CodeGenError(
                 f"ERROR: {ident.token.position}: identifier `{ident.token.value}` was not defined.{extra}"
             )
-        if varinfo.ttype == VarType.Int:
+        if varinfo.vartype == VarType.Int:
             self.emitter.emit(
                 f"push qword [rbp{varinfo.offset:+d}] ; push value from variable {ident.token.value}"
             )
-        elif varinfo.ttype == VarType.String:
+        elif varinfo.vartype == VarType.String:
             self.emitter.emit(
                 f"push qword [rbp{varinfo.offset:+d}] ; str_ptr form variable {ident.token.value}"
             )
@@ -213,7 +215,7 @@ class AsmCodeGen(Visitor):
                 f"push qword [rbp{varinfo.offset - 8:+d}] ; str_len form variable {ident.token.value}"
             )
         else:
-            assert False, f"unreachable: unknown VarType: {varinfo.ttype}"
+            assert False, f"unreachable: unknown VarType: {varinfo.vartype}"
 
     def visit_fncall(self, stmt: FnCall) -> None:
         # NOTE: Functions will push their result into rax. Calling code needs to

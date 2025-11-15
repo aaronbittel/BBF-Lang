@@ -4,7 +4,7 @@
 syntax clear
 
 " Keywords (reserved words)
-syntax keyword bbfKeyword if then end else elif for do step in not
+syntax keyword bbfKeyword if then end else elif for do step in not fn return
 "
 " Built-in functions
 syntax keyword bbfBuiltin exit atoi itoa stdout stderr
@@ -13,7 +13,7 @@ syntax keyword bbfBuiltin exit atoi itoa stdout stderr
 syntax match bbfIdentifier "\<[a-zA-Z_][a-zA-Z0-9_]*\>"
 
 " Match types
-syntax keyword bbfType String Int
+syntax keyword bbfType Int String Void
 
 " Match numbers
 syntax match bbfNumber "\d\+"

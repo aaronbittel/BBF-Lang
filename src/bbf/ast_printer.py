@@ -41,7 +41,7 @@ class ASTPrinter(Visitor):
 
     def visit_fndef(self, functiondefinition: FnDef) -> None:
         params = ", ".join(
-            f"{param.name.value}:{param.vartype.value}"
+            f"{param.name.value}: {param.vartype.value}"
             for param in functiondefinition.params
         )
         print(
@@ -90,7 +90,7 @@ class ASTPrinter(Visitor):
         rangeexpr.start.accept(self)
         print("..", end="")
         if rangeexpr.inclusive:
-            print("=", end=" ")
+            print("=", end="")
         rangeexpr.stop.accept(self)
 
     def _visit_block(self, block: Block) -> None:
