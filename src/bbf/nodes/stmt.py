@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 class Stmt(ABC):
     @abstractmethod
-    def accept(self, visitor: Visitor) -> None: ...
+    def accept[T](self, visitor: Visitor[T]) -> T: ...
 
 
 @dataclass
@@ -23,7 +23,7 @@ class IfStmt(Stmt):
     elifs: list[ElifStmt]
     else_block: Block = field(default_factory=lambda: Block())
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_ifstmt(self)
 
 
@@ -33,7 +33,7 @@ class ForStmt(Stmt):
     range_expr: Range
     block: Block
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_forstmt(self)
 
 
@@ -41,7 +41,7 @@ class ForStmt(Stmt):
 class DoBlock(Stmt):
     block: Block
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_doblock(self)
 
 
@@ -51,7 +51,7 @@ class Declaration(Stmt):
     typetoken: Token
     expr: Expr
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_declaration(self)
 
 
@@ -60,7 +60,7 @@ class Assignment(Stmt):
     name: Token
     expr: Expr
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_assignment(self)
 
 
@@ -68,7 +68,7 @@ class Assignment(Stmt):
 class ExprStmt(Stmt):
     expr: Expr
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_exprstmt(self)
 
 
@@ -76,7 +76,7 @@ class ExprStmt(Stmt):
 class ReturnStmt(Stmt):
     expr: Expr | None = None
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_returnstmt(self)
 
 

@@ -12,14 +12,14 @@ if TYPE_CHECKING:
 
 class Expr(ABC):
     @abstractmethod
-    def accept(self, visitor: Visitor) -> None: ...
+    def accept[T](self, visitor: Visitor[T]) -> T: ...
 
 
 @dataclass
 class Identifier(Expr):
     token: Token
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_identifier(self)
 
 
@@ -27,7 +27,7 @@ class Identifier(Expr):
 class IntegerLit(Expr):
     token: Token
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_integerlit(self)
 
 
@@ -35,7 +35,7 @@ class IntegerLit(Expr):
 class StringLit(Expr):
     token: Token
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_stringlit(self)
 
 
@@ -45,7 +45,7 @@ class Binary(Expr):
     operator: Token
     rhs: Expr
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_binary(self)
 
 
@@ -54,7 +54,7 @@ class Unary(Expr):
     operator: Token
     expr: Expr
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_unary(self)
 
 
@@ -62,7 +62,7 @@ class Unary(Expr):
 class Grouping(Expr):
     expr: Expr
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_grouping(self)
 
 
@@ -70,7 +70,7 @@ class Grouping(Expr):
 class Argv(Expr):
     expr: Expr
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_argv(self)
 
 
@@ -79,5 +79,5 @@ class FnCall(Expr):
     name: Token
     args_list: list[Expr]
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_fncall(self)

@@ -12,12 +12,12 @@ if TYPE_CHECKING:
 
 class Program(ABC):
     @abstractmethod
-    def accept(self, visitor: Visitor) -> None: ...
+    def accept[T](self, visitor: Visitor[T]) -> T: ...
 
 
 @dataclass
 class ProgTopLevelStmt(Program):
     stmts: list[TopLevel]
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_progtoplevelstmt(self)

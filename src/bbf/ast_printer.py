@@ -27,7 +27,7 @@ from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
 
 
-class ASTPrinter(Visitor):
+class ASTPrinter(Visitor[None]):
     def __init__(self) -> None:
         self.indent = 0
 

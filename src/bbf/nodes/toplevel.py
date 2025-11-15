@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 class TopLevel(ABC):
     @abstractmethod
-    def accept(self, visitor: Visitor) -> None: ...
+    def accept[T](self, visitor: Visitor[T]) -> T: ...
 
 
 @dataclass
@@ -23,7 +23,7 @@ class FnDef(TopLevel):
     return_type: Token
     body: Block
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_fndef(self)
 
 
@@ -31,7 +31,7 @@ class FnDef(TopLevel):
 class TopLevelStmt(TopLevel):
     stmt: Stmt
 
-    def accept(self, visitor: Visitor) -> None:
+    def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_toplevelstmt(self)
 
 
