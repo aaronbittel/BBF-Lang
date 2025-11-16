@@ -74,7 +74,9 @@ class TypeChecker(Visitor[VarType]):
 
     def visit_fndef(self, fndef: FnDef) -> VarType:
         if fndef.name.value in self.defined_fns:
-            raise TypeCheckerError(f"fn `{fndef.name.value}` is already defined.")
+            raise TypeCheckerError(
+                f"ERROR: {fndef.name.position}: fn `{fndef.name.value}` is already defined."
+            )
         fninfo = FnInfo.from_node(fndef)
         self.defined_fns[fndef.name.value] = fninfo
         with self.new_scope():
@@ -88,12 +90,16 @@ class TypeChecker(Visitor[VarType]):
         rangeexpr = forstmt.range_expr
         start_type = rangeexpr.start.accept(self)
         if start_type != VarType.Int:
+            # TODO: add precise position information
             raise TypeCheckerError(
+                f"ERROR: {forstmt.loop_ident.position}: "
                 f"for-loop start expression must be Int, but got `{start_type.name}`"
             )
         stop_type = rangeexpr.stop.accept(self)
         if stop_type != VarType.Int:
+            # TODO: add precise position information
             raise TypeCheckerError(
+                f"ERROR: {forstmt.loop_ident.position}: "
                 f"for-loop stop expression must be Int, but got `{stop_type.name}`"
             )
 
@@ -123,6 +129,7 @@ class TypeChecker(Visitor[VarType]):
     def visit_ifstmt(self, ifstmt: IfStmt) -> VarType:
         cond_type = ifstmt.condition.accept(self)
         if cond_type != VarType.Int:
+            # TODO: add precise position information
             raise TypeCheckerError(f"if condition must be `Int`, got {cond_type.name}")
 
         with self.new_scope():
@@ -174,7 +181,9 @@ class TypeChecker(Visitor[VarType]):
         fnname = fncall.name.value
         fninfo = self.defined_fns.get(fnname)
         if fninfo is None:
-            raise TypeCheckerError(f"Undefined function `{fnname}`")
+            raise TypeCheckerError(
+                f"ERROR: {fncall.name.position}: Undefined function `{fnname}`"
+            )
 
         if len(fninfo.args) != len(fncall.args_list):
             raise TypeCheckerError(
@@ -224,6 +233,7 @@ class TypeChecker(Visitor[VarType]):
 
         if lhs_type != rhs_type:
             raise TypeCheckerError(
+                f"ERROR: {binary.operator.position}: "
                 f"Type mismatch in binary expression: {lhs_type.name} {binary.operator.value} {rhs_type.name}"
             )
 
@@ -231,6 +241,7 @@ class TypeChecker(Visitor[VarType]):
             return VarType.Int
 
         raise TypeCheckerError(
+            f"ERROR: {binary.operator.position}: "
             f"Operator `{binary.operator.value}` is not supported between {lhs_type.name} and {rhs_type.name}"
         )
 
@@ -238,6 +249,7 @@ class TypeChecker(Visitor[VarType]):
         expr_type = unary.expr.accept(self)
         if expr_type != VarType.Int:
             raise TypeCheckerError(
+                f"ERROR: {unary.operator.position}: "
                 f"Unary operator `{unary.operator.value}` is only allowed on Int, got {expr_type.name}"
             )
         return VarType.Int
