@@ -37,7 +37,6 @@ class AsmCodeGen(Visitor):
         self.emitter = emitter
 
         self.symbol_table = SymbolTable()
-        # TODO: move this into symboltable again
         self.function_table = FunctionTable()
         self.strings: list[str] = []
         self.if_label_count = 0
@@ -73,7 +72,6 @@ class AsmCodeGen(Visitor):
         self.user_fndefs.append(fndef)
 
     def visit_forstmt(self, stmt: ForStmt) -> None:
-        # NOTE: currently for loops just declare a variable that will not be cleaned up after the loop
         loop_ident, range_expr, block = stmt.loop_ident, stmt.range_expr, stmt.block
         with self.new_scope():
             # NOTE: loop var is a new variable scoped to the loop scope
@@ -184,7 +182,6 @@ class AsmCodeGen(Visitor):
         pass
 
     def visit_integerlit(self, intlit: IntegerLit) -> None:
-        # NOTE: What to do when value already exists?
         self.emitter.emit(f"mov rax, {intlit.token.value}")
         self.emitter.emit("push rax")
 
@@ -240,23 +237,12 @@ class AsmCodeGen(Visitor):
                 f"ERROR: {stmt.name.position}: No function with name `{stmt.name.value}` is defined."
             )
         fn_name = stmt.name.value
-        # TODO: add type checking here
-        if len(stmt.args_list) != len(fninfo.args):
-            raise CodeGenError(
-                f"ERROR: {stmt.name.position}: Expected `{len(fninfo.args)}` function parameters for function `{fn_name}`, but got `{len(stmt.args_list)}`"
-            )
-
-        if len(fninfo.args) > 6:
-            raise CodeGenError(
-                f"ERROR: {stmt.name.position}: Function calls with more than 6 arguments are currently not supported."
-            )
 
         regs_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
         reg_i = 0
 
         self.emitter.emit(f"; {fn_name} function args")
         for fn_arg, expr_arg in zip(fninfo.args, stmt.args_list):
-            # TODO: Check if type of fn param matches var type
             expr_arg.accept(self)
             if fn_arg.vartype == VarType.Int:
                 assert reg_i < len(regs_order), (

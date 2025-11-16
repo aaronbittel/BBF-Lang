@@ -35,7 +35,6 @@ class Scope:
     def_vars: dict[str, VarType] = field(default_factory=dict)
 
     def define(self, name: str, vartype: VarType) -> None:
-        print("[DEBUG]", f"defining {name} to be {vartype.name}")
         self.def_vars[name] = vartype
 
     def lookup(self, name: str) -> VarType | None:

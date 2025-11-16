@@ -227,7 +227,7 @@ class Lexer:
                 continue
             num_str += self.advance()
 
-        # TODO: probably some edge cases here
+        # NOTE: maybe some edge cases here?
         if not self.peek().isalpha():
             return self._create_token(
                 ttype=TokenType.IntegerLit, value=num_str, length=self.index - start
@@ -256,7 +256,6 @@ class Lexer:
         return self._create_token(ttype=ttype, value=identifier, length=len(identifier))
 
     def read_string_literal(self) -> Token:
-        # NOTE: Handle escape sequences "\n" here?
         start = self.index
         self.consume('"')
         string = ""

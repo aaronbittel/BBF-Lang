@@ -56,7 +56,6 @@ class ParserExpectError(ParserError):
 # TODO: Maybe keep scope stack [If-For-...] to give better error message when coming
 # across an unexpected token in parse_stmt
 class Parser:
-    # TODO: input lexer instead?
     def __init__(self, tokens: list[Token]) -> None:
         self.tokens = tokens
         self.index = 0
@@ -90,15 +89,12 @@ class Parser:
         return FnDef(name, args, return_token, block)
 
     def parse_return_stmt(self) -> ReturnStmt:
-        # TODO: add empty return: First check if next token is a valid beginning of a
-        # expression
-        self.consume(TokenType.Return, "Expected `return` for return statement")
-        # current = self.index
+        ret = self.consume(TokenType.Return, "Expected `return` for return statement")
         try:
             expr = self.expr()
             return ReturnStmt(expr)
         except ParserError:
-            print("[INFO] return statement without expr ?")
+            print("[INFO]", f"{ret.position}: `return` statement without expr ?")
         return ReturnStmt()
 
     def parse_stmt(self) -> Stmt:
@@ -380,7 +376,3 @@ class Parser:
 
     def is_eof(self) -> bool:
         return self.peek().ttype == TokenType.EOF
-
-
-# TODO: Remove string formatting from Nodes and implement some kind of Visitor that
-# pretty prints the NodeProgram AST
