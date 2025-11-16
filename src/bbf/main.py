@@ -38,12 +38,20 @@ def main() -> None:
         action="store_true",
         help="Quiet mode. Don't print any info about compilation phases.",
     )
+    argparser.add_argument(
+        "--no-type-check",
+        "-ntc",
+        action="store_false",
+        dest="type_check",
+        help="Disable type checking during compilation.",
+    )
     args = argparser.parse_args()
 
     input_path: Path = args.input_path
     step: str = args.step
     run_argv: list[str] | None = args.run
     quiet: bool = args.quiet
+    type_check: bool = args.type_check
 
     with args.input_path.open(mode="r") as out:
         src = out.read()
@@ -70,24 +78,26 @@ def main() -> None:
     prog = parser.parse_program()
     if not quiet:
         print("[INFO] Parsed into AST:")
-
-    ast_printer = ASTPrinter()
-    for toplevel in prog.stmts:
-        toplevel.accept(ast_printer)
-    if not quiet:
+        ast_printer = ASTPrinter()
+        for toplevel in prog.stmts:
+            toplevel.accept(ast_printer)
         print("=====================")
 
     if step == "parser":
         sys.exit(0)
 
-    if not quiet:
-        print("[INFO] Type Checking AST:")
-    type_checker = TypeChecker()
-    for toplevel in prog.stmts:
-        toplevel.accept(type_checker)
-    if not quiet:
-        print(green("[INFO] Successfully type checked!"))
-        print("=====================")
+    if type_check:
+        if not quiet:
+            print("[INFO] Type Checking AST:")
+        type_checker = TypeChecker()
+        for toplevel in prog.stmts:
+            toplevel.accept(type_checker)
+        if not quiet:
+            print(green("[INFO] Successfully type checked!"))
+            print("=====================")
+
+    if step == "typechecker":
+        sys.exit(0)
 
     emitter = Emitter()
     asm_codegen = AsmCodeGen(emitter)
