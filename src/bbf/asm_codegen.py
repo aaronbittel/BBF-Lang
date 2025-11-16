@@ -80,31 +80,34 @@ class AsmCodeGen(Visitor):
             loop_ident_offset = self.symbol_table.define(
                 loop_ident.value, ttype=VarType.Int
             )
-            # TODO: check that range_expr.start is actually an Int
             range_expr.start.accept(self)
             self.emitter.emit("pop rax ; loop var")
             self.emitter.emit(
                 f"sub rsp, {VarType.Int.value} ; reserve space for loop var"
             )
-            self.emitter.emit(f"mov [rbp{loop_ident_offset:+d}], rax")
-            self.emitter.emit(f"loop_{self.loop_count}_start:", indent=0)
-            for s in block.stmts:
-                s.accept(self)
             range_ident = self.symbol_table.lookup(loop_ident.value)
             assert range_ident is not None, f"{loop_ident.value} was just created"
-            self.emitter.emit(
-                f"inc qword [rbp{range_ident.offset:+d}] ; increment loop variable"
-            )
+            self.emitter.emit(f"mov [rbp{loop_ident_offset:+d}], rax")
+            # TODO: move creating lables into function
+            self.emitter.emit(f".loop_{self.loop_count}_start:", indent=0)
             range_expr.stop.accept(self)
             self.emitter.emit("pop rax ; range end")
             self.emitter.emit(
                 f"cmp qword [rbp{range_ident.offset:+d}], rax ; check if condition"
             )
             if range_expr.inclusive:
-                self.emitter.emit(f"jle loop_{self.loop_count}_start")
+                self.emitter.emit(f"jg .loop_{self.loop_count}_end")
             else:
-                self.emitter.emit(f"jl loop_{self.loop_count}_start")
-            self.loop_count += 1
+                self.emitter.emit(f"jge .loop_{self.loop_count}_end")
+
+            for s in block.stmts:
+                s.accept(self)
+            self.emitter.emit(
+                f"inc qword [rbp{range_ident.offset:+d}] ; increment loop variable"
+            )
+            self.emitter.emit(f"jmp .loop_{self.loop_count}_start")
+            self.emitter.emit(f".loop_{self.loop_count}_end:", indent=0)
+        self.loop_count += 1
 
     def visit_doblock(self, doblock: DoBlock) -> None:
         with self.new_scope():

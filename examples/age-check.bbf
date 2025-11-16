@@ -1,21 +1,21 @@
 if argc == 1 then
-    eprint("USAGE: ") eprint(argv[0]) eprint(" <age>\n")
+    stderr("USAGE: ") stderr(argv[0]) stderr(" <age>\n")
     exit(1)
 end
 
 age: Int = atoi(argv[1])
-print("age ")
+stdout("age ")
 
 if age < 18 then
-    print("under 18")
+    stdout("under 18")
 elif age < 30 then
-    print("between 18 and 30")
+    stdout("between 18 and 30")
 elif age < 50 then
-    print("between 30 and 50")
+    stdout("between 30 and 50")
 elif age < 80 then
-    print("between 50 and 80")
+    stdout("between 50 and 80")
 else
-    print("over 80")
+    stdout("over 80")
 end
 
-print("\n")
+stdout("\n")

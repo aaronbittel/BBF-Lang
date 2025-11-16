@@ -57,8 +57,12 @@ class TypeCheckerError(Exception):
 
 class TypeChecker(Visitor[VarType]):
     def __init__(self) -> None:
-        self.defined_fns = BUILTIN_FNS
+        self.defined_fns: dict[str, FnInfo] = {}
+        for name, fninfo in BUILTIN_FNS.items():
+            self.defined_fns[name] = fninfo
         self.scope = Scope()
+        # TODO: Handle globals better
+        self.scope.define("argc", VarType.Int)
 
     def visit_progtoplevelstmt(self, progtoplevelstmt: ProgTopLevelStmt) -> VarType:
         for stmt in progtoplevelstmt.stmts:
@@ -95,6 +99,9 @@ class TypeChecker(Visitor[VarType]):
             )
 
         with self.new_scope():
+            # because start and end type are `Int`, loop_ident can also be defined
+            # to be `Int`
+            self.scope.define(forstmt.loop_ident.value, VarType.Int)
             for stmt in forstmt.block:
                 stmt.accept(self)
         return VarType.Void
@@ -172,17 +179,20 @@ class TypeChecker(Visitor[VarType]):
 
         if len(fninfo.args) != len(fncall.args_list):
             raise TypeCheckerError(
+                f"ERROR: {fncall.name.position}: "
                 f"Function `{fnname}` expects {len(fninfo.args)} arguments, "
                 f"but got {len(fncall.args_list)}"
             )
 
-        for fnarg, arg in zip(fninfo.args, fncall.args_list):
+        for i, (fnarg, arg) in enumerate(zip(fninfo.args, fncall.args_list), start=1):
             got = arg.accept(self)
             expected = fnarg.vartype
+            param_name = "" if fnname in BUILTIN_FNS else f" `{fnarg.name}`"
             if expected != got:
                 raise TypeCheckerError(
+                    f"ERROR: {fncall.name.position}: "
                     f"Type mismatch in call to `{fnname}`: "
-                    f"expected `{expected.name}` for parameter `{fnarg.name}`, "
+                    f"expected `{expected.name}` for {i}. parameter{param_name}, "
                     f"but got `{got.name}`"
                 )
 

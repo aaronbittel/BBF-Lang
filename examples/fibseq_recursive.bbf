@@ -1,0 +1,9 @@
+fn fib(count: Int) -> Int do
+    if count == 0 then return 0 end
+    if count == 1 then return 1 end
+    return fib(count-1) + fib(count-2)
+end
+
+for i in 0..=10 do
+    stdout(itoa(fib(i))) stdout("\n")
+end

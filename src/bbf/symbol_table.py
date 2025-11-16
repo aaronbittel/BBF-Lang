@@ -122,7 +122,9 @@ BUILTIN_FNS = {
 
 class FunctionTable:
     def __init__(self) -> None:
-        self.fns = BUILTIN_FNS
+        self.fns: dict[str, FnInfo] = {}
+        for name, fninfo in BUILTIN_FNS.items():
+            self.fns[name] = fninfo
 
     def define(self, fn: FnInfo) -> None:
         assert fn.name not in self.fns, (
