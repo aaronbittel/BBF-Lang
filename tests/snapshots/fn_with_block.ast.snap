@@ -1,0 +1,17 @@
+fn void() -> Void do
+    x: Int = 12
+    stdout( itoa( x ) )
+    stdout( '\n' )
+    stdout( '=====BEFORE BLOCK=======\n' )
+    do
+        stdout( itoa( x ) )
+        stdout( '\n' )
+        stdout( 'Hello, World!\n' )
+        x: String = 'New Value\n'
+        stdout( x )
+    end
+    stdout( '=====AFTER BLOCK=======\n' )
+    stdout( itoa( x ) )
+    stdout( '\n' )
+end
+void(  )

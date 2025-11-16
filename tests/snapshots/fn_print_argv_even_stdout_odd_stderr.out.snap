@@ -1,0 +1,14 @@
+Argv: 47
+stderr1 stdout1 stderr2 stdout2 stderr3 stdout3
+Returncode: 1
+0
+Stdout: 24
+stdout1
+stdout2
+stdout3
+
+Stderr: 24
+stderr1
+stderr2
+stderr3
+

@@ -1,0 +1,13 @@
+Argv: 32
+first second third and some more
+Returncode: 1
+0
+Stdout: 87
+Program Name: /tmp/bbf/out
+Argv[1]: first
+Argv[2]: second
+Argv[3]: third
+And 3 more...
+
+Stderr: 0
+

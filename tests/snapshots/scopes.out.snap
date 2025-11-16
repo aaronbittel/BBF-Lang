@@ -1,0 +1,12 @@
+Argv: 2
+30
+Returncode: 1
+0
+Stdout: 36
+Argv[1]: 30
+Elif 2
+12
+Hello, World!
+
+Stderr: 0
+

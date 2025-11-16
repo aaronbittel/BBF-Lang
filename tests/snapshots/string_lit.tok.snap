@@ -1,4 +1,0 @@
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='x', position=Position(path=PosixPath('tests/cases/string_lit.bbf'), line=1, column=1))
-Token(ttype=<TokenType.Equal: 'equal'>, value='=', position=Position(path=PosixPath('tests/cases/string_lit.bbf'), line=1, column=3))
-Token(ttype=<TokenType.String: 'string'>, value='Hello, World!', position=Position(path=PosixPath('tests/cases/string_lit.bbf'), line=1, column=5))
-Token(ttype=<TokenType.EOF: 'eof'>, value='EOF', position=Position(path=PosixPath('tests/cases/string_lit.bbf'), line=2, column=1))

@@ -12,6 +12,7 @@ fn isprime(x: Int) -> Int do
     return true
 end
 
+
 if argc < 2 then
     stderr("USAGE: ") stderr(argv[0]) stderr(" <number>\n")
     exit(1)

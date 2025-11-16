@@ -18,3 +18,4 @@ bin/
 
 # snapshot tester
 tests/snapshots/*.actual
+tests/snapshots/*.out

@@ -1,0 +1,7 @@
+x: Int = 12
+stdout( itoa( x ) )
+stdout( '\n' )
+x: String = 'Hello, World!\n'
+stdout( x )
+x: Int = 42
+exit( x )

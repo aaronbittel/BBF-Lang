@@ -1,0 +1,7 @@
+stdout( 'Hello, World!\n' )
+stdout( 'Hello, World!\n' )
+stdut( 'Hello, World!\n' )
+stdout( 'Hello, World!\n' )
+stderr( 'Hello, World!\n' )
+stderr( 'Hello, World!\n' )
+stderr( 'Hello, World!\n' )

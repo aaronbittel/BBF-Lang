@@ -6,6 +6,7 @@ eprint = partial(print, file=sys.stderr)
 RED = "\033[91m"
 GREEN = "\033[92m"
 BLUE = "\033[94m"
+GRAY_DARK = "\033[90m"
 RESET = "\033[0m"
 
 
@@ -19,3 +20,7 @@ def green(s: str) -> str:
 
 def blue(s: str) -> str:
     return f"{BLUE}{s}{RESET}"
+
+
+def darkgray(s: str) -> str:
+    return f"{GRAY_DARK}{s}{RESET}"

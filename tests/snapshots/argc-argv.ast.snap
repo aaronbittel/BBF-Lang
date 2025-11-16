@@ -1,0 +1,23 @@
+stdout( 'Program Name: ' )
+stdout( argv[0] )
+stdout( '\n' )
+if ( argc >= 2 ) then
+    stdout( 'Argv[1]: ' )
+    stdout( argv[1] )
+    stdout( '\n' )
+end
+if ( argc >= 3 ) then
+    stdout( 'Argv[2]: ' )
+    stdout( argv[2] )
+    stdout( '\n' )
+end
+if ( argc >= 4 ) then
+    stdout( 'Argv[3]: ' )
+    stdout( argv[3] )
+    stdout( '\n' )
+end
+if ( argc >= 5 ) then
+    stdout( 'And ' )
+    stdout( itoa( ( argc - 4 ) ) )
+    stdout( ' more...\n' )
+end

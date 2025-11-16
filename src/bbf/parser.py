@@ -60,7 +60,7 @@ class Parser:
         self.tokens = tokens
         self.index = 0
 
-    def parse_program(self) -> ProgTopLevelStmt:
+    def parse_prog(self) -> ProgTopLevelStmt:
         stmts: list[TopLevel] = []
         while not self.is_eof():
             stmts.append(self.parse_toplevel_stmt())

@@ -1,0 +1,41 @@
+if ( argc == 1 ) then
+    stderr( 'USAGE: ' )
+    stderr( argv[0] )
+    stderr( ' <input>\n' )
+    exit( 1 )
+end
+stdout( 'Argv[1]: ' )
+stdout( argv[1] )
+stdout( '\n' )
+input: Int = atoi( argv[1] )
+x: Int = 12
+y: String = 'Hello, World!\n'
+fn printnum(x: Int) -> Void do
+    stdout( itoa( x ) )
+    stdout( '\n' )
+end
+if ( input == 10 ) then
+    stdout( 'If\n' )
+    x: Int = 1200
+    printnum( x )
+elif ( input == 20 ) then
+    stdout( 'Elif 1\n' )
+    y: Int = 20
+    z: Int = 1000
+    printnum( ( z + ( y * z ) ) )
+elif ( input == 30 ) then
+    stdout( 'Elif 2\n' )
+    abc: String = 'ABC'
+    abc: String = 'ABC'
+    bcd: String = 'BCD'
+    qwer: String = 'aslkdfjalsfjdlkfsal'
+elif ( input == 40 ) then
+    stdout( 'Elif 3\n' )
+    abc: Int = ( ( ( ( 4 * 2 ) + 12 ) - 125 ) + ( (( 34 / 12 )) % 23 ) )
+    printnum( abc )
+else
+    stdout( 'Else\n' )
+    printnum( 100 )
+end
+printnum( x )
+stdout( y )

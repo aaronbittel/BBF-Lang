@@ -1,0 +1,1 @@
+ERROR: tests/cases/if.bbf:10:1: Type mismatch in call to `stdout`: expected `String` for 1. parameter, but got `Int`

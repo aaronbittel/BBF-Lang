@@ -1,0 +1,18 @@
+fn fizzbuzz(count: Int) -> Void do
+    for i in 1..=count do
+        printed: Int = 0
+        if ( ( i % 3 ) == 0 ) then
+            stdout( 'Fizz' )
+            printed = 1
+        end
+        if ( ( i % 5 ) == 0 ) then
+            stdout( 'Buzz' )
+            printed = 1
+        end
+        if notprinted then
+            stdout( itoa( i ) )
+        end
+        stdout( '\n' )
+    end
+end
+fizzbuzz( 15 )

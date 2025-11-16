@@ -1,0 +1,1 @@
+ERROR: tests/cases/invalid/wrong_fn_argtype.bbf:7:1: Type mismatch in call to `myexit`: expected `Int` for 1. parameter `exit_code`, but got `String`

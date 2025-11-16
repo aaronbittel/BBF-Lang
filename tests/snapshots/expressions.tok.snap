@@ -1,30 +1,36 @@
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='x', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=1))
-Token(ttype=<TokenType.Equal: 'equal'>, value='=', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=3))
-Token(ttype=<TokenType.Integer: 'integer'>, value='4', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=5))
-Token(ttype=<TokenType.Plus: 'plus'>, value='+', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=7))
-Token(ttype=<TokenType.Integer: 'integer'>, value='5', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=9))
-Token(ttype=<TokenType.Minus: 'minus'>, value='-', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=11))
-Token(ttype=<TokenType.Integer: 'integer'>, value='2', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=13))
-Token(ttype=<TokenType.Star: 'star'>, value='*', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=15))
-Token(ttype=<TokenType.OpenParen: 'openparen'>, value='(', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=17))
-Token(ttype=<TokenType.Integer: 'integer'>, value='4', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=18))
-Token(ttype=<TokenType.Plus: 'plus'>, value='+', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=20))
-Token(ttype=<TokenType.Integer: 'integer'>, value='1', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=22))
-Token(ttype=<TokenType.CloseParen: 'closeparen'>, value=')', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=1, column=23))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='z', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=2, column=1))
-Token(ttype=<TokenType.Equal: 'equal'>, value='=', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=2, column=3))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='x', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=2, column=5))
-Token(ttype=<TokenType.Minus: 'minus'>, value='-', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=2, column=7))
-Token(ttype=<TokenType.Integer: 'integer'>, value='4', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=2, column=9))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='y', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=3, column=1))
-Token(ttype=<TokenType.Equal: 'equal'>, value='=', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=3, column=3))
-Token(ttype=<TokenType.Integer: 'integer'>, value='2', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=3, column=5))
-Token(ttype=<TokenType.Star: 'star'>, value='*', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=3, column=7))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='x', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=3, column=9))
-Token(ttype=<TokenType.Minus: 'minus'>, value='-', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=3, column=11))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='z', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=3, column=13))
-Token(ttype=<TokenType.Exit: 'exit'>, value='exit', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=4, column=1))
-Token(ttype=<TokenType.OpenParen: 'openparen'>, value='(', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=4, column=5))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='y', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=4, column=6))
-Token(ttype=<TokenType.CloseParen: 'closeparen'>, value=')', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=4, column=7))
-Token(ttype=<TokenType.EOF: 'eof'>, value='EOF', position=Position(path=PosixPath('tests/cases/expressions.bbf'), line=5, column=1))
+identifier[1:1] => 'x'
+colon[1:2] => ':'
+int[1:4] => 'Int'
+equal[1:8] => '='
+integerlit[1:10] => '4'
+plus[1:12] => '+'
+integerlit[1:14] => '5'
+minus[1:16] => '-'
+integerlit[1:18] => '2'
+star[1:20] => '*'
+openparen[1:22] => '('
+integerlit[1:23] => '4'
+plus[1:25] => '+'
+integerlit[1:27] => '1'
+closeparen[1:28] => ')'
+identifier[2:1] => 'z'
+colon[2:2] => ':'
+int[2:4] => 'Int'
+equal[2:8] => '='
+identifier[2:10] => 'x'
+minus[2:12] => '-'
+integerlit[2:14] => '4'
+identifier[3:1] => 'y'
+colon[3:2] => ':'
+int[3:4] => 'Int'
+equal[3:8] => '='
+integerlit[3:10] => '2'
+star[3:12] => '*'
+identifier[3:14] => 'x'
+minus[3:16] => '-'
+identifier[3:18] => 'z'
+identifier[4:1] => 'exit'
+openparen[4:5] => '('
+identifier[4:6] => 'y'
+closeparen[4:7] => ')'
+eof[5:1] => 'EOF'

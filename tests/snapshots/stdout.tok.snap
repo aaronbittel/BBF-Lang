@@ -1,0 +1,5 @@
+identifier[1:1] => 'stdout'
+openparen[1:7] => '('
+stringlit[1:8] => 'Hello, World!\n'
+closeparen[1:25] => ')'
+eof[2:1] => 'EOF'

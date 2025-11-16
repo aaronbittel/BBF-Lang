@@ -1,0 +1,1 @@
+ERROR at tests/cases/invalid/assign_wrong_type.bbf:2:1: Type mismatch in assignment to `x`. Expected: Int, but got: String

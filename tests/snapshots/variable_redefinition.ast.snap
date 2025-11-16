@@ -1,3 +1,0 @@
-assign(x = 2)
-assign(x = 5)
-exit(x)

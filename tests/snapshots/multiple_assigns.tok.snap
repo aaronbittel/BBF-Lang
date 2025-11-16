@@ -1,19 +1,27 @@
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='x', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=1, column=1))
-Token(ttype=<TokenType.Equal: 'equal'>, value='=', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=1, column=3))
-Token(ttype=<TokenType.Integer: 'integer'>, value='12', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=1, column=5))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='y', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=2, column=1))
-Token(ttype=<TokenType.Equal: 'equal'>, value='=', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=2, column=3))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='x', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=2, column=5))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='z', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=3, column=1))
-Token(ttype=<TokenType.Equal: 'equal'>, value='=', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=3, column=3))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='x', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=3, column=5))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='z', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=4, column=1))
-Token(ttype=<TokenType.Equal: 'equal'>, value='=', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=4, column=3))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='y', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=4, column=5))
-Token(ttype=<TokenType.Plus: 'plus'>, value='+', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=4, column=7))
-Token(ttype=<TokenType.Integer: 'integer'>, value='1', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=4, column=9))
-Token(ttype=<TokenType.Exit: 'exit'>, value='exit', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=5, column=1))
-Token(ttype=<TokenType.OpenParen: 'openparen'>, value='(', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=5, column=5))
-Token(ttype=<TokenType.Identifier: 'identifier'>, value='z', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=5, column=6))
-Token(ttype=<TokenType.CloseParen: 'closeparen'>, value=')', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=5, column=7))
-Token(ttype=<TokenType.EOF: 'eof'>, value='EOF', position=Position(path=PosixPath('tests/cases/multiple_assigns.bbf'), line=6, column=1))
+identifier[1:1] => 'x'
+colon[1:2] => ':'
+int[1:4] => 'Int'
+equal[1:8] => '='
+integerlit[1:10] => '12'
+identifier[2:1] => 'y'
+colon[2:2] => ':'
+int[2:4] => 'Int'
+equal[2:8] => '='
+identifier[2:10] => 'x'
+identifier[3:1] => 'z'
+colon[3:2] => ':'
+int[3:4] => 'Int'
+equal[3:8] => '='
+identifier[3:10] => 'x'
+identifier[4:1] => 'z'
+colon[4:2] => ':'
+int[4:4] => 'Int'
+equal[4:8] => '='
+identifier[4:10] => 'y'
+plus[4:12] => '+'
+integerlit[4:14] => '1'
+identifier[5:1] => 'exit'
+openparen[5:5] => '('
+identifier[5:6] => 'z'
+closeparen[5:7] => ')'
+eof[6:1] => 'EOF'

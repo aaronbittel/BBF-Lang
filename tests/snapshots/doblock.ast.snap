@@ -1,0 +1,14 @@
+x: Int = 12
+stdout( itoa( x ) )
+stdout( '\n' )
+do
+    x: Int = 24
+    stdout( itoa( x ) )
+    stdout( '\n' )
+    x: String = 'Hello!\n'
+    stdout( x )
+    x = 'What?'
+    stdout( x )
+end
+stdout( itoa( x ) )
+stdout( '\n' )

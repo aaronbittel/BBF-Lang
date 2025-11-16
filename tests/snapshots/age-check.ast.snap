@@ -1,0 +1,20 @@
+if ( argc == 1 ) then
+    stderr( 'USAGE: ' )
+    stderr( argv[0] )
+    stderr( ' <age>\n' )
+    exit( 1 )
+end
+age: Int = atoi( argv[1] )
+stdout( 'age ' )
+if ( age < 18 ) then
+    stdout( 'under 18' )
+elif ( age < 30 ) then
+    stdout( 'between 18 and 30' )
+elif ( age < 50 ) then
+    stdout( 'between 30 and 50' )
+elif ( age < 80 ) then
+    stdout( 'between 50 and 80' )
+else
+    stdout( 'over 80' )
+end
+stdout( '\n' )

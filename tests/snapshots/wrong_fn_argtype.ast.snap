@@ -1,0 +1,6 @@
+fn myexit(exit_code: Int) -> Void do
+    exit( exit_code )
+end
+x: Int = 12
+x = 13
+myexit( 'Hello, World!' )

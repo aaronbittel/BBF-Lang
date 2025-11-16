@@ -1,0 +1,37 @@
+fn isprime(x: Int) -> Int do
+    false: Int = 0
+    true: Int = 1
+    if ( x < 2 ) then
+        return false
+    end
+    if ( x == 2 ) then
+        return true
+    end
+    if ( x == 3 ) then
+        return true
+    end
+    for i in 2..=( x / 2 ) do
+        if ( ( x % i ) == 0 ) then
+            return false
+        end
+    end
+    return true
+end
+if ( argc < 2 ) then
+    stderr( 'USAGE: ' )
+    stderr( argv[0] )
+    stderr( ' <number>\n' )
+    exit( 1 )
+end
+start: Int = atoi( argv[1] )
+range: Int = 10
+for i in start..( start + range ) do
+    res: Int = isprime( i )
+    stdout( itoa( i ) )
+    stdout( ': ' )
+    if ( res == 0 ) then
+        stdout( 'NO PRIME\n' )
+    else
+        stdout( 'PRIME\n' )
+    end
+end

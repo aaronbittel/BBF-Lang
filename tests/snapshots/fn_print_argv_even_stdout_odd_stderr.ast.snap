@@ -1,0 +1,12 @@
+fn print_argv_even_stdout_odd_stderr() -> Void do
+    for i in 1..argc do
+        if ( ( i % 2 ) == 0 ) then
+            stdout( argv[i] )
+            stdout( '\n' )
+        else
+            stderr( argv[i] )
+            stderr( '\n' )
+        end
+    end
+end
+print_argv_even_stdout_odd_stderr(  )

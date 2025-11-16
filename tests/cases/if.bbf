@@ -1,3 +1,4 @@
+x: Int = 100
 if x > 10 then
     x: Int = 12
 elif x == 20 then

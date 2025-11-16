@@ -93,6 +93,9 @@ class Block:
     def add(self, stmt: Stmt) -> None:
         self.stmts.append(stmt)
 
+    def __len__(self) -> int:
+        return len(self.stmts)
+
     def __iter__(self) -> Iterator[Stmt]:
         return iter(self.stmts)
 
