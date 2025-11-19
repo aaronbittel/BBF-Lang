@@ -1,50 +1,85 @@
+import argparse
 import subprocess
-import sys
+from enum import StrEnum, auto
 from pathlib import Path
-from typing import Any, Generator
+from typing import Self
 
 from bbf.asm_codegen import AsmCodeGen
 from bbf.emitter import Emitter
-from bbf.lexer import Lexer
+from bbf.lexer import Lexer, Token
+from bbf.nodes.program import ProgTopLevelStmt
 from bbf.parser import Parser
 from bbf.source import Source
+from bbf.utils import blue
 
 
-def runner_gen(filepath: Path) -> Generator[tuple[str, Any], None, None]:
-    with filepath.open(mode="r") as out:
-        src = out.read()
+class Step(StrEnum):
+    Lexer = auto()
+    Parser = auto()
+    TypeCheck = auto()
+    Output = auto()
+    All = auto()
 
-    source = Source(text=src, filepath=filepath)
+    @classmethod
+    def from_cli(cls, value: str) -> Self:
+        for member in cls:
+            if member.name.lower() == value.lower():
+                return member
+        raise argparse.ArgumentTypeError(f"Invalid step: {value}")
 
-    lexer = Lexer(source)
-    tokens = lexer.tokenize()
-    yield "lexer", tokens
+    @property
+    def ext(self) -> str:
+        match self:
+            case Step.Lexer:
+                return "tok"
+            case Step.Parser:
+                return "ast"
+            case Step.TypeCheck:
+                return "tc"
+            case Step.Output:
+                return "out"
+            case unknown:
+                raise ValueError(f"Step {unknown} has no associated extension.")
 
+    def __str__(self) -> str:
+        return self.name.lower()
+
+
+def tokenize(path: Path) -> list[Token]:
+    src = path.read_text()
+    lexer = Lexer(Source(src, path))
+    return lexer.tokenize()
+
+
+def parse(tokens: list[Token]) -> ProgTopLevelStmt:
     parser = Parser(tokens)
-    prog = parser.parse_prog()
-    yield "parser", prog
+    return parser.parse_prog()
 
+
+def generate_exe(
+    prog: ProgTopLevelStmt, exe_path: Path, *, verbose: bool = False
+) -> None:
     emitter = Emitter()
     asm_codegen = AsmCodeGen(emitter)
     asm_codegen.generate_prog(prog)
-    output_asm = Path(f"./bin/{filepath.stem}.asm")
-    with output_asm.open(mode="w") as out:
+
+    asm = exe_path.with_suffix(".asm")
+    obj = exe_path.with_suffix(".o")
+
+    with asm.open(mode="w") as out:
         emitter.write_to(out)
 
-    output_dir = output_asm.parent
-    out_filename = output_asm.stem
-    output_o = output_dir / f"{out_filename}.o"
-    output_exec = output_dir / out_filename
+    nasm_cmd = ["nasm", "-f", "elf64", "-g", "-F", "dwarf", "-o", str(obj), str(asm)]
+    ld_cmd = ["ld", "-o", str(exe_path), str(obj)]
 
-    nasm_cmd = f"nasm -f elf64 -g -F dwarf -o {output_o} {output_asm}"
-    ld_cmd = f"ld -o {output_exec} {output_o}"
-
-    nasm_res = subprocess.run(args=nasm_cmd.split())
+    if verbose:
+        print(blue("[INFO]"), f"Running {' '.join(nasm_cmd)}")
+    nasm_res = subprocess.run(args=nasm_cmd)
     if nasm_res.returncode != 0:
-        sys.exit(1)
+        raise RuntimeError("nasm failed")
 
-    ld_res = subprocess.run(args=ld_cmd.split())
+    if verbose:
+        print(blue("[INFO]"), f"Running {' '.join(ld_cmd)}")
+    ld_res = subprocess.run(args=ld_cmd)
     if ld_res.returncode != 0:
-        sys.exit(1)
-
-    yield "run", output_exec
+        raise RuntimeError("ld failed")

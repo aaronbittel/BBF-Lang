@@ -6,18 +6,16 @@ import argparse
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from enum import StrEnum, auto
 from io import StringIO
 from pathlib import Path
-from typing import Generator, Literal, NamedTuple, Self, TextIO
+from typing import Generator, Literal, NamedTuple, TextIO
 
 from bbf.asm_codegen import AsmCodeGen
 from bbf.ast_printer import ASTPrinter
 from bbf.emitter import Emitter
-from bbf.lexer import Lexer, Token
+from bbf.lexer import Token
 from bbf.nodes.program import ProgTopLevelStmt
-from bbf.parser import Parser
-from bbf.source import Source
+from bbf.runner import Step, generate_exe, parse, tokenize
 from bbf.type_checker import TypeChecker, TypeCheckerError
 from bbf.utils import blue, darkgray, eprint, green, red
 
@@ -47,38 +45,6 @@ TMP_DIR.mkdir(exist_ok=True, parents=True)
 
 class MissingArgvError(RuntimeError):
     pass
-
-
-class Step(StrEnum):
-    Lexer = auto()
-    Parser = auto()
-    TypeCheck = auto()
-    Output = auto()
-    All = auto()
-
-    @classmethod
-    def from_cli(cls, value: str) -> Self:
-        for member in cls:
-            if member.name.lower() == value.lower():
-                return member
-        raise argparse.ArgumentTypeError(f"Invalid step: {value}")
-
-    @property
-    def ext(self) -> str:
-        match self:
-            case Step.Lexer:
-                return "tok"
-            case Step.Parser:
-                return "ast"
-            case Step.TypeCheck:
-                return "tc"
-            case Step.Output:
-                return "out"
-            case unknown:
-                raise ValueError(f"Step {unknown} has no associated extension.")
-
-    def __str__(self) -> str:
-        return self.name.lower()
 
 
 type StepStatus = Literal["success", "fail", "skip"]
@@ -132,43 +98,15 @@ class RunnerResult(NamedTuple):
 def runner_gen(
     filepath: Path, argv: list[str] | None
 ) -> Generator[RunnerResult, None, None]:
-    with filepath.open(mode="r") as out:
-        src = out.read()
-
-    source = Source(text=src, filepath=filepath)
-
-    lexer = Lexer(source)
-    tokens = lexer.tokenize()
+    tokens = tokenize(filepath)
     yield RunnerResult(Step.Lexer, content=tokens_to_str(tokens))
 
-    parser = Parser(tokens)
-    prog = parser.parse_prog()
+    prog = parse(tokens)
     yield RunnerResult(Step.Parser, content=ast_to_str(prog))
     yield RunnerResult(Step.TypeCheck, content=typecheck_to_str(prog))
 
-    emitter = Emitter()
-    asm_codegen = AsmCodeGen(emitter)
-    asm_codegen.generate_prog(prog)
-
-    asm = TMP_DIR / "out.asm"
-    obj = TMP_DIR / "out.o"
     exe = TMP_DIR / "out"
-
-    with asm.open(mode="w") as out:
-        emitter.write_to(out)
-
-    nasm_cmd = f"nasm -f elf64 -g -F dwarf -o {obj} {asm}"
-    ld_cmd = f"ld -o {exe} {obj}"
-
-    nasm_res = subprocess.run(args=nasm_cmd.split())
-    if nasm_res.returncode != 0:
-        print("nasm")
-        raise RuntimeError("nasm failed")
-
-    ld_res = subprocess.run(args=ld_cmd.split())
-    if ld_res.returncode != 0:
-        print("ld")
-        raise RuntimeError("ld failed")
+    generate_exe(prog, exe_path=exe)
 
     if argv is None:
         raise MissingArgvError
@@ -252,12 +190,6 @@ def step_snapshot_path(path: Path, step: Step) -> Path:
         f"`step_snapshot_path()` is not allowed to take `{step}`"
     )
     return (SNAPSHOTS_DIR / path.stem).with_suffix(f".{step.ext}.snap")
-
-
-def tokenize(path: Path) -> list[Token]:
-    src = path.read_text()
-    lexer = Lexer(Source(src, path))
-    return lexer.tokenize()
 
 
 def tokens_to_str(tokens: list[Token]) -> str:
