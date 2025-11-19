@@ -1,5 +1,4 @@
 import argparse
-import subprocess
 from enum import StrEnum, auto
 from pathlib import Path
 from typing import Self
@@ -10,7 +9,7 @@ from bbf.lexer import Lexer, Token
 from bbf.nodes.program import ProgTopLevelStmt
 from bbf.parser import Parser
 from bbf.source import Source
-from bbf.utils import blue
+from bbf.utils import run_cmd
 
 
 class Step(StrEnum):
@@ -72,14 +71,10 @@ def generate_exe(
     nasm_cmd = ["nasm", "-f", "elf64", "-g", "-F", "dwarf", "-o", str(obj), str(asm)]
     ld_cmd = ["ld", "-o", str(exe_path), str(obj)]
 
-    if verbose:
-        print(blue("[INFO]"), f"Running {' '.join(nasm_cmd)}")
-    nasm_res = subprocess.run(args=nasm_cmd)
+    nasm_res = run_cmd(args=nasm_cmd, echo=verbose)
     if nasm_res.returncode != 0:
         raise RuntimeError("nasm failed")
 
-    if verbose:
-        print(blue("[INFO]"), f"Running {' '.join(ld_cmd)}")
-    ld_res = subprocess.run(args=ld_cmd)
+    ld_res = run_cmd(args=ld_cmd, echo=verbose)
     if ld_res.returncode != 0:
         raise RuntimeError("ld failed")

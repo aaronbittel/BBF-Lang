@@ -1,5 +1,7 @@
+import subprocess
 import sys
 from functools import partial
+from subprocess import CompletedProcess
 
 eprint = partial(print, file=sys.stderr)
 
@@ -8,6 +10,14 @@ GREEN = "\033[92m"
 BLUE = "\033[94m"
 GRAY_DARK = "\033[90m"
 RESET = "\033[0m"
+
+
+def run_cmd(
+    args: list[str], *, echo: bool = True, capture_output: bool = True
+) -> CompletedProcess[bytes]:
+    if echo:
+        print(blue("[INFO]"), f"Running {' '.join(args)}")
+    return subprocess.run(args, capture_output=capture_output)
 
 
 def red(s: str) -> str:

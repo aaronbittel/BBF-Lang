@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from io import StringIO
@@ -15,7 +14,7 @@ from bbf.lexer import Token
 from bbf.nodes.program import ProgTopLevelStmt
 from bbf.runner import Step, generate_exe, parse, tokenize
 from bbf.type_checker import TypeChecker, TypeCheckerError
-from bbf.utils import blue, darkgray, eprint, green, red
+from bbf.utils import blue, darkgray, eprint, green, red, run_cmd
 
 # TODO: print diffs on fail
 
@@ -154,7 +153,7 @@ def runner_gen(
     if argv is None:
         raise MissingArgvError
 
-    out_res = subprocess.run([str(exe), *argv], capture_output=True)
+    out_res = run_cmd([str(exe), *argv], echo=False)
     tc = TestCase(
         argv, out_res.returncode, out_res.stdout.decode(), out_res.stderr.decode()
     )

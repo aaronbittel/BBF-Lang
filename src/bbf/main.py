@@ -1,5 +1,4 @@
 import argparse
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -9,7 +8,7 @@ from bbf.ast_printer import ASTPrinter
 from bbf.lexer import dump_tokens
 from bbf.runner import Step, generate_exe, parse, tokenize
 from bbf.type_checker import TypeChecker
-from bbf.utils import blue, green
+from bbf.utils import blue, run_cmd
 
 BIN_DIR = Path("./bin")
 BIN_DIR.mkdir(parents=True, exist_ok=True)
@@ -98,20 +97,18 @@ def main() -> None:
     if args.typecheck or args.step == Step.TypeCheck:
         prog.accept(TypeChecker())
         if not args.quiet:
-            print(green(f"[INFO] Successfully type checked `{args.filepath}`"))
+            print(blue("[INFO]"), f"Successfully type checked `{args.filepath}`")
         if args.step == Step.TypeCheck:
             sys.exit(0)
 
     exe_path = args.output / args.filepath.stem if args.output.is_dir() else args.output
     generate_exe(prog, exe_path=exe_path, verbose=args.verbose)
     if not args.quiet:
-        print(green(f"[INFO] Successfully compiled program to `{args.output}`"))
+        print(blue("[INFO]"), f"Successfully compiled program to `{exe_path}`")
 
     if args.run is not None:
-        run_cmd = [str(exe_path), *args.run]
-        if args.verbose:
-            print(blue("[INFO]"), " ".join(run_cmd))
-        run_res = subprocess.run(args=run_cmd)
+        run_args = [str(exe_path), *args.run]
+        run_res = run_cmd(run_args, echo=args.verbose, capture_output=False)
         sys.exit(run_res.returncode)
 
 
