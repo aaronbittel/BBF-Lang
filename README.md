@@ -21,15 +21,20 @@ cd BBF-Lang
 
 ## Usage
 ```bash
-uv run bbf <bbf-file> --step {lexer, parser, typechecker, gen} --run <args, ...> --quiet
---no-type-check
+# Compiles `file.bbf` and generates `bin/file` executable
+uv run bbf file.bbf
 ```
 
-- `--step[default=gen]`: Stop compilation after a specific step
-    - The `gen` step produces assembly code and builds it using `nasm` + `ld`
-- `--run <args, ...>`: Run the program after compilation, optionally passing arguments.-
-- `--quiet`: Suppress informational output during compilation.
--`--no-type-check`: Disable type checking.
+```bash
+# After succesful compilation, runs `bin/file` with arguments arg1, arg2
+uv run bbf file.bbf --run arg1 args2
+```
+
+```bash
+# Prints the tokens of `file.bbf` and exits with 0.
+uv run bbf file.bbf --step lexer
+```
+- All available steps are: `lexer`, `parser`, `typecheck` and `output`
 
 
 ## Syntax / Language Features

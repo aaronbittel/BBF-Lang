@@ -38,51 +38,69 @@ class TypedNamespace:
 
 
 def main() -> None:
-    argparser = argparse.ArgumentParser(description="Run BBF compiler")
-    argparser.add_argument("filepath", type=Path, help="Path to input .bbf file")
-    argparser.add_argument(
+    parser = argparse.ArgumentParser(
+        description="BBF Compiler: Compile and run BBF source files.",
+        add_help=False,
+        epilog=(
+            "Example usage:\n"
+            "  uv run bbf test01.bbf --step output --run arg1 arg2 --verbose\n\n"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    parser.add_argument("filepath", type=Path, help="Path to input .bbf file")
+    parser.add_argument(
         "--step",
         "-s",
         default=Step.All,
         choices=list(Step),
         type=Step.from_cli,
-        help=f"Compilation step (default: {Step.All})",
+        help=(
+            f"Stop compilation at the specified step. The compiler will execute up to this step, "
+            f"print its output, and exit with code 0 (default: {Step.All})."
+        ),
     )
-    argparser.add_argument(
+    parser.add_argument(
         "--run",
         "-r",
         nargs="*",
         metavar="ARGS",
         help="Run the program after successful compilation (optionally with ARGS as argv)",
     )
-    argparser.add_argument(
+    parser.add_argument(
         "--quiet",
         "-q",
         action="store_true",
-        help="args.quiet mode. Don't print any info about compilation phases.",
+        help="Quiet mode. Don't print any info about compilation phases.",
     )
-    argparser.add_argument(
+    parser.add_argument(
         "--no-type-check",
         "-ntc",
         action="store_false",
         dest="typecheck",
         help="Disable type checking during compilation.",
     )
-    argparser.add_argument(
+    parser.add_argument(
         "--output",
         "-o",
         nargs="?",
         default=BIN_DIR,
         type=Path,
-        help="Directory to write the compiled executable into (default: ./bin).",
+        help="Path to write the compiled executable. "
+        "If not provided, defaults to ./bin/<input_filename>.",
     )
-    argparser.add_argument(
+    parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
-        help="Enable verbose output.",
+        help="Enable verbose output: prints commands as they are executed.",
     )
-    args = TypedNamespace.from_namespace(argparser.parse_args())
+    parser.add_argument(
+        "-h",
+        "--help",
+        action="help",
+        help="Show this help message and exit",
+    )
+    args = TypedNamespace.from_namespace(parser.parse_args())
 
     tokens = tokenize(args.filepath)
     if args.step == Step.Lexer:
