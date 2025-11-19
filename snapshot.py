@@ -10,27 +10,14 @@ from io import StringIO
 from pathlib import Path
 from typing import Generator, Literal, NamedTuple, TextIO
 
-from bbf.asm_codegen import AsmCodeGen
 from bbf.ast_printer import ASTPrinter
-from bbf.emitter import Emitter
 from bbf.lexer import Token
 from bbf.nodes.program import ProgTopLevelStmt
 from bbf.runner import Step, generate_exe, parse, tokenize
 from bbf.type_checker import TypeChecker, TypeCheckerError
 from bbf.utils import blue, darkgray, eprint, green, red
 
-# TODO: handle .actual file better
 # TODO: print diffs on fail
-# TODO: reorder code
-
-# TODO: with command `run` prob dont mark as ERROR when already exists, just skip (->
-# write in summary)
-# TODO: reduce code duplication
-# TODO: check if output is correct
-# TODO: how to handle name collisions ./tests/cases and ./examples e.g. ? -> fail and
-# make rename
-
-BBF_EXT = ".bbf"
 
 
 SNAPSHOTS_DIR = Path("./tests/snapshots/")
@@ -41,102 +28,6 @@ EXAMPLES_DIR = Path("./examples/")
 EXAMPLES_DIR.mkdir(exist_ok=True, parents=True)
 TMP_DIR = Path("/tmp", "bbf")
 TMP_DIR.mkdir(exist_ok=True, parents=True)
-
-
-class MissingArgvError(RuntimeError):
-    pass
-
-
-type StepStatus = Literal["success", "fail", "skip"]
-
-
-parser = argparse.ArgumentParser()
-
-subparsers = parser.add_subparsers(dest="command", required=True)
-
-run_parser = subparsers.add_parser("run", help=f"Run snapshot tests for {BBF_EXT}")
-run_parser.add_argument(
-    "step", choices=list(Step), type=Step.from_cli, nargs="?", default=Step.All
-)
-run_parser.add_argument("--path", type=Path, default=CASES_DIR)
-
-record_argparser = subparsers.add_parser(
-    "record", help=f"Record snapshot for {BBF_EXT}"
-)
-record_argparser.add_argument(
-    "step", choices=list(Step), type=Step.from_cli, nargs="?", default=Step.All
-)
-record_argparser.add_argument("--path", type=Path, default=CASES_DIR)
-record_argparser.add_argument("--argv", nargs="*", default=[])
-
-update_parser = subparsers.add_parser("update", help=f"update snapshot for {BBF_EXT}")
-update_parser.add_argument(
-    "step", choices=list(Step), type=Step.from_cli, nargs="?", default=Step.All
-)
-update_parser.add_argument("--path", type=Path, default=CASES_DIR)
-update_parser.add_argument("--argv", nargs="*", default=[])
-
-all_parser = subparsers.add_parser("all", help=f"all snapshot for {BBF_EXT}")
-all_parser.add_argument(
-    "step", choices=list(Step), type=Step.from_cli, nargs="?", default=Step.All
-)
-
-clean_parser = subparsers.add_parser("clean")
-
-
-class SnapshotResult(NamedTuple):
-    status: Literal["success", "fail", "skip"]
-    reason: str | None = None
-    actual_path: Path | None = None
-
-
-class RunnerResult(NamedTuple):
-    step: Step
-    content: str
-
-
-def runner_gen(
-    filepath: Path, argv: list[str] | None
-) -> Generator[RunnerResult, None, None]:
-    tokens = tokenize(filepath)
-    yield RunnerResult(Step.Lexer, content=tokens_to_str(tokens))
-
-    prog = parse(tokens)
-    yield RunnerResult(Step.Parser, content=ast_to_str(prog))
-    yield RunnerResult(Step.TypeCheck, content=typecheck_to_str(prog))
-
-    exe = TMP_DIR / "out"
-    generate_exe(prog, exe_path=exe)
-
-    if argv is None:
-        raise MissingArgvError
-
-    out_res = subprocess.run([str(exe), *argv], capture_output=True)
-    tc = TestCase(
-        argv, out_res.returncode, out_res.stdout.decode(), out_res.stderr.decode()
-    )
-    yield RunnerResult(Step.Output, testcase_to_str(tc))
-
-
-class TestOutcome(NamedTuple):
-    path: Path
-    step: Step
-    reason: str
-
-
-def format_outcomes(outcomes: list[TestOutcome], status: StepStatus) -> str:
-    if len(outcomes) == 0:
-        return ""
-
-    if status == "fail":
-        out = f"\n{red('Failed Files:')}\n"
-    elif status == "skip":
-        out = f"\n{darkgray('Skipped Files:')}\n"
-    else:
-        assert False, "unreachable"
-
-    out += "\n".join(f"  `{out.path}`[{out.step}] -- {out.reason}" for out in outcomes)
-    return out
 
 
 @dataclass
@@ -185,18 +76,89 @@ class TestCase:
     stderr: str = ""
 
 
-def step_snapshot_path(path: Path, step: Step) -> Path:
-    assert step is not Step.All, (
-        f"`step_snapshot_path()` is not allowed to take `{step}`"
-    )
-    return (SNAPSHOTS_DIR / path.stem).with_suffix(f".{step.ext}.snap")
+class SnapshotResult(NamedTuple):
+    status: Literal["success", "fail", "skip"]
+    reason: str | None = None
+    actual_path: Path | None = None
 
 
-def tokens_to_str(tokens: list[Token]) -> str:
-    return "\n".join(
-        f"{t.ttype}[{t.position.line}:{t.position.column}] => {t.value!r}"
-        for t in tokens
+class RunnerResult(NamedTuple):
+    step: Step
+    content: str
+
+
+class TestOutcome(NamedTuple):
+    path: Path
+    step: Step
+    reason: str
+
+
+class MissingArgvError(RuntimeError):
+    pass
+
+
+type StepStatus = Literal["success", "fail", "skip"]
+
+
+def parse_cli_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    run_parser = subparsers.add_parser("run", help="Run snapshot tests for .bbf files")
+    run_parser.add_argument(
+        "step", choices=list(Step), type=Step.from_cli, nargs="?", default=Step.All
     )
+    run_parser.add_argument("--path", type=Path, default=CASES_DIR)
+
+    record_argparser = subparsers.add_parser(
+        "record", help="Record snapshot for .bbf files"
+    )
+    record_argparser.add_argument(
+        "step", choices=list(Step), type=Step.from_cli, nargs="?", default=Step.All
+    )
+    record_argparser.add_argument("--path", type=Path, default=CASES_DIR)
+    record_argparser.add_argument("--argv", nargs="*", default=[])
+
+    update_parser = subparsers.add_parser(
+        "update", help="update snapshot for .bbf files"
+    )
+    update_parser.add_argument(
+        "step", choices=list(Step), type=Step.from_cli, nargs="?", default=Step.All
+    )
+    update_parser.add_argument("--path", type=Path, default=CASES_DIR)
+    update_parser.add_argument("--argv", nargs="*", default=[])
+
+    all_parser = subparsers.add_parser("all", help="all snapshot for .bbf files")
+    all_parser.add_argument(
+        "step", choices=list(Step), type=Step.from_cli, nargs="?", default=Step.All
+    )
+
+    subparsers.add_parser("clean")
+    return parser.parse_args()
+
+
+def runner_gen(
+    filepath: Path, argv: list[str] | None
+) -> Generator[RunnerResult, None, None]:
+    tokens = tokenize(filepath)
+    yield RunnerResult(Step.Lexer, content=tokens_to_str(tokens))
+
+    prog = parse(tokens)
+    yield RunnerResult(Step.Parser, content=ast_to_str(prog))
+    yield RunnerResult(Step.TypeCheck, content=typecheck_to_str(prog))
+
+    exe = TMP_DIR / "out"
+    generate_exe(prog, exe_path=exe)
+
+    if argv is None:
+        raise MissingArgvError
+
+    out_res = subprocess.run([str(exe), *argv], capture_output=True)
+    tc = TestCase(
+        argv, out_res.returncode, out_res.stdout.decode(), out_res.stderr.decode()
+    )
+    yield RunnerResult(Step.Output, testcase_to_str(tc))
 
 
 def record_snapshot(command: str, step: Step, path: Path, content: str) -> None:
@@ -221,29 +183,6 @@ def record_snapshot(command: str, step: Step, path: Path, content: str) -> None:
     )
 
 
-def parse_line(f: TextIO, ttype: str) -> str:
-    try:
-        line = f.readline()
-        t, len_str = line.split(": ")
-    except ValueError:
-        raise
-    assert t == ttype
-    content = f.read(int(len_str))
-    assert f.read(1) == "\n"
-    return content
-
-
-def load_test_case(filepath: Path) -> TestCase:
-    tc = TestCase()
-    with filepath.open(mode="r") as f:
-        argv = parse_line(f, "Argv")
-        tc.argv = argv.split(" ") if argv != "" else []
-        tc.returncode = int(parse_line(f, "Returncode"))
-        tc.stdout = parse_line(f, "Stdout")
-        tc.stderr = parse_line(f, "Stderr")
-    return tc
-
-
 def run_snapshot(path: Path, step: Step, got: str, stats: RunStats) -> SnapshotResult:
     snap_path = step_snapshot_path(path, step)
     if not snap_path.exists():
@@ -258,62 +197,6 @@ def run_snapshot(path: Path, step: Step, got: str, stats: RunStats) -> SnapshotR
         actual_path.write_text(got)
         return SnapshotResult("fail", reason="Output mismatch", actual_path=actual_path)
     return SnapshotResult(status="success")
-
-
-def ast_to_str(prog: ProgTopLevelStmt) -> str:
-    buf = StringIO()
-    prog.accept(ASTPrinter(buf))
-    return buf.getvalue()
-
-
-def typecheck_to_str(prog: ProgTopLevelStmt) -> str:
-    try:
-        prog.accept(TypeChecker())
-        status = "OK"
-    except TypeCheckerError as e:
-        status = str(e)
-    return status
-
-
-def testcase_to_str(testcase: TestCase) -> str:
-    # TODO: handle "alsdjf lsfdj" input
-    out = f"Argv: {len(' '.join(testcase.argv))}\n"
-    out += f"{' '.join(testcase.argv)}\n"
-    out += f"Returncode: {len(str(testcase.returncode))}\n"
-    out += f"{testcase.returncode}\n"
-    out += f"Stdout: {len(testcase.stdout)}\n"
-    out += f"{testcase.stdout}\n"
-    out += f"Stderr: {len(testcase.stderr)}\n"
-    out += f"{testcase.stderr}\n"
-    return out
-
-
-def output_to_str(prog: ProgTopLevelStmt, argv: list[str]) -> str:
-    emitter = Emitter()
-    asmgen = AsmCodeGen(emitter)
-    asmgen.generate_prog(prog)
-    asm = TMP_DIR / "out.asm"
-    obj = TMP_DIR / "out.o"
-    exe = TMP_DIR / "out"
-    with asm.open(mode="w") as asm_f:
-        emitter.write_to(asm_f)
-    nasm_cmd = f"nasm -f elf64 -o {obj} {asm}"
-    nasm_res = subprocess.run(nasm_cmd.split())
-    if nasm_res.returncode != 0:
-        print(red("[ERROR]"), f"nasm failed for file `{filepath.name}`")
-        sys.exit(1)
-    ld_cmd = f"ld -o {exe} {obj}"
-    ld_res = subprocess.run(ld_cmd.split())
-    if ld_res.returncode != 0:
-        print(red("[ERROR]"), f"ld failed for file `{filepath.name}`")
-        sys.exit(1)
-    out_cmd = [str(exe), *argv]
-    out_res = subprocess.run(out_cmd, capture_output=True)
-
-    tc = TestCase(
-        argv, out_res.returncode, out_res.stdout.decode(), out_res.stderr.decode()
-    )
-    return testcase_to_str(tc)
 
 
 def record_dir(command: str, step: Step, dirpath: Path, argv: list[str]) -> None:
@@ -396,6 +279,86 @@ def run_file(step: Step, filepath: Path, stats: RunStats) -> None:
         print(darkgray("[SKIPING]"), str(e))
 
 
+def tokens_to_str(tokens: list[Token]) -> str:
+    return "\n".join(
+        f"{t.ttype}[{t.position.line}:{t.position.column}] => {t.value!r}"
+        for t in tokens
+    )
+
+
+def ast_to_str(prog: ProgTopLevelStmt) -> str:
+    buf = StringIO()
+    prog.accept(ASTPrinter(buf))
+    return buf.getvalue()
+
+
+def typecheck_to_str(prog: ProgTopLevelStmt) -> str:
+    try:
+        prog.accept(TypeChecker())
+        status = "OK"
+    except TypeCheckerError as e:
+        status = str(e)
+    return status
+
+
+def testcase_to_str(testcase: TestCase) -> str:
+    # TODO: handle "alsdjf lsfdj" input
+    out = f"Argv: {len(' '.join(testcase.argv))}\n"
+    out += f"{' '.join(testcase.argv)}\n"
+    out += f"Returncode: {len(str(testcase.returncode))}\n"
+    out += f"{testcase.returncode}\n"
+    out += f"Stdout: {len(testcase.stdout)}\n"
+    out += f"{testcase.stdout}\n"
+    out += f"Stderr: {len(testcase.stderr)}\n"
+    out += f"{testcase.stderr}\n"
+    return out
+
+
+def load_test_case(filepath: Path) -> TestCase:
+    tc = TestCase()
+    with filepath.open(mode="r") as f:
+        argv = parse_line(f, "Argv")
+        tc.argv = argv.split(" ") if argv != "" else []
+        tc.returncode = int(parse_line(f, "Returncode"))
+        tc.stdout = parse_line(f, "Stdout")
+        tc.stderr = parse_line(f, "Stderr")
+    return tc
+
+
+def parse_line(f: TextIO, ttype: str) -> str:
+    try:
+        line = f.readline()
+        t, len_str = line.split(": ")
+    except ValueError:
+        raise
+    assert t == ttype
+    content = f.read(int(len_str))
+    assert f.read(1) == "\n"
+    return content
+
+
+def step_snapshot_path(path: Path, step: Step) -> Path:
+    assert step is not Step.All, (
+        f"`step_snapshot_path()` is not allowed to take `{step}`"
+    )
+    return (SNAPSHOTS_DIR / path.stem).with_suffix(f".{step.ext}.snap")
+
+
+def format_outcomes(outcomes: list[TestOutcome], status: StepStatus) -> str:
+    if len(outcomes) == 0:
+        return ""
+
+    if status == "fail":
+        out = f"\n{red('Failed Files:')}\n"
+    elif status == "skip":
+        out = f"\n{darkgray('Skipped Files:')}\n"
+    else:
+        assert False, "unreachable"
+
+    out += "\n".join(f"  `{out.path}`[{out.step}] -- {out.reason}" for out in outcomes)
+    return out
+
+
 def should_confirm_argv(argv: list[str]) -> bool:
     for arg in argv:
         if arg in ("lexer", "parser", "typecheck", "output", "all"):
@@ -412,7 +375,7 @@ def check_argv(command: str, step: Step, argv: list[str]) -> None:
 
 
 if __name__ == "__main__":
-    args = parser.parse_args()
+    args = parse_cli_args()
     if args.command in ("record", "update"):
         check_argv(args.command, args.step, args.argv)
         if args.path.is_file():
@@ -445,5 +408,4 @@ if __name__ == "__main__":
             print(blue("[INFO]"), f"Deleted `{filepath}`")
     else:
         print(red("[ERROR]"), f"Unknown command `{args.command}`")
-        parser.print_usage()
         sys.exit(1)
