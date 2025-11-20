@@ -112,6 +112,14 @@ class Parser:
             return self.parse_assignment()
         if self.check(TokenType.Return):
             return self.parse_return_stmt()
+
+        if self.check(TokenType.Colon, offset=1):
+            raise ParserError(self.peek(), f"Cannot declare expr `{self.peek().value}`")
+        if self.check(TokenType.Equal, offset=1):
+            raise ParserError(
+                self.peek(), f"Cannot assign to expr `{self.peek().value}`"
+            )
+
         return self.parse_expr_stmt()
 
     def parse_expr_stmt(self) -> ExprStmt:

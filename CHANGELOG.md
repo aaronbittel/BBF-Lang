@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 ### Fixed
 
+- Improved parser error messages for invalid declarations/assignments:
+  `true: Int = 0` or `false = 1` now produce clear errors instead of cryptic messages.
+
 ## 0.2.0 – 2025-10-29
 
 ### Added
