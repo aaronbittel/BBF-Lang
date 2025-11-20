@@ -81,3 +81,19 @@ class FnCall(Expr):
 
     def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_fncall(self)
+
+
+@dataclass
+class BoolTrue(Expr):
+    token: Token
+
+    def accept[T](self, visitor: Visitor[T]) -> T:
+        return visitor.visit_booltrue(self)
+
+
+@dataclass
+class BoolFalse(Expr):
+    token: Token
+
+    def accept[T](self, visitor: Visitor[T]) -> T:
+        return visitor.visit_boolfalse(self)

@@ -1,6 +1,4 @@
-fn isprime(x: Int) -> Int do
-    false: Int = 0
-    true: Int = 1
+fn isprime(x: Int) -> Bool do
     if ( x < 2 ) then
         return false
     end

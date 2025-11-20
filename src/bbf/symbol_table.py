@@ -12,6 +12,7 @@ class VarType(Enum):
     Int = 8
     String = 16
     Void = 0
+    Bool = 8
 
     @classmethod
     def from_token(cls, token: Token) -> VarType:
@@ -21,6 +22,8 @@ class VarType(Enum):
             return cls.String
         if token.ttype == TokenType.Void:
             return cls.Void
+        if token.ttype == TokenType.Bool:
+            return cls.Bool
         assert False, f"unreachable: can't match token {token} to `VarType`"
 
     def __str__(self) -> str:

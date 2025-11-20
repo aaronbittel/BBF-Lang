@@ -8,6 +8,8 @@ from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
     Binary,
+    BoolFalse,
+    BoolTrue,
     FnCall,
     Grouping,
     Identifier,
@@ -18,13 +20,11 @@ from bbf.nodes.expr import (
 from bbf.nodes.program import Program, ProgTopLevelStmt
 from bbf.nodes.stmt import (
     Assignment,
-    Block,
     Declaration,
     DoBlock,
     ExprStmt,
     ForStmt,
     IfStmt,
-    Range,
     ReturnStmt,
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
@@ -174,12 +174,6 @@ class AsmCodeGen(Visitor):
 
     def visit_exprstmt(self, expr_stmt: ExprStmt) -> None:
         expr_stmt.expr.accept(self)
-
-    def _visit_range(self, rangeexpr: Range) -> None:
-        pass
-
-    def _visit_block(self, block: Block) -> None:
-        pass
 
     def visit_integerlit(self, intlit: IntegerLit) -> None:
         self.emitter.emit(f"mov rax, {intlit.token.value}")
@@ -383,6 +377,12 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("push rdi ; str_len")
         self.emitter.emit("call c_strlen")
         self.emitter.emit("push rax ; str_len")
+
+    def visit_booltrue(self, booltrue: BoolTrue) -> None:
+        self.emitter.emit("push 1 ; true")
+
+    def visit_boolfalse(self, boolfalse: BoolFalse) -> None:
+        self.emitter.emit("push 0 ; false")
 
     @contextmanager
     def new_scope(self, is_function: bool = False):

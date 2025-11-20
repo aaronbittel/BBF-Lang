@@ -5,6 +5,8 @@ from typing import Generator, TextIO
 from bbf.nodes.expr import (
     Argv,
     Binary,
+    BoolFalse,
+    BoolTrue,
     FnCall,
     Grouping,
     Identifier,
@@ -154,6 +156,12 @@ class ASTPrinter(Visitor[None]):
         print("[", end="", file=self.out)
         argv.expr.accept(self)
         print("]", end="", file=self.out)
+
+    def visit_booltrue(self, booltrue: BoolTrue) -> None:
+        print("true", end="", file=self.out)
+
+    def visit_boolfalse(self, boolfalse: BoolFalse) -> None:
+        print("false", end="", file=self.out)
 
     @contextmanager
     def indent_block(self, level: int = 4) -> Generator[None, None, None]:

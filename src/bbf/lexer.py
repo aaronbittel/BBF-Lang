@@ -11,11 +11,14 @@ class TokenType(StrEnum):
     Identifier = auto()
     IntegerLit = auto()
     StringLit = auto()
+    BoolTrue = auto()
+    BoolFalse = auto()
 
     # Types
     Int = auto()
     String = auto()
     Void = auto()
+    Bool = auto()
 
     # Keywords
     If = auto()
@@ -62,6 +65,10 @@ BUILTINS = {
     "String": TokenType.String,
     "Int": TokenType.Int,
     "Void": TokenType.Void,
+    "Bool": TokenType.Bool,
+    # Values
+    "true": TokenType.BoolTrue,
+    "false": TokenType.BoolFalse,
     # Keywords
     "if": TokenType.If,
     "then": TokenType.Then,

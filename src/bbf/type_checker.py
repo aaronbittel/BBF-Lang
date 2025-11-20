@@ -7,6 +7,8 @@ from typing import Generator
 from bbf.nodes.expr import (
     Argv,
     Binary,
+    BoolFalse,
+    BoolTrue,
     FnCall,
     Grouping,
     Identifier,
@@ -267,3 +269,9 @@ class TypeChecker(Visitor[VarType]):
     def visit_argv(self, argv: Argv) -> VarType:
         argv.expr.accept(self)
         return VarType.String
+
+    def visit_booltrue(self, booltrue: BoolTrue) -> VarType:
+        return VarType.Bool
+
+    def visit_boolfalse(self, boolfalse: BoolFalse) -> VarType:
+        return VarType.Bool

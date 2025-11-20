@@ -67,6 +67,8 @@ $
   #e("(") "Expr" #e(")"),
   "argv" #e("[") "Expr" #e("]"),
   italic("Name") #e("(") ["Arguments"] #e(")"),
+  #k("true"),
+  #k("false"),
 ) \
 "Arguments" arrow & cases(
   "Expr",

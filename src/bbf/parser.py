@@ -4,6 +4,8 @@ from bbf.lexer import Token, TokenType
 from bbf.nodes.expr import (
     Argv,
     Binary,
+    BoolFalse,
+    BoolTrue,
     Expr,
     FnCall,
     Grouping,
@@ -139,7 +141,7 @@ class Parser:
         return Param(name, vartype)
 
     def parse_fnreturn(self) -> Token:
-        if self.match(TokenType.Int, TokenType.String, TokenType.Void):
+        if self.match(TokenType.Int, TokenType.String, TokenType.Void, TokenType.Bool):
             return self.previous()
         raise ParserExpectError(
             self.peek(),
@@ -158,10 +160,12 @@ class Parser:
     def parse_declaration(self) -> Declaration:
         name = self.consume(TokenType.Identifier, "Expected identifier in declaration")
         self.consume(TokenType.Colon, "Expected `:` in declaration for type")
-        if not self.match(TokenType.Int, TokenType.String, TokenType.Void):
+        if not self.match(
+            TokenType.Int, TokenType.String, TokenType.Void, TokenType.Bool
+        ):
             raise ParserError(
                 token=self.peek(),
-                msg="No type annotation provided",
+                msg=f"Expected type annotation, but got `{self.peek().value}`",
             )
         ttype = self.previous()
         self.consume(TokenType.Equal, "Expected `=` in declaration")
@@ -294,31 +298,35 @@ class Parser:
         return self.primary()
 
     def primary(self) -> Expr:
-        if self.check(TokenType.IntegerLit):
-            return IntegerLit(
-                self.consume(TokenType.IntegerLit, msg="Expected `IntegerLit`")
-            )
+        if self.match(TokenType.IntegerLit):
+            return IntegerLit(self.previous())
         if self.check(TokenType.Identifier) and self.peek().value == "argv":
             return self.argv()
         if self.check(TokenType.Identifier) and self.check(
             TokenType.OpenParen, offset=1
         ):
             return self.fn_call()
-        if self.check(TokenType.Identifier):
-            return Identifier(
-                self.consume(TokenType.Identifier, "Expected `Identifier`")
-            )
+        if self.match(TokenType.Identifier):
+            return Identifier(self.previous())
         if self.check(TokenType.OpenParen):
             self.consume(TokenType.OpenParen, "Expected `(` in expression")
             expr = self.expr()
             self.consume(TokenType.CloseParen, "Expected ')' after expression.")
             return Grouping(expr)
-        if self.check(TokenType.StringLit):
-            return StringLit(
-                self.consume(TokenType.StringLit, "Expected `StringLiteral`")
-            )
+        if self.match(TokenType.StringLit):
+            return StringLit(self.previous())
+        if self.match(TokenType.BoolTrue):
+            return BoolTrue(self.previous())
+        if self.match(TokenType.BoolFalse):
+            return BoolFalse(self.previous())
         token = self.peek()
-        raise ParserError(token, f"Unknown statement beginning with `{token.value}`")
+        if token.ttype == TokenType.Colon:
+            msg = (
+                f"Did you try to declare `{self.previous().value}` as a variable name?"
+            )
+        else:
+            msg = f"Unknown statement beginning with `{token.value}`"
+        raise ParserError(token, msg)
 
     def parse_function_call(self) -> FnCall:
         return self.fn_call()

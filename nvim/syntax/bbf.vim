@@ -11,13 +11,13 @@ syntax keyword bbfStatement fn nextgroup=bbfFunction skipwhite
 syntax match bbfFunction "[a-zA-Z_][a-zA-Z0-9_]*\ze("
 
 " Built-in functions
-syntax keyword bbfBuiltin exit atoi itoa stdout stderr
+syntax keyword bbfBuiltin exit atoi itoa stdout stderr true false
 
 " Match identifiers
 syntax match bbfIdentifier "\<[a-zA-Z_][a-zA-Z0-9_]*\>"
 
 " Match types
-syntax keyword bbfType Int String Void
+syntax keyword bbfType Int String Void Bool
 
 " Match numbers
 syntax match bbfNumber "\d\+"

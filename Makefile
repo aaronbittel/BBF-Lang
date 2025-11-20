@@ -1,13 +1,13 @@
-all: gen
+all: output
 
 BIN_DIR = ./bin
 FILENAME = test01
 
-gen:
-	@uv run bbf $(FILENAME).bbf --step gen
+output:
+	@uv run bbf $(FILENAME).bbf --step output
 
-typechecker:
-	@uv run bbf $(FILENAME).bbf --step typechecker
+typecheck:
+	@uv run bbf $(FILENAME).bbf --step typecheck
 
 parser:
 	@uv run bbf $(FILENAME).bbf --step parser
@@ -15,18 +15,17 @@ parser:
 lexer:
 	@uv run bbf $(FILENAME).bbf --step lexer
 
-run: gen
+run: output
 	@$(BIN_DIR)/$(FILENAME)
 
-debug: gen
+debug: output
 	@gdb -q $(BIN_DIR)/$(FILENAME)
 
 test:
 	@uv run snapshot.py all
 
-
 fix:
 	@uv tool run ruff check --fix .
 	@uv run mypy . --check-untyped-defs
 
-.PHONY = run gen parser lexer debug typechecker
+.PHONY = run output parser lexer debug typecheck
