@@ -1,10 +1,3 @@
-# /// script
-# requires-python = ">=3.12"
-# dependencies = [
-#     "tomli-w",
-# ]
-# ///
-
 import sys
 import tomllib
 from dataclasses import dataclass
@@ -12,6 +5,8 @@ from pathlib import Path
 from typing import Any, Self
 
 import tomli_w as tomlw
+
+from bbf.utils import green, run_cmd
 
 CONFIG_PATH = Path("./pyproject.toml")
 
@@ -75,7 +70,14 @@ def main() -> None:
 
     config["project"]["version"] = str(version)
     write_config(CONFIG_PATH, config)
-    print(f"Updated project version from {old_version} -> {version}.")
+
+    assert (
+        run_cmd(["uv", "run", "bbf", "--version"], capture_output=False).returncode == 0
+    )
+
+    print(
+        green(f"Successfully updated project version from {old_version} -> {version}.")
+    )
 
 
 if __name__ == "__main__":

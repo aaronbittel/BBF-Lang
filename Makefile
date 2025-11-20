@@ -21,6 +21,10 @@ run: gen
 debug: gen
 	@gdb -q $(BIN_DIR)/$(FILENAME)
 
+test:
+	@uv run snapshot.py all
+
+
 fix:
 	@uv tool run ruff check --fix .
 	@uv run mypy . --check-untyped-defs

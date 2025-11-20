@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 from dataclasses import dataclass, field
+from difflib import ndiff
 from io import StringIO
 from pathlib import Path
 from typing import Generator, Literal, NamedTuple, TextIO
@@ -182,7 +183,7 @@ def record_snapshot(command: str, step: Step, path: Path, content: str) -> None:
     )
 
 
-def run_snapshot(path: Path, step: Step, got: str, stats: RunStats) -> SnapshotResult:
+def run_snapshot(path: Path, step: Step, actual: str) -> SnapshotResult:
     snap_path = step_snapshot_path(path, step)
     if not snap_path.exists():
         return SnapshotResult(
@@ -190,10 +191,10 @@ def run_snapshot(path: Path, step: Step, got: str, stats: RunStats) -> SnapshotR
             reason=f"No `{step}` snapshot file found for {path.name}. Use `record`.",
         )
     expected = snap_path.read_text()
-    if expected != got:
-        stats.fail(path, step, reason="Output mismatch")
+    if expected != actual:
+        color_diff(expected, actual)
         actual_path = Path(str(snap_path) + ".actual")
-        actual_path.write_text(got)
+        actual_path.write_text(actual)
         return SnapshotResult("fail", reason="Output mismatch", actual_path=actual_path)
     return SnapshotResult(status="success")
 
@@ -235,13 +236,13 @@ def run_file(step: Step, filepath: Path, stats: RunStats) -> None:
         for result in runner:
             if step != Step.All and step != result.step:
                 continue
-            res = run_snapshot(filepath, result.step, result.content, stats)
+            res = run_snapshot(filepath, result.step, result.content)
             match res:
                 case SnapshotResult(
                     status="fail", reason=reason, actual_path=actual_path
                 ):
                     assert reason is not None
-                    stats.fail(filepath, step, reason)
+                    stats.fail(filepath, result.step, reason)
                     print(
                         red("[FAILED]"),
                         f"Running `{result.step}` for `{filepath.name}`",
@@ -276,6 +277,26 @@ def run_file(step: Step, filepath: Path, stats: RunStats) -> None:
         print("runtime", repr(str(e)))
         stats.skip(filepath, Step.Output, str(e))
         print(darkgray("[SKIPING]"), str(e))
+
+
+def color_diff(expected: str, actual: str) -> None:
+    diff = ndiff(expected.splitlines(), actual.splitlines())
+    line_nr = 1
+    print_line_nr = True
+    for line in diff:
+        if line.startswith("+ "):
+            line_nr += 1
+            print(line_nr if print_line_nr else " " * len(str(line_nr)), end=" ")
+            print_line_nr = not print_line_nr
+            print(green(line))
+        elif line.startswith("- "):
+            print(line_nr if print_line_nr else " " * len(str(line_nr)), end=" ")
+            print_line_nr = not print_line_nr
+            print(red(line))
+        elif line.startswith("? "):
+            print(" " * len(str(line_nr)), blue(line))
+        else:
+            line_nr += 1
 
 
 def tokens_to_str(tokens: list[Token]) -> str:
