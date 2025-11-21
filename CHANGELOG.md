@@ -9,10 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added color diff for snapshot testing
-- Added Bool Type, `true` and `false` literals
+- Color diff for snapshot testing
+- Bool Type, `true` and `false` literals
+- Boolean Operators `or` and `and` (Currently using Complete Boolean Evaluation)
 
 ### Changed
+
+- snapshot.py `update` command will reuse the previous argv if none is given
+
 ### Fixed
 
 - Improved parser error messages for invalid declarations/assignments:
@@ -22,6 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added Lexer, Parser, Typechecking and Assembly Code Generator
-- Added cli for running compiler
-- Added snapshot.py for testing
+- Lexer, Parser, Typechecking and Assembly Code Generator
+- Cli for running compiler
+- snapshot.py for testing
