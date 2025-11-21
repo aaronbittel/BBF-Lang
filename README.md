@@ -108,17 +108,17 @@ x: Int = 12 # they can also be inline
 
 ### VarTypes
 - `Int`: 64bit integer
-    - Booleans are represented as integers (0 == `false`, anything else == `true`)
-        - `x: Int = 12 > 24` => x would be 0 because condition is `false`
-        - `x: Int = 12 < 24` => x would be 1 because condition is `true`
 - `String`: Strings are represented internally as a struct with length and pointer. Not
 null-terminated.
+- `Bool`: 64bit integer (internally)
+    - Booleans are represented as integers (0 == `false`, 1 == `true`)
 - `Void`: Only used in return type annotations. `x: Void = 1` is not supported
 
 ### Builtin Functions
 - `exit(exitcode: Int) -> Void`: Exit program with exitcode
 - `atoi(str: String) -> Int`: Convert String to Int
 - `itoa(x: Int) -> String`: Convert Int to String
+- `btoa(x: Int) -> String`: Convert Bool to String
 - `stdout(str: String) -> Void`: Print str to stdout
 - `stderr(str: String) -> Void`: Print str to stderr
 
@@ -129,7 +129,7 @@ You can find a folder `/examples` in this repository with multiple `.bbf` files.
 For instance, to run an example:
 
 ```bash
-uv run bbf examples/isprime.bbf --run
+uv run bbf examples/isprime.bbf --run <argv>
 ```
 
 ## Useful Ressources
