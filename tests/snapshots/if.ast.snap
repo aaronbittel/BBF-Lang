@@ -6,4 +6,4 @@ elif ( x == 20 ) then
 else
     x: Int = 1
 end
-stdout( x )
+stdout( itoa( x ) )

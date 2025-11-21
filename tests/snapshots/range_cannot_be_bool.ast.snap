@@ -1,0 +1,2 @@
+for i in -4..( true or false ) do
+end

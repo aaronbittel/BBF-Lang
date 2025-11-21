@@ -32,6 +32,8 @@ class TokenType(StrEnum):
     In = auto()
     Fn = auto()
     Return = auto()
+    Or = auto()
+    And = auto()
 
     # Single Char Tokens
     OpenParen = auto()
@@ -81,6 +83,8 @@ BUILTINS = {
     "in": TokenType.In,
     "fn": TokenType.Fn,
     "return": TokenType.Return,
+    "or": TokenType.Or,
+    "and": TokenType.And,
 }
 
 

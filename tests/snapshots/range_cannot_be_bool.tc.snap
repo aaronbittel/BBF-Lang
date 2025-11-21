@@ -1,0 +1,1 @@
+ERROR: tests/cases/invalid/range_cannot_be_bool.bbf:1:5: for-loop stop expression must be Int, but got `Bool`

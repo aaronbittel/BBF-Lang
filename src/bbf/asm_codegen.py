@@ -30,8 +30,7 @@ from bbf.nodes.stmt import (
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
-from bbf.variables import SymbolTable
-from bbf.vartype import VarType
+from bbf.varinfo import SymbolTable, VarType
 
 
 class AsmCodeGen(Visitor):
@@ -83,7 +82,7 @@ class AsmCodeGen(Visitor):
             range_expr.start.accept(self)
             self.emitter.emit("pop rax ; loop var")
             self.emitter.emit(
-                f"sub rsp, {VarType.Int.value} ; reserve space for loop var"
+                f"sub rsp, {VarType.Int.size} ; reserve space for loop var"
             )
             range_ident = self.symbol_table.lookup(loop_ident.value)
             assert range_ident is not None, f"{loop_ident.value} was just created"
@@ -210,7 +209,7 @@ class AsmCodeGen(Visitor):
             raise CodeGenError(
                 f"ERROR: {ident.token.position}: identifier `{ident.token.value}` was not defined.{extra}"
             )
-        if varinfo.vartype == VarType.Int:
+        if varinfo.vartype in (VarType.Int, VarType.Bool):
             self.emitter.emit(
                 f"push qword [rbp{varinfo.offset:+d}] ; push value from variable {ident.token.value}"
             )
@@ -240,7 +239,7 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(f"; {fn_name} function args")
         for fn_arg, expr_arg in zip(fninfo.args, stmt.args_list):
             expr_arg.accept(self)
-            if fn_arg.vartype == VarType.Int:
+            if fn_arg.vartype in (VarType.Int, VarType.Bool):
                 assert reg_i < len(regs_order), (
                     "Currently can't handle more physcial args than 6"
                 )
@@ -259,7 +258,7 @@ class AsmCodeGen(Visitor):
                 )
 
         self.emitter.emit(f"call {fn_name} ; return_type: {fninfo.return_type.name}")
-        if fninfo.return_type == VarType.Int:
+        if fninfo.return_type in (VarType.Int, VarType.Bool):
             self.emitter.emit("push rax ; return value from fn call")
         elif fninfo.return_type == VarType.Void:
             pass
@@ -275,11 +274,11 @@ class AsmCodeGen(Visitor):
         name, expr = decl.name, decl.expr
 
         vartype = VarType.from_token(decl.typetoken)
-        self.emitter.emit(f"sub rsp, {vartype.value} ; reserve space for decl")
+        self.emitter.emit(f"sub rsp, {vartype.size} ; reserve space for decl")
         expr.accept(self)
         offset = self.symbol_table.define(name.value, vartype)
 
-        if vartype == VarType.Int:
+        if vartype in (VarType.Int, VarType.Bool):
             self.emitter.emit("pop rax")
             self.emitter.emit(f"mov [rbp{offset:+d}], rax")
         elif vartype == VarType.String:
@@ -307,6 +306,7 @@ class AsmCodeGen(Visitor):
     def visit_binary(self, binary: Binary) -> None:
         binary.lhs.accept(self)
         binary.rhs.accept(self)
+
         self.emitter.emit("pop rbx; pop rhs")
         self.emitter.emit("pop rax; pop lhs")
         if binary.operator.ttype == TokenType.Plus:
@@ -339,6 +339,14 @@ class AsmCodeGen(Visitor):
             self.emitter.emit("movzx rax, al ; zero-extend AL to RAX")
             self.emitter.emit("push rax")
             self.comparison_count += 1
+        elif binary.operator.ttype == TokenType.Or:
+            self.emitter.emit("; or")
+            self.emitter.emit("or rax, rbx")
+            self.emitter.emit("push rax")
+        elif binary.operator.ttype == TokenType.And:
+            self.emitter.emit("; and")
+            self.emitter.emit("and rax, rbx")
+            self.emitter.emit("push rax")
         else:
             assert False, f"unreachable {binary.operator.ttype}"
 
@@ -446,11 +454,11 @@ class AsmCodeGen(Visitor):
                 for param in fndef.params:
                     vartype = VarType.from_token(param.ttype)
                     self.emitter.emit(
-                        f"sub rsp, {vartype.value} ; reserve space for param {param.name.value}"
+                        f"sub rsp, {vartype.size} ; reserve space for param {param.name.value}"
                     )
                     offset = self.symbol_table.define(param.name.value, vartype)
 
-                    if vartype == VarType.Int:
+                    if vartype in (VarType.Int, VarType.Bool):
                         assert reg_i <= 5, (
                             "More than 6 registers used (strings take up 2)"
                         )

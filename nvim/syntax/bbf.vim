@@ -4,7 +4,7 @@
 syntax clear
 
 " Keywords (reserved words)
-syntax keyword bbfKeyword if then end else elif for do step in not return
+syntax keyword bbfKeyword if then end else elif for do step in not return or and
 
 syntax keyword bbfStatement fn nextgroup=bbfFunction skipwhite
 

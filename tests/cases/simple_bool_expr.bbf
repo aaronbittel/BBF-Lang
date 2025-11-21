@@ -1,0 +1,13 @@
+fn print(str: String, expr: Bool) -> Void do
+    stdout(str) stdout(": ") stdout(btoa(expr)) stdout("\n")
+end
+
+print("true or false", true or false)
+print("false or false", false or false)
+print("false or true", false or true)
+print("true or true", true or true)
+stdout("======================\n")
+print("true and false", true and false)
+print("false and false", false and false)
+print("false and true", false and true)
+print("true and true", true and true)

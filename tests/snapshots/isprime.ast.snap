@@ -24,10 +24,9 @@ end
 start: Int = atoi( argv[1] )
 range: Int = 10
 for i in start..( start + range ) do
-    res: Int = isprime( i )
     stdout( itoa( i ) )
     stdout( ': ' )
-    if ( res == 0 ) then
+    if isprime( i ) then
         stdout( 'NO PRIME\n' )
     else
         stdout( 'PRIME\n' )

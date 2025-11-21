@@ -1,0 +1,17 @@
+Argv: 0
+
+Returncode: 1
+0
+Stdout: 191
+true or false: true
+false or false: false
+false or true: true
+true or true: true
+======================
+true and false: false
+false and false: false
+false and true: false
+true and true: true
+
+Stderr: 0
+

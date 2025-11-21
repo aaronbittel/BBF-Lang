@@ -137,13 +137,16 @@ class Parser:
             "Expected `identifier` for function argument definition",
         )
         self.consume(TokenType.Colon, "Expected `:` in function argument definition")
-        if not self.match(TokenType.Int, TokenType.String, TokenType.Void):
+        if not self.match(
+            TokenType.Int, TokenType.String, TokenType.Void, TokenType.Bool
+        ):
             raise ParserExpectError(
                 self.peek(),
                 "Expected `VarType` for function argument definition",
                 TokenType.Int,
                 TokenType.String,
                 TokenType.Void,
+                TokenType.Bool,
             )
         vartype = self.previous()
         return Param(name, vartype)
@@ -251,6 +254,25 @@ class Parser:
         return block
 
     def expr(self) -> Expr:
+        return self.bool_expr()
+
+    def bool_expr(self) -> Expr:
+        expr = self.or_expr()
+        while self.match(TokenType.Or):
+            operator = self.previous()
+            right = self.or_expr()
+            expr = Binary(expr, operator, right)
+        return expr
+
+    def or_expr(self) -> Expr:
+        expr = self.and_expr()
+        while self.match(TokenType.And):
+            operator = self.previous()
+            right = self.and_expr()
+            expr = Binary(expr, operator, right)
+        return expr
+
+    def and_expr(self) -> Expr:
         return self.equality()
 
     def equality(self) -> Expr:

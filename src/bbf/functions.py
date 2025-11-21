@@ -1,7 +1,7 @@
 from typing import NamedTuple
 
 from bbf.nodes.toplevel import FnDef
-from bbf.vartype import VarType
+from bbf.varinfo import VarType
 
 
 class FnArg(NamedTuple):

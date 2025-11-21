@@ -1,0 +1,22 @@
+Argv: 0
+
+Returncode: 1
+0
+Stdout: 458
+(true or false) and false: false
+true or (false and false): true
+(false or false) and (true or false): false
+(true and true) or (false and true): true
+======================
+true and true and false: false
+false or false or true: true
+true or false or false and true: true
+(true or false) and (false or true): true
+======================
+not false and true: true
+not (true or false): false
+not true or false and true: false
+not (false and true) or true: true
+
+Stderr: 0
+

@@ -51,13 +51,16 @@ $
 "Declaration" arrow & italic("Name") #e(":") "VarType" #e("=") "Expr" \
 "Assignment" arrow & italic("Name") #e("=") "Expr" \
 "ReturnStmt" arrow & #k("return") ["Expr"] \
-"Expr" arrow & "Equality" \
+"Expr" arrow & "BoolExpr" \
+"BoolExpr" arrow & "OrExpr" (#k("or") "OrExpr")* \
+"OrExpr" arrow & "AndExpr" (#k("and") "AndExpr")* \
+"AndExpr" arrow & "Equality" \
 "Equality" arrow & "Comparison" ( (#e("!=") | #e("==")) "Comparison" )* \
 "Comparison" arrow & "Term" ((#e(">") | #e(">=") | #e("<") | #e("<=")) "Term")* \
 "Term" arrow & "Factor" ((#e("-") | #e("+")) "Factor")* \
 "Factor" arrow & "Unary" ((#e("/") | #e("*") | #e("%")) "Unary")* \
 "Unary" arrow & cases(
-  ( #e("-") | #e("+") | "not") "Unary",
+  ( #e("-") | #e("+") | #k("not")) "Unary",
   "Primary",
 ) \
 "Primary" arrow & cases(

@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Generator
 
 from bbf.functions import BUILTIN_FNS, FnInfo
+from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
     Binary,
@@ -29,7 +30,7 @@ from bbf.nodes.stmt import (
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
-from bbf.vartype import VarType
+from bbf.varinfo import VarType
 
 
 @dataclass
@@ -131,9 +132,9 @@ class TypeChecker(Visitor[VarType]):
 
     def visit_ifstmt(self, ifstmt: IfStmt) -> VarType:
         cond_type = ifstmt.condition.accept(self)
-        if cond_type != VarType.Int:
+        if cond_type != VarType.Bool:
             # TODO: add precise position information
-            raise TypeCheckerError(f"if condition must be `Int`, got {cond_type.name}")
+            raise TypeCheckerError(f"if condition must be `Bool`, got {cond_type.name}")
 
         with self.new_scope():
             for stmt in ifstmt.if_block:
@@ -141,9 +142,9 @@ class TypeChecker(Visitor[VarType]):
 
         for elif_ in ifstmt.elifs:
             elif_cond_type = elif_.condition.accept(self)
-            if elif_cond_type != VarType.Int:
+            if elif_cond_type != VarType.Bool:
                 raise TypeCheckerError(
-                    f"elif condition must be `Int`, got {elif_cond_type}"
+                    f"elif condition must be `Bool`, got {elif_cond_type}"
                 )
             with self.new_scope():
                 for elifstmt in elif_.block:
@@ -247,8 +248,30 @@ class TypeChecker(Visitor[VarType]):
                 f"Type mismatch in binary expression: {lhs_type.name} {binary.operator.value} {rhs_type.name}"
             )
 
-        if lhs_type == VarType.Int:
+        if lhs_type == VarType.Int and binary.operator.ttype in (
+            TokenType.Plus,
+            TokenType.Minus,
+            TokenType.Star,
+            TokenType.Slash,
+            TokenType.Percent,
+        ):
             return VarType.Int
+
+        if lhs_type == VarType.Int and binary.operator.ttype in (
+            TokenType.Greater,
+            TokenType.GreaterEqual,
+            TokenType.Less,
+            TokenType.LessEqual,
+            TokenType.EqualEqual,
+            TokenType.BangEqual,
+        ):
+            return VarType.Bool
+
+        if lhs_type == VarType.Bool and binary.operator.ttype in (
+            TokenType.Or,
+            TokenType.And,
+        ):
+            return VarType.Bool
 
         raise TypeCheckerError(
             f"ERROR: {binary.operator.position}: "
@@ -257,12 +280,21 @@ class TypeChecker(Visitor[VarType]):
 
     def visit_unary(self, unary: Unary) -> VarType:
         expr_type = unary.expr.accept(self)
-        if expr_type != VarType.Int:
-            raise TypeCheckerError(
-                f"ERROR: {unary.operator.position}: "
-                f"Unary operator `{unary.operator.value}` is only allowed on Int, got {expr_type.name}"
-            )
-        return VarType.Int
+        if expr_type == VarType.Int and unary.operator.ttype in (
+            TokenType.Minus,
+            TokenType.Plus,
+        ):
+            return VarType.Int
+
+        if expr_type == VarType.Bool and unary.operator.ttype == TokenType.Not:
+            return VarType.Bool
+
+        raise TypeCheckerError(
+            f"ERROR: {unary.operator.position}: "
+            f"Unary operator `{unary.operator.value}` is not allowed on type `{expr_type.name}`. "
+            f"Allowed types: "
+            f"{'Int' if unary.operator.ttype in (TokenType.Plus, TokenType.Minus) else 'Bool'}"
+        )
 
     def visit_grouping(self, grouping: Grouping) -> VarType:
         return grouping.expr.accept(self)

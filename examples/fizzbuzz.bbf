@@ -1,13 +1,13 @@
 fn fizzbuzz(count: Int) -> Void do
     for i in 1..=count do
-        printed: Int = 0
+        printed: Bool = false
         if i % 3 == 0 then
             stdout("Fizz")
-            printed = 1
+            printed = true
         end
         if i % 5 == 0 then
             stdout("Buzz")
-            printed = 1
+            printed = true
         end
         if not printed then
             stdout(itoa(i))
