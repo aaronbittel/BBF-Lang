@@ -21,8 +21,7 @@ class FnInfo(NamedTuple):
             FnArg(param.name.value, VarType.from_token(param.ttype))
             for param in fndef.params
         ]
-        return_type = VarType.from_token(fndef.return_ttype)
-        return cls(name, args, return_type)
+        return cls(name, args, fndef.ret_vartype)
 
 
 # Built-in functions

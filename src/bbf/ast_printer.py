@@ -47,7 +47,7 @@ class ASTPrinter(Visitor[None]):
             f"{param.name.value}: {param.ttype.value}" for param in fndef.params
         )
         print(
-            f"fn {fndef.name.value}({params}) -> {fndef.return_ttype.value} do",
+            f"fn {fndef.name.value}({params}) -> {fndef.ret_vartype.name} do",
             file=self.out,
         )
         with self.indent_block():
