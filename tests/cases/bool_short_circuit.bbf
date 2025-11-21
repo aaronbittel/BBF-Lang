@@ -1,0 +1,14 @@
+fn tru() -> Bool do stdout("TRUE\n") return true end
+fn fals() -> Bool do stdout("FALSE\n") return false end
+
+tru() or fals() or fals() or tru()
+stdout("=====================\n")
+fals() or fals() or tru()
+stdout("=====================\n")
+(fals() or fals() or tru() and tru()) and (fals() or fals() and tru())
+stdout("=====================\n")
+not tru() or fals()
+stdout("=====================\n")
+not fals() or tru()
+stdout("=====================\n")
+tru() or fals() and tru() or fals() and tru() or tru()

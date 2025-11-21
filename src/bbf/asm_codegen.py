@@ -45,6 +45,10 @@ class AsmCodeGen(Visitor):
         self.loop_count = 0
         self.comparison_count = 0
         self.user_fndefs: list[FnDef] = []
+        self.or_true_count = 0
+        self.or_end_count = 0
+        self.and_false_count = 0
+        self.and_end_count = 0
 
     def generate_prog(self, program: Program) -> None:
         self.program_prologue()
@@ -304,51 +308,93 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(f"mov [rbp{varinfo.offset:+d}], rax")
 
     def visit_binary(self, binary: Binary) -> None:
-        binary.lhs.accept(self)
-        binary.rhs.accept(self)
+        if binary.operator.ttype not in (TokenType.Or, TokenType.And):
+            binary.lhs.accept(self)
+            binary.rhs.accept(self)
 
-        self.emitter.emit("pop rbx; pop rhs")
-        self.emitter.emit("pop rax; pop lhs")
-        if binary.operator.ttype == TokenType.Plus:
-            self.emitter.emit("; addition")
-            self.emitter.emit("add rax, rbx")
-            self.emitter.emit("push rax")
-        elif binary.operator.ttype == TokenType.Minus:
-            self.emitter.emit("; subtraction")
-            self.emitter.emit("sub rax, rbx")
-            self.emitter.emit("push rax")
-        elif binary.operator.ttype == TokenType.Star:
-            self.emitter.emit("; multiplication")
-            self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
-            self.emitter.emit("imul rbx")
-            self.emitter.emit("push rax")
-        elif binary.operator.ttype == TokenType.Slash:
-            self.emitter.emit("; division")
-            self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
-            self.emitter.emit("idiv rbx")
-            self.emitter.emit("push rax")
-        elif binary.operator.ttype == TokenType.Percent:
-            self.emitter.emit("; modulo")
-            self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
-            self.emitter.emit("idiv rbx")
-            self.emitter.emit("push rdx ; (remainder always in rdx)")
-        elif binary.operator.ttype in COMPARISON_SETCC:
-            setcc_mnemonic = COMPARISON_SETCC[binary.operator.ttype]
-            self.emitter.emit("cmp rax, rbx")
-            self.emitter.emit(f"{setcc_mnemonic} al ; set AL = 1 if condition")
-            self.emitter.emit("movzx rax, al ; zero-extend AL to RAX")
-            self.emitter.emit("push rax")
-            self.comparison_count += 1
-        elif binary.operator.ttype == TokenType.Or:
-            self.emitter.emit("; or")
-            self.emitter.emit("or rax, rbx")
-            self.emitter.emit("push rax")
-        elif binary.operator.ttype == TokenType.And:
-            self.emitter.emit("; and")
-            self.emitter.emit("and rax, rbx")
-            self.emitter.emit("push rax")
+            self.emitter.emit("pop rbx; pop rhs")
+            self.emitter.emit("pop rax; pop lhs")
+            if binary.operator.ttype == TokenType.Plus:
+                self.emitter.emit("; addition")
+                self.emitter.emit("add rax, rbx")
+                self.emitter.emit("push rax")
+            elif binary.operator.ttype == TokenType.Minus:
+                self.emitter.emit("; subtraction")
+                self.emitter.emit("sub rax, rbx")
+                self.emitter.emit("push rax")
+            elif binary.operator.ttype == TokenType.Star:
+                self.emitter.emit("; multiplication")
+                self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
+                self.emitter.emit("imul rbx")
+                self.emitter.emit("push rax")
+            elif binary.operator.ttype == TokenType.Slash:
+                self.emitter.emit("; division")
+                self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
+                self.emitter.emit("idiv rbx")
+                self.emitter.emit("push rax")
+            elif binary.operator.ttype == TokenType.Percent:
+                self.emitter.emit("; modulo")
+                self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
+                self.emitter.emit("idiv rbx")
+                self.emitter.emit("push rdx ; (remainder always in rdx)")
+            elif binary.operator.ttype in COMPARISON_SETCC:
+                setcc_mnemonic = COMPARISON_SETCC[binary.operator.ttype]
+                self.emitter.emit("cmp rax, rbx")
+                self.emitter.emit(f"{setcc_mnemonic} al ; set AL = 1 if condition")
+                self.emitter.emit("movzx rax, al ; zero-extend AL to RAX")
+                self.emitter.emit("push rax")
+                self.comparison_count += 1
+            else:
+                assert False, f"unreachable binary operator: {binary.operator.ttype}"
         else:
-            assert False, f"unreachable {binary.operator.ttype}"
+            if binary.operator.ttype == TokenType.Or:
+                or_true_label = self.or_true_label()
+                or_end_label = self.or_end_label()
+
+                binary.lhs.accept(self)
+                self.emitter.emit("; or lhs")
+                self.emitter.emit("pop rax")
+                self.emitter.emit("cmp rax, 1 ; test true")
+                self.emitter.emit(f"je {or_true_label}")
+
+                binary.rhs.accept(self)
+                self.emitter.emit("; or rhs")
+                self.emitter.emit("pop rax")
+                self.emitter.emit("cmp rax, 1 ; test true")
+                self.emitter.emit(f"je {or_true_label}")
+
+                self.emitter.emit("; or evaluated to false")
+                self.emitter.emit("push 0")
+                self.emitter.emit(f"jmp {or_end_label}")
+
+                self.emitter.emit(f"{or_true_label}:", indent=0)
+                self.emitter.emit("push 1")
+                self.emitter.emit(f"{or_end_label}:", indent=0)
+            elif binary.operator.ttype == TokenType.And:
+                and_false_label = self.and_false_label()
+                and_end_label = self.and_end_label()
+
+                binary.lhs.accept(self)
+                self.emitter.emit("; and lhs")
+                self.emitter.emit("pop rax")
+                self.emitter.emit("cmp rax, 0 ; test false")
+                self.emitter.emit(f"je {and_false_label}")
+
+                binary.rhs.accept(self)
+                self.emitter.emit("; and rhs")
+                self.emitter.emit("pop rax")
+                self.emitter.emit("cmp rax, 0 ; test false")
+                self.emitter.emit(f"je {and_false_label}")
+
+                self.emitter.emit("; and evaluated to true")
+                self.emitter.emit("push 1")
+                self.emitter.emit(f"jmp {and_end_label}")
+
+                self.emitter.emit(f"{and_false_label}:", indent=0)
+                self.emitter.emit("push 0")
+                self.emitter.emit(f"{and_end_label}:", indent=0)
+            else:
+                assert False, f"unreachable binary operator: {binary.operator.ttype}"
 
     def visit_unary(self, unary: Unary) -> None:
         unary.expr.accept(self)
@@ -517,6 +563,26 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("__argc: resq 1 ; argc")
         self.emitter.emit("__argv: resq 1 ; addr of ptr to argv[0]")
         self.emitter.emit("__itoa_buf: resb 32")
+
+    def or_true_label(self) -> str:
+        lbl = f".or_true_{self.or_true_count}"
+        self.or_true_count += 1
+        return lbl
+
+    def or_end_label(self) -> str:
+        lbl = f".or_end_{self.or_end_count}"
+        self.or_end_count += 1
+        return lbl
+
+    def and_false_label(self) -> str:
+        lbl = f".and_false_{self.and_false_count}"
+        self.and_false_count += 1
+        return lbl
+
+    def and_end_label(self) -> str:
+        lbl = f".and_end_{self.and_end_count}"
+        self.and_end_count += 1
+        return lbl
 
 
 def encode_nasm_string(string: str) -> str:
