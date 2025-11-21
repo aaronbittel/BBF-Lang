@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Generator
 
+from bbf.functions import BUILTIN_FNS, FnInfo
 from bbf.nodes.expr import (
     Argv,
     Binary,
@@ -28,7 +29,7 @@ from bbf.nodes.stmt import (
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
-from bbf.symbol_table import BUILTIN_FNS, FnInfo, VarType
+from bbf.vartype import VarType
 
 
 @dataclass
@@ -195,15 +196,15 @@ class TypeChecker(Visitor[VarType]):
             )
 
         for i, (fnarg, arg) in enumerate(zip(fninfo.args, fncall.args_list), start=1):
-            got = arg.accept(self)
+            actual = arg.accept(self)
             expected = fnarg.vartype
             param_name = "" if fnname in BUILTIN_FNS else f" `{fnarg.name}`"
-            if expected != got:
+            if expected != actual:
                 raise TypeCheckerError(
                     f"ERROR: {fncall.name.position}: "
                     f"Type mismatch in call to `{fnname}`: "
                     f"expected `{expected.name}` for {i}. parameter{param_name}, "
-                    f"but got `{got.name}`"
+                    f"but got `{actual.name}`"
                 )
 
         return fninfo.return_type

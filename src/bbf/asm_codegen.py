@@ -4,6 +4,7 @@ from contextlib import contextmanager
 
 import bbf.builtins as bbf_builtins
 from bbf.emitter import Emitter
+from bbf.functions import FnInfo, FunctionTable
 from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
@@ -29,7 +30,8 @@ from bbf.nodes.stmt import (
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
-from bbf.symbol_table import FnInfo, FunctionTable, SymbolTable, VarType
+from bbf.variables import SymbolTable
+from bbf.vartype import VarType
 
 
 class AsmCodeGen(Visitor):
@@ -76,7 +78,7 @@ class AsmCodeGen(Visitor):
         with self.new_scope():
             # NOTE: loop var is a new variable scoped to the loop scope
             loop_ident_offset = self.symbol_table.define(
-                loop_ident.value, ttype=VarType.Int
+                loop_ident.value, vartype=VarType.Int
             )
             range_expr.start.accept(self)
             self.emitter.emit("pop rax ; loop var")
