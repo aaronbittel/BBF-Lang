@@ -65,6 +65,27 @@ itoa:
     sub rdi, r9 ; length
     ret"""
 
+_builtin_btoa = """
+; rdi: bool
+btoa:
+    push rbp
+    mov rbp, rsp
+
+    cmp rdi, 1
+    je .ret_true
+
+    lea rax, [__false]
+    mov rdi, __false_len
+    jmp .end
+
+.ret_true:
+    lea rax, [__true]
+    mov rdi, __true_len
+
+.end:
+    pop rbp
+    ret
+"""
 
 _builtin_stdout = """
 ; rdi: str_ptr, rsi: str_len

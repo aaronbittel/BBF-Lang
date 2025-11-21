@@ -494,6 +494,10 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("")
         self.emitter.emit("; STATIC SECTION", indent=0)
         self.emitter.emit("section .data", indent=0)
+        self.emitter.emit('__true: db "true"')
+        self.emitter.emit("__true_len: equ $ - __true")
+        self.emitter.emit('__false: db "false"')
+        self.emitter.emit("__false_len: equ $ - __false")
         for i, raw_s in enumerate(self.strings):
             label = make_string_label(i)
             self.emitter.emit(f"{label}_len: dq {len(raw_s)}")

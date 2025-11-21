@@ -30,6 +30,7 @@ BUILTIN_FNS = {
     "exit": FnInfo("exit", [FnArg("x", VarType.Int)], VarType.Void),
     "atoi": FnInfo("atoi", [FnArg("x", VarType.String)], VarType.Int),
     "itoa": FnInfo("itoa", [FnArg("x", VarType.Int)], VarType.String),
+    "btoa": FnInfo("btoa", [FnArg("x", VarType.Bool)], VarType.String),
     "stdout": FnInfo("stdout", [FnArg("x", VarType.String)], VarType.Void),
     "stderr": FnInfo("stderr", [FnArg("x", VarType.String)], VarType.Void),
 }

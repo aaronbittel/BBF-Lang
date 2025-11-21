@@ -11,7 +11,7 @@ syntax keyword bbfStatement fn nextgroup=bbfFunction skipwhite
 syntax match bbfFunction "[a-zA-Z_][a-zA-Z0-9_]*\ze("
 
 " Built-in functions
-syntax keyword bbfBuiltin exit atoi itoa stdout stderr true false
+syntax keyword bbfBuiltin exit atoi itoa btoa stdout stderr true false
 
 " Match identifiers
 syntax match bbfIdentifier "\<[a-zA-Z_][a-zA-Z0-9_]*\>"
