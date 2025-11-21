@@ -73,8 +73,8 @@ def generate_exe(
 
     nasm_res = run_cmd(args=nasm_cmd, echo=verbose)
     if nasm_res.returncode != 0:
-        raise RuntimeError("nasm failed")
+        raise RuntimeError(f"nasm failed: {nasm_res.stderr.decode()}")
 
     ld_res = run_cmd(args=ld_cmd, echo=verbose)
     if ld_res.returncode != 0:
-        raise RuntimeError("ld failed")
+        raise RuntimeError(f"ld failed: {ld_res.stderr.decode()}")
