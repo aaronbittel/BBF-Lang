@@ -127,7 +127,7 @@ def parse_cli_args() -> argparse.Namespace:
         "step", choices=list(Step), type=Step.from_cli, nargs="?", default=Step.All
     )
     update_parser.add_argument("--path", type=Path, default=CASES_DIR)
-    update_parser.add_argument("--argv", nargs="*", default=[])
+    update_parser.add_argument("--argv", nargs="*")
 
     all_parser = subparsers.add_parser("all", help="all snapshot for .bbf files")
     all_parser.add_argument(
@@ -204,7 +204,21 @@ def record_dir(command: str, step: Step, dirpath: Path, argv: list[str]) -> None
         record_file(command, step, filepath, argv)
 
 
-def record_file(command: str, step: Step, filepath: Path, argv: list[str]):
+def record_file(command: str, step: Step, filepath: Path, argv: list[str] | None):
+    if command == "record":
+        assert argv is not None
+    elif command == "update":
+        if argv is None:
+            out_path = step_snapshot_path(filepath, step=Step.Output)
+            assert out_path.exists()
+            argv = load_test_case(out_path).argv
+            print(
+                blue("[INFO]"),
+                f"Using argv from `{out_path.name}` [{' '.join(argv)}] to update",
+            )
+            print("       Use `--argv` to reset")
+    else:
+        assert False, "unreachable"
     runner = runner_gen(filepath, argv)
     try:
         for result in runner:
@@ -267,7 +281,7 @@ def run_file(step: Step, filepath: Path, stats: RunStats) -> None:
             if result.step == step:
                 return
     except MissingArgvError:
-        msg = "Missing snapshot. Use `record`."
+        msg = f"No `output` snapshot file found for {filepath.name}. Use `record`."
         stats.skip(filepath, Step.Output, msg)
         print(
             darkgray("[SKIPING]"),
@@ -397,7 +411,8 @@ def check_argv(command: str, step: Step, argv: list[str]) -> None:
 if __name__ == "__main__":
     args = parse_cli_args()
     if args.command in ("record", "update"):
-        check_argv(args.command, args.step, args.argv)
+        if args.argv is not None:
+            check_argv(args.command, args.step, args.argv)
         if args.path.is_file():
             record_file(args.command, args.step, args.path, args.argv)
         elif args.path.is_dir():
