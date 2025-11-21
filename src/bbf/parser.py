@@ -29,6 +29,7 @@ from bbf.nodes.stmt import (
     Stmt,
 )
 from bbf.nodes.toplevel import FnDef, Param, TopLevel, TopLevelStmt
+from bbf.varinfo import VarType
 
 
 class ParserError(Exception):
@@ -83,12 +84,10 @@ class Parser:
         if not self.check(TokenType.CloseParen):
             args = self.fndef_params()
         self.consume(TokenType.CloseParen, "Expected `)` in function definition")
-        self.consume(TokenType.Minus, "Expected `-` in function definition")
-        self.consume(TokenType.Greater, "Expected `>` in function definition")
-        return_token = self.parse_fnreturn()
-        self.consume(TokenType.Do, "Expected `do` in function definition")
+        return_type = self.parse_fnreturn() or VarType.Void
+        self.consume(TokenType.Do, "Expected `do` to end function definition")
         block = self.parse_block()
-        return FnDef(name, args, return_token, block)
+        return FnDef(name, args, return_type, block)
 
     def parse_return_stmt(self) -> ReturnStmt:
         ret = self.consume(TokenType.Return, "Expected `return` for return statement")
@@ -151,9 +150,16 @@ class Parser:
         vartype = self.previous()
         return Param(name, vartype)
 
-    def parse_fnreturn(self) -> Token:
+    def parse_fnreturn(self) -> VarType | None:
+        if not (
+            self.check(TokenType.Minus) and self.check(TokenType.Greater, offset=1)
+        ):
+            return None
+
+        self.advance()  # "-"
+        self.advance()  # ">"
         if self.match(TokenType.Int, TokenType.String, TokenType.Void, TokenType.Bool):
-            return self.previous()
+            return VarType.from_token(self.previous())
         raise ParserExpectError(
             self.peek(),
             "Expected `VarType` for function return type declaration",

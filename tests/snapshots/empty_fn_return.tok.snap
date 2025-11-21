@@ -1,0 +1,7 @@
+fn[1:1] => 'fn'
+identifier[1:4] => 'noop'
+openparen[1:8] => '('
+closeparen[1:9] => ')'
+do[1:11] => 'do'
+end[1:14] => 'end'
+eof[2:1] => 'EOF'

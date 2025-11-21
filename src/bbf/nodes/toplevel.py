@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from bbf.lexer import Token
 from bbf.nodes.stmt import Block, Stmt
+from bbf.varinfo import VarType
 
 if TYPE_CHECKING:
     from bbf.nodes.visitor import Visitor
@@ -20,7 +21,7 @@ class TopLevel(ABC):
 class FnDef(TopLevel):
     name: Token
     params: list[Param]
-    return_ttype: Token
+    ret_vartype: VarType
     body: Block
 
     def accept[T](self, visitor: Visitor[T]) -> T:
