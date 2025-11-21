@@ -6,12 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+### Changed
+### Fixed
+
+## 0.3.1 - 2025-11-21
 
 ### Added
 
 - Color diff for snapshot testing
 - Bool Type, `true` and `false` literals
-- Boolean Operators `or` and `and` (Currently using Complete Boolean Evaluation)
+- Boolean Operators `or` and `and`
+- Short Circuit Boolean Evaluation
 
 ### Changed
 
@@ -22,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved parser error messages for invalid declarations/assignments:
   `true: Int = 0` or `false = 1` now produce clear errors instead of cryptic messages.
 
-## 0.2.0 – 2025-10-29
+## 0.2.0 – 2025-11-16
 
 ### Added
 
