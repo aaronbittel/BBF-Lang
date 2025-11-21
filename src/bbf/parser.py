@@ -52,7 +52,7 @@ class ParserExpectError(ParserError):
             if len(self.expected) == 1
             else ", ".join(self.expected)
         )
-        return f"ERROR: {self.token.position} Expected {expected_str}, but got {self.token}: {self.msg}"
+        return f"ERROR: {self.token.position} Expected `{expected_str}`, but got `{self.token.value}`: {self.msg}"
 
 
 # TODO: Maybe keep scope stack [If-For-...] to give better error message when coming
