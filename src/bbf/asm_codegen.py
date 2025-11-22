@@ -277,22 +277,21 @@ class AsmCodeGen(Visitor):
     def visit_declaration(self, decl: Declaration) -> None:
         name, expr = decl.name, decl.expr
 
-        vartype = VarType.from_token(decl.typetoken)
-        self.emitter.emit(f"sub rsp, {vartype.size} ; reserve space for decl")
+        self.emitter.emit(f"sub rsp, {decl.vartype.size} ; reserve space for decl")
         expr.accept(self)
-        offset = self.symbol_table.define(name.value, vartype)
+        offset = self.symbol_table.define(name.value, decl.vartype)
 
-        if vartype in (VarType.Int, VarType.Bool):
+        if decl.vartype in (VarType.Int, VarType.Bool):
             self.emitter.emit("pop rax")
             self.emitter.emit(f"mov [rbp{offset:+d}], rax")
-        elif vartype == VarType.String:
+        elif decl.vartype == VarType.String:
             self.emitter.emit("pop rdx ; str_len")
             self.emitter.emit("pop rax ; str_ptr")
             self.emitter.emit(f"mov [rbp{offset:+d}], rax ; store str_ptr")
             self.emitter.emit(f"mov [rbp{offset - 8:+d}], rdx ; store str_len")
         else:
             raise CodeGenError(
-                f"ERROR: {name.position}: Unsupported VarType `{vartype}`"
+                f"ERROR: {name.position}: Unsupported VarType `{decl.vartype}`"
             )
 
     def visit_assignment(self, assign: Assignment) -> None:

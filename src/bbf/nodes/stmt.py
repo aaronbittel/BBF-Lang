@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Iterator
 
 from bbf.lexer import Token
 from bbf.nodes.expr import Expr
+from bbf.varinfo import VarType
 
 if TYPE_CHECKING:
     from bbf.nodes.visitor import Visitor
@@ -48,7 +49,7 @@ class DoBlock(Stmt):
 @dataclass
 class Declaration(Stmt):
     name: Token
-    typetoken: Token
+    vartype: VarType
     expr: Expr
 
     def accept[T](self, visitor: Visitor[T]) -> T:

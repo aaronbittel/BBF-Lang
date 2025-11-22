@@ -211,14 +211,13 @@ class TypeChecker(Visitor[VarType]):
         return fninfo.return_type
 
     def visit_declaration(self, decl: Declaration) -> VarType:
-        vartype = VarType.from_token(decl.typetoken)
         exprtype = decl.expr.accept(self)
-        if vartype != exprtype:
+        if decl.vartype != exprtype:
             raise TypeCheckerError(
                 f"ERROR: {decl.name.position}: "
-                f"{decl.name.value} was typed as `{vartype}`, but Expr evaluated to `{exprtype}`"
+                f"{decl.name.value} was typed as `{decl.vartype}`, but Expr evaluated to `{exprtype}`"
             )
-        self.scope.define(decl.name.value, vartype)
+        self.scope.define(decl.name.value, decl.vartype)
         return VarType.Void
 
     def visit_assignment(self, assign: Assignment) -> VarType:

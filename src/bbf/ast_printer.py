@@ -126,7 +126,7 @@ class ASTPrinter(Visitor[None]):
         print(" )", end="", file=self.out)
 
     def visit_declaration(self, decl: Declaration) -> None:
-        self._ident(f"{decl.name.value}: {decl.typetoken.value} = ", end="")
+        self._ident(f"{decl.name.value}: {decl.vartype.name} = ", end="")
         decl.expr.accept(self)
         print(file=self.out)
 

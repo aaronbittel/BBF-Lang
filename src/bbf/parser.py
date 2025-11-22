@@ -177,6 +177,12 @@ class Parser:
     def parse_declaration(self) -> Declaration:
         name = self.consume(TokenType.Identifier, "Expected identifier in declaration")
         self.consume(TokenType.Colon, "Expected `:` in declaration for type")
+        vartype = self.type_decl()
+        self.consume(TokenType.Equal, "Expected `=` in declaration")
+        expr = self.expr()
+        return Declaration(name, vartype, expr)
+
+    def type_decl(self) -> VarType:
         if not self.match(
             TokenType.Int, TokenType.String, TokenType.Void, TokenType.Bool
         ):
@@ -184,10 +190,7 @@ class Parser:
                 token=self.peek(),
                 msg=f"Expected type annotation, but got `{self.peek().value}`",
             )
-        ttype = self.previous()
-        self.consume(TokenType.Equal, "Expected `=` in declaration")
-        expr = self.expr()
-        return Declaration(name, ttype, expr)
+        return VarType.from_token(self.previous())
 
     def parse_assignment(self) -> Assignment:
         name = self.consume(TokenType.Identifier, "Expected identifier in assign")
