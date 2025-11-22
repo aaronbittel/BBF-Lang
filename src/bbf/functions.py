@@ -1,7 +1,7 @@
 from typing import NamedTuple
 
 from bbf.nodes.toplevel import FnDef
-from bbf.varinfo import VarType
+from bbf.varinfo import BoolType, IntType, StringType, VarType, VoidType
 
 
 class FnArg(NamedTuple):
@@ -26,12 +26,12 @@ class FnInfo(NamedTuple):
 
 # Built-in functions
 BUILTIN_FNS = {
-    "exit": FnInfo("exit", [FnArg("x", VarType.Int)], VarType.Void),
-    "atoi": FnInfo("atoi", [FnArg("x", VarType.String)], VarType.Int),
-    "itoa": FnInfo("itoa", [FnArg("x", VarType.Int)], VarType.String),
-    "btoa": FnInfo("btoa", [FnArg("x", VarType.Bool)], VarType.String),
-    "stdout": FnInfo("stdout", [FnArg("x", VarType.String)], VarType.Void),
-    "stderr": FnInfo("stderr", [FnArg("x", VarType.String)], VarType.Void),
+    "exit": FnInfo("exit", [FnArg("x", IntType)], VoidType),
+    "atoi": FnInfo("atoi", [FnArg("x", StringType)], IntType),
+    "itoa": FnInfo("itoa", [FnArg("x", IntType)], StringType),
+    "btoa": FnInfo("btoa", [FnArg("x", BoolType)], StringType),
+    "stdout": FnInfo("stdout", [FnArg("x", StringType)], VoidType),
+    "stderr": FnInfo("stderr", [FnArg("x", StringType)], VoidType),
 }
 
 

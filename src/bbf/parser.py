@@ -29,7 +29,7 @@ from bbf.nodes.stmt import (
     Stmt,
 )
 from bbf.nodes.toplevel import FnDef, Param, TopLevel, TopLevelStmt
-from bbf.varinfo import VarType
+from bbf.varinfo import VarType, VoidType
 
 
 class ParserError(Exception):
@@ -84,7 +84,7 @@ class Parser:
         if not self.check(TokenType.CloseParen):
             args = self.fndef_params()
         self.consume(TokenType.CloseParen, "Expected `)` in function definition")
-        return_type = self.parse_fnreturn() or VarType.Void
+        return_type = self.parse_fnreturn()
         self.consume(TokenType.Do, "Expected `do` to end function definition")
         block = self.parse_block()
         return FnDef(name, args, return_type, block)
@@ -150,11 +150,11 @@ class Parser:
         vartype = self.previous()
         return Param(name, vartype)
 
-    def parse_fnreturn(self) -> VarType | None:
+    def parse_fnreturn(self) -> VarType:
         if not (
             self.check(TokenType.Minus) and self.check(TokenType.Greater, offset=1)
         ):
-            return None
+            return VoidType
 
         self.advance()  # "-"
         self.advance()  # ">"

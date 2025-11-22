@@ -1,39 +1,63 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from typing import Protocol
 
 from bbf.lexer import Token, TokenType
 
 
-class VarType(Enum):
-    Int = ("Int", 8)
-    String = ("String", 16)
-    Void = ("Void", 0)
-    Bool = ("Bool", 8)
+class VarType(Protocol):
+    @property
+    def name(self) -> str: ...
+    @property
+    def size(self) -> int: ...
 
-    def __init__(self, name: str, size: int) -> None:
-        self._name = name
-        self._size = size
-
-    @classmethod
-    def from_token(cls, token: Token) -> VarType:
+    @staticmethod
+    def from_token(token: Token) -> VarType:
         if token.ttype == TokenType.Int:
-            return cls.Int
-        if token.ttype == TokenType.String:
-            return cls.String
-        if token.ttype == TokenType.Void:
-            return cls.Void
-        if token.ttype == TokenType.Bool:
-            return cls.Bool
-        assert False, f"unreachable: can't match token {token} to `VarType`"
+            return IntType
+        elif token.ttype == TokenType.String:
+            return StringType
+        elif token.ttype == TokenType.Bool:
+            return BoolType
+        elif token.ttype == TokenType.Void:
+            return VoidType
+        else:
+            raise ValueError(f"Cannot convert token {token.value} to VarType")
+
+
+@dataclass(frozen=True)
+class PrimitiveType(VarType):
+    t_name: str
+    t_size: int
+
+    @property
+    def name(self) -> str:
+        return self.t_name
 
     @property
     def size(self) -> int:
-        return self._size
+        return self.t_size
 
-    def __str__(self) -> str:
-        return self._name
+
+IntType = PrimitiveType("Int", 8)
+StringType = PrimitiveType("String", 16)
+BoolType = PrimitiveType("Bool", 8)
+VoidType = PrimitiveType("Void", 0)
+
+
+@dataclass(frozen=True)
+class ArrayType(VarType):
+    vartype: VarType
+    length: int
+
+    @property
+    def name(self) -> str:
+        return f"Array[{self.vartype.name}; {self.length}]"
+
+    @property
+    def size(self) -> int:
+        return self.vartype.size * self.length
 
 
 @dataclass

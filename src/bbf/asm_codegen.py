@@ -30,7 +30,7 @@ from bbf.nodes.stmt import (
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
-from bbf.varinfo import SymbolTable, VarType
+from bbf.varinfo import BoolType, IntType, StringType, SymbolTable, VarType, VoidType
 
 
 class AsmCodeGen(Visitor):
@@ -81,13 +81,11 @@ class AsmCodeGen(Visitor):
         with self.new_scope():
             # NOTE: loop var is a new variable scoped to the loop scope
             loop_ident_offset = self.symbol_table.define(
-                loop_ident.value, vartype=VarType.Int
+                loop_ident.value, vartype=IntType
             )
             range_expr.start.accept(self)
             self.emitter.emit("pop rax ; loop var")
-            self.emitter.emit(
-                f"sub rsp, {VarType.Int.size} ; reserve space for loop var"
-            )
+            self.emitter.emit(f"sub rsp, {IntType.size} ; reserve space for loop var")
             range_ident = self.symbol_table.lookup(loop_ident.value)
             assert range_ident is not None, f"{loop_ident.value} was just created"
             self.emitter.emit(f"mov [rbp{loop_ident_offset:+d}], rax")
@@ -213,11 +211,11 @@ class AsmCodeGen(Visitor):
             raise CodeGenError(
                 f"ERROR: {ident.token.position}: identifier `{ident.token.value}` was not defined.{extra}"
             )
-        if varinfo.vartype in (VarType.Int, VarType.Bool):
+        if varinfo.vartype in (IntType, BoolType):
             self.emitter.emit(
                 f"push qword [rbp{varinfo.offset:+d}] ; push value from variable {ident.token.value}"
             )
-        elif varinfo.vartype == VarType.String:
+        elif varinfo.vartype == StringType:
             self.emitter.emit(
                 f"push qword [rbp{varinfo.offset:+d}] ; str_ptr form variable {ident.token.value}"
             )
@@ -243,13 +241,13 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(f"; {fn_name} function args")
         for fn_arg, expr_arg in zip(fninfo.args, stmt.args_list):
             expr_arg.accept(self)
-            if fn_arg.vartype in (VarType.Int, VarType.Bool):
+            if fn_arg.vartype in (IntType, BoolType):
                 assert reg_i < len(regs_order), (
                     "Currently can't handle more physcial args than 6"
                 )
                 self.emitter.emit(f"pop {regs_order[reg_i]}")
                 reg_i += 1
-            elif fn_arg.vartype == VarType.String:
+            elif fn_arg.vartype == StringType:
                 assert reg_i + 1 < len(regs_order), (
                     "Currently can't handle more physcial args than 6"
                 )
@@ -262,11 +260,11 @@ class AsmCodeGen(Visitor):
                 )
 
         self.emitter.emit(f"call {fn_name} ; return_type: {fninfo.return_type.name}")
-        if fninfo.return_type in (VarType.Int, VarType.Bool):
+        if fninfo.return_type in (IntType, BoolType):
             self.emitter.emit("push rax ; return value from fn call")
-        elif fninfo.return_type == VarType.Void:
+        elif fninfo.return_type == VoidType:
             pass
-        elif fninfo.return_type == VarType.String:
+        elif fninfo.return_type == StringType:
             self.emitter.emit("push rax ; return str_ptr from fn call")
             self.emitter.emit("push rdi ; return str_len from fn call")
         else:
@@ -281,10 +279,10 @@ class AsmCodeGen(Visitor):
         expr.accept(self)
         offset = self.symbol_table.define(name.value, decl.vartype)
 
-        if decl.vartype in (VarType.Int, VarType.Bool):
+        if decl.vartype in (IntType, BoolType):
             self.emitter.emit("pop rax")
             self.emitter.emit(f"mov [rbp{offset:+d}], rax")
-        elif decl.vartype == VarType.String:
+        elif decl.vartype == StringType:
             self.emitter.emit("pop rdx ; str_len")
             self.emitter.emit("pop rax ; str_ptr")
             self.emitter.emit(f"mov [rbp{offset:+d}], rax ; store str_ptr")
@@ -503,13 +501,13 @@ class AsmCodeGen(Visitor):
                     )
                     offset = self.symbol_table.define(param.name.value, vartype)
 
-                    if vartype in (VarType.Int, VarType.Bool):
+                    if vartype in (IntType, BoolType):
                         assert reg_i <= 5, (
                             "More than 6 registers used (strings take up 2)"
                         )
                         self.emitter.emit(f"mov [rbp{offset:+d}], {reg_order[reg_i]}")
                         reg_i += 1
-                    elif vartype == VarType.String:
+                    elif vartype == StringType:
                         assert reg_i + 1 <= 5, (
                             "More than 6 registers used (strings take up 2)"
                         )

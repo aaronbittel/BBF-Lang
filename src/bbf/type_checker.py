@@ -30,7 +30,7 @@ from bbf.nodes.stmt import (
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
-from bbf.varinfo import VarType
+from bbf.varinfo import BoolType, IntType, StringType, VarType, VoidType
 
 
 @dataclass
@@ -65,16 +65,16 @@ class TypeChecker(Visitor[VarType]):
             self.defined_fns[name] = fninfo
         self.scope = Scope()
         # TODO: Handle globals better
-        self.scope.define("argc", VarType.Int)
+        self.scope.define("argc", IntType)
 
     def visit_progtoplevelstmt(self, progtoplevelstmt: ProgTopLevelStmt) -> VarType:
         for stmt in progtoplevelstmt.stmts:
             stmt.accept(self)
-        return VarType.Void
+        return VoidType
 
     def visit_toplevelstmt(self, toplevelstmt: TopLevelStmt) -> VarType:
         toplevelstmt.stmt.accept(self)
-        return VarType.Void
+        return VoidType
 
     def visit_fndef(self, fndef: FnDef) -> VarType:
         if fndef.name.value in self.defined_fns:
@@ -88,19 +88,19 @@ class TypeChecker(Visitor[VarType]):
                 self.scope.define(arg.name, arg.vartype)
             for stmt in fndef.body:
                 stmt.accept(self)
-        return VarType.Void
+        return VoidType
 
     def visit_forstmt(self, forstmt: ForStmt) -> VarType:
         rangeexpr = forstmt.range_expr
         start_type = rangeexpr.start.accept(self)
-        if start_type != VarType.Int:
+        if start_type != IntType:
             # TODO: add precise position information
             raise TypeCheckerError(
                 f"ERROR: {forstmt.loop_ident.position}: "
                 f"for-loop start expression must be Int, but got `{start_type.name}`"
             )
         stop_type = rangeexpr.stop.accept(self)
-        if stop_type != VarType.Int:
+        if stop_type != IntType:
             # TODO: add precise position information
             raise TypeCheckerError(
                 f"ERROR: {forstmt.loop_ident.position}: "
@@ -110,10 +110,10 @@ class TypeChecker(Visitor[VarType]):
         with self.new_scope():
             # because start and end type are `Int`, loop_ident can also be defined
             # to be `Int`
-            self.scope.define(forstmt.loop_ident.value, VarType.Int)
+            self.scope.define(forstmt.loop_ident.value, IntType)
             for stmt in forstmt.block:
                 stmt.accept(self)
-        return VarType.Void
+        return VoidType
 
     @contextmanager
     def new_scope(self) -> Generator[None, None, None]:
@@ -128,11 +128,11 @@ class TypeChecker(Visitor[VarType]):
         with self.new_scope():
             for stmt in doblock.block:
                 stmt.accept(self)
-        return VarType.Void
+        return VoidType
 
     def visit_ifstmt(self, ifstmt: IfStmt) -> VarType:
         cond_type = ifstmt.condition.accept(self)
-        if cond_type != VarType.Bool:
+        if cond_type != BoolType:
             # TODO: add precise position information
             raise TypeCheckerError(f"if condition must be `Bool`, got {cond_type.name}")
 
@@ -142,7 +142,7 @@ class TypeChecker(Visitor[VarType]):
 
         for elif_ in ifstmt.elifs:
             elif_cond_type = elif_.condition.accept(self)
-            if elif_cond_type != VarType.Bool:
+            if elif_cond_type != BoolType:
                 raise TypeCheckerError(
                     f"elif condition must be `Bool`, got {elif_cond_type}"
                 )
@@ -154,22 +154,22 @@ class TypeChecker(Visitor[VarType]):
             for elsestmt in ifstmt.else_block:
                 elsestmt.accept(self)
 
-        return VarType.Void
+        return VoidType
 
     def visit_returnstmt(self, returnstmt: ReturnStmt) -> VarType:
         if returnstmt.expr is None:
-            return VarType.Void
+            return VoidType
         return returnstmt.expr.accept(self)
 
     def visit_exprstmt(self, exprstmt: ExprStmt) -> VarType:
         exprstmt.expr.accept(self)
-        return VarType.Void
+        return VoidType
 
     def visit_integerlit(self, intlit: IntegerLit) -> VarType:
-        return VarType.Int
+        return IntType
 
     def visit_stringlit(self, strlit: StringLit) -> VarType:
-        return VarType.String
+        return StringType
 
     def visit_identifier(self, ident: Identifier) -> VarType:
         name = ident.token.value
@@ -218,24 +218,24 @@ class TypeChecker(Visitor[VarType]):
                 f"{decl.name.value} was typed as `{decl.vartype}`, but Expr evaluated to `{exprtype}`"
             )
         self.scope.define(decl.name.value, decl.vartype)
-        return VarType.Void
+        return VoidType
 
     def visit_assignment(self, assign: Assignment) -> VarType:
         name = assign.name.value
-        got_type = assign.expr.accept(self)
+        actual_type = assign.expr.accept(self)
         expected_type = self.scope.lookup(name)
         if expected_type is None:
             raise TypeCheckerError(
                 f"ERROR at {assign.name.position}: "
                 f"Cannot assign to `{name}` because it is not defined."
             )
-        if expected_type != got_type:
+        if expected_type != actual_type:
             raise TypeCheckerError(
                 f"ERROR at {assign.name.position}: "
                 f"Type mismatch in assignment to `{name}`. "
-                f"Expected: {expected_type}, but got: {got_type}"
+                f"Expected: {expected_type.name}, but got: {actual_type.name}"
             )
-        return VarType.Void
+        return VoidType
 
     def visit_binary(self, binary: Binary) -> VarType:
         lhs_type = binary.lhs.accept(self)
@@ -247,16 +247,16 @@ class TypeChecker(Visitor[VarType]):
                 f"Type mismatch in binary expression: {lhs_type.name} {binary.operator.value} {rhs_type.name}"
             )
 
-        if lhs_type == VarType.Int and binary.operator.ttype in (
+        if lhs_type == IntType and binary.operator.ttype in (
             TokenType.Plus,
             TokenType.Minus,
             TokenType.Star,
             TokenType.Slash,
             TokenType.Percent,
         ):
-            return VarType.Int
+            return IntType
 
-        if lhs_type == VarType.Int and binary.operator.ttype in (
+        if lhs_type == IntType and binary.operator.ttype in (
             TokenType.Greater,
             TokenType.GreaterEqual,
             TokenType.Less,
@@ -264,13 +264,13 @@ class TypeChecker(Visitor[VarType]):
             TokenType.EqualEqual,
             TokenType.BangEqual,
         ):
-            return VarType.Bool
+            return BoolType
 
-        if lhs_type == VarType.Bool and binary.operator.ttype in (
+        if lhs_type == BoolType and binary.operator.ttype in (
             TokenType.Or,
             TokenType.And,
         ):
-            return VarType.Bool
+            return BoolType
 
         raise TypeCheckerError(
             f"ERROR: {binary.operator.position}: "
@@ -279,14 +279,14 @@ class TypeChecker(Visitor[VarType]):
 
     def visit_unary(self, unary: Unary) -> VarType:
         expr_type = unary.expr.accept(self)
-        if expr_type == VarType.Int and unary.operator.ttype in (
+        if expr_type == IntType and unary.operator.ttype in (
             TokenType.Minus,
             TokenType.Plus,
         ):
-            return VarType.Int
+            return IntType
 
-        if expr_type == VarType.Bool and unary.operator.ttype == TokenType.Not:
-            return VarType.Bool
+        if expr_type == BoolType and unary.operator.ttype == TokenType.Not:
+            return BoolType
 
         raise TypeCheckerError(
             f"ERROR: {unary.operator.position}: "
@@ -300,10 +300,10 @@ class TypeChecker(Visitor[VarType]):
 
     def visit_argv(self, argv: Argv) -> VarType:
         argv.expr.accept(self)
-        return VarType.String
+        return StringType
 
     def visit_booltrue(self, booltrue: BoolTrue) -> VarType:
-        return VarType.Bool
+        return BoolType
 
     def visit_boolfalse(self, boolfalse: BoolFalse) -> VarType:
-        return VarType.Bool
+        return BoolType
