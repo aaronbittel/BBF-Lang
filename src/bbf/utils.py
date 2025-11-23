@@ -13,7 +13,10 @@ RESET = "\033[0m"
 
 
 def run_cmd(
-    args: list[str], *, echo: bool = True, capture_output: bool = True
+    args: list[str],
+    *,
+    echo: bool = True,
+    capture_output: bool = True,
 ) -> CompletedProcess[bytes]:
     if echo:
         print(blue("[INFO]"), f"Running {' '.join(args)}")

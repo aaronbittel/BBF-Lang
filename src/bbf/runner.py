@@ -58,17 +58,36 @@ def parse(tokens: list[Token]) -> ProgTopLevelStmt:
 def generate_exe(
     prog: ProgTopLevelStmt, exe_path: Path, *, verbose: bool = False
 ) -> None:
-    emitter = Emitter()
-    asm_codegen = AsmCodeGen(emitter)
+    assert exe_path.is_file()
+    main_emitter = Emitter()
+    nasm_macros_emitter = Emitter()
+    asm_codegen = AsmCodeGen(main_emitter, nasm_macros_emitter)
     asm_codegen.generate_prog(prog)
 
+    basedir = Path(exe_path.parent)
+    macros = basedir / "macros.asm"
     asm = exe_path.with_suffix(".asm")
     obj = exe_path.with_suffix(".o")
 
-    with asm.open(mode="w") as out:
-        emitter.write_to(out)
+    with macros.open(mode="w") as macro_out:
+        nasm_macros_emitter.write_to(macro_out)
 
-    nasm_cmd = ["nasm", "-f", "elf64", "-g", "-F", "dwarf", "-o", str(obj), str(asm)]
+    with asm.open(mode="w") as asm_out:
+        main_emitter.write_to(asm_out)
+
+    nasm_cmd = [
+        "nasm",
+        "-f",
+        "elf64",
+        "-I",
+        str(basedir),
+        "-g",
+        "-F",
+        "dwarf",
+        "-o",
+        str(obj),
+        str(asm),
+    ]
     ld_cmd = ["ld", "-o", str(exe_path), str(obj)]
 
     nasm_res = run_cmd(args=nasm_cmd, echo=verbose)

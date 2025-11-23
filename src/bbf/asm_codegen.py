@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 
 import bbf.builtins as bbf_builtins
+import bbf.nasm_macros as macros
 from bbf.emitter import Emitter
 from bbf.functions import FnInfo, FunctionTable
 from bbf.lexer import TokenType
@@ -34,8 +35,9 @@ from bbf.varinfo import BoolType, IntType, StringType, SymbolTable, VarType, Voi
 
 
 class AsmCodeGen(Visitor):
-    def __init__(self, emitter: Emitter) -> None:
+    def __init__(self, emitter: Emitter, macros_emitter: Emitter) -> None:
         self.emitter = emitter
+        self.macros_emitter = macros_emitter
 
         self.symbol_table = SymbolTable()
         self.function_table = FunctionTable()
@@ -43,7 +45,6 @@ class AsmCodeGen(Visitor):
         self.if_label_count = 0
         self.elif_label_count = 0
         self.loop_count = 0
-        self.comparison_count = 0
         self.user_fndefs: list[FnDef] = []
         self.or_true_count = 0
         self.or_end_count = 0
@@ -51,13 +52,14 @@ class AsmCodeGen(Visitor):
         self.and_end_count = 0
 
     def generate_prog(self, program: Program) -> None:
+        self.nasm_macros()
+        self.emitter.emit('%include "macros.asm"', indent=0)
+        self.emitter.emit()
         self.program_prologue()
         self.emitter.emit("; program")
         program.accept(self)
         if self.symbol_table.reserved_space > 0:
-            self.emitter.emit(
-                f"add rsp, {self.symbol_table.reserved_space} ; free reserved space"
-            )
+            self.emitter.emit(f"FREE_SPACE {self.symbol_table.reserved_space} ")
         self.program_epilogue()
         if len(self.user_fndefs) > 0:
             self.user_defined_fns()
@@ -83,12 +85,11 @@ class AsmCodeGen(Visitor):
             loop_ident_offset = self.symbol_table.define(
                 loop_ident.value, vartype=IntType
             )
-            range_expr.start.accept(self)
-            self.emitter.emit("pop rax ; loop var")
-            self.emitter.emit(f"sub rsp, {IntType.size} ; reserve space for loop var")
             range_ident = self.symbol_table.lookup(loop_ident.value)
             assert range_ident is not None, f"{loop_ident.value} was just created"
-            self.emitter.emit(f"mov [rbp{loop_ident_offset:+d}], rax")
+            range_expr.start.accept(self)
+            self.emitter.emit(f"STORE_VAR {loop_ident_offset:+d} ; range_start[Int]")
+            self.emitter.emit(f"RESERVE_SPACE {IntType.size} ; loop var")
             # TODO: move creating lables into function
             self.emitter.emit(f".loop_{self.loop_count}_start:", indent=0)
             range_expr.stop.accept(self)
@@ -125,7 +126,7 @@ class AsmCodeGen(Visitor):
         # --- IF condition ---
         ifstmt.condition.accept(self)
         self.emitter.emit("pop rax")
-        self.emitter.emit("cmp rax, 0")
+        self.emitter.emit("cmp rax, FALSE")
         next_label = end_label
         if len(ifstmt.elifs) > 0:
             next_label = f".elif_{label_id}_0_label"
@@ -151,13 +152,12 @@ class AsmCodeGen(Visitor):
                 self.emitter.emit(this_label, indent=0)
                 elif_block.condition.accept(self)
                 self.emitter.emit("pop rax")
-                self.emitter.emit("cmp rax, 0")
+                self.emitter.emit("cmp rax, FALSE")
                 self.emitter.emit(f"je {next_label}")
                 with self.new_scope():
                     for s in elif_block.block:
                         s.accept(self)
                 self.emitter.emit(f"jmp {end_label}")
-                # self.emitter.emit(f"{next_label}:", indent=0)
 
         # --- ELSE block ---
         self.emitter.emit(f"{else_label}:", indent=0)
@@ -179,24 +179,18 @@ class AsmCodeGen(Visitor):
         expr_stmt.expr.accept(self)
 
     def visit_integerlit(self, intlit: IntegerLit) -> None:
-        self.emitter.emit(f"mov rax, {intlit.token.value}")
-        self.emitter.emit("push rax")
+        self.emitter.emit(f"PUSH_INT {intlit.token.value}")
 
     def visit_stringlit(self, strlit: StringLit) -> None:
         self.strings.append(strlit.token.value)
-        label = make_string_label(len(self.strings) - 1)
-        len_label = f"{label}_len"
-        self.emitter.emit("; load string literal")
-        self.emitter.emit("; push string addr")
-        self.emitter.emit(f"lea rax, [{label}]")
-        self.emitter.emit("push rax")
-        self.emitter.emit("; push string length")
-        self.emitter.emit(f"push qword [{len_label}]")
+        str_label = make_string_label(len(self.strings) - 1)
+        len_label = f"{str_label}_len"
+        self.emitter.emit(f"PUSH_STRING {str_label}, {len_label}")
 
     def visit_identifier(self, ident: Identifier) -> None:
         # FIX: hack: Improve when implementing globals?
         if ident.token.value == "argc":
-            self.emitter.emit("push qword [__argc]")
+            self.emitter.emit("PUSH_ARGC")
             return
         varinfo = self.symbol_table.lookup(ident.token.value)
         if varinfo is None:
@@ -213,14 +207,14 @@ class AsmCodeGen(Visitor):
             )
         if varinfo.vartype in (IntType, BoolType):
             self.emitter.emit(
-                f"push qword [rbp{varinfo.offset:+d}] ; push value from variable {ident.token.value}"
+                f"PUSH_VAR {varinfo.offset:+d} ; var: {ident.token.value}"
             )
         elif varinfo.vartype == StringType:
             self.emitter.emit(
-                f"push qword [rbp{varinfo.offset:+d}] ; str_ptr form variable {ident.token.value}"
+                f"PUSH_VAR {varinfo.offset:+d} ; str_ptr: {ident.token.value}"
             )
             self.emitter.emit(
-                f"push qword [rbp{varinfo.offset - 8:+d}] ; str_len form variable {ident.token.value}"
+                f"PUSH_VAR {varinfo.offset - 8:+d} ; str_len: {ident.token.value}"
             )
         else:
             assert False, f"unreachable: unknown VarType: {varinfo.vartype}"
@@ -275,18 +269,15 @@ class AsmCodeGen(Visitor):
     def visit_declaration(self, decl: Declaration) -> None:
         name, expr = decl.name, decl.expr
 
-        self.emitter.emit(f"sub rsp, {decl.vartype.size} ; reserve space for decl")
+        self.emitter.emit(f"RESERVE_SPACE {decl.vartype.size}")
         expr.accept(self)
         offset = self.symbol_table.define(name.value, decl.vartype)
 
         if decl.vartype in (IntType, BoolType):
-            self.emitter.emit("pop rax")
-            self.emitter.emit(f"mov [rbp{offset:+d}], rax")
+            self.emitter.emit(f"STORE_VAR {offset:+d} ; var[Int]: {name.value}")
         elif decl.vartype == StringType:
-            self.emitter.emit("pop rdx ; str_len")
-            self.emitter.emit("pop rax ; str_ptr")
-            self.emitter.emit(f"mov [rbp{offset:+d}], rax ; store str_ptr")
-            self.emitter.emit(f"mov [rbp{offset - 8:+d}], rdx ; store str_len")
+            self.emitter.emit(f"STORE_VAR {offset - 8:+d} ; len[String]: {name.value}")
+            self.emitter.emit(f"STORE_VAR {offset:+d} ; ptr[String]: {name.value}")
         else:
             raise CodeGenError(
                 f"ERROR: {name.position}: Unsupported VarType `{decl.vartype}`"
@@ -301,46 +292,38 @@ class AsmCodeGen(Visitor):
             raise CodeGenError(
                 f"ERROR: {name.position}: undeclared variable `{name.value}`. Did you forget to assign a type?"
             )
-        self.emitter.emit("pop rax")
-        self.emitter.emit(f"mov [rbp{varinfo.offset:+d}], rax")
+        if varinfo.vartype in (IntType, BoolType):
+            self.emitter.emit(
+                f"STORE_VAR {varinfo.offset:+d} ; var[{varinfo.vartype.name}]: {name.value}"
+            )
+        elif varinfo.vartype == StringType:
+            self.emitter.emit(
+                f"STORE_VAR {varinfo.offset - 8:+d} ; len[String]: {name.value}"
+            )
+            self.emitter.emit(
+                f"STORE_VAR {varinfo.offset:+d} ; ptr[String]: {name.value}"
+            )
+        else:
+            assert False, "unreachable"
 
     def visit_binary(self, binary: Binary) -> None:
         if binary.operator.ttype not in (TokenType.Or, TokenType.And):
             binary.lhs.accept(self)
             binary.rhs.accept(self)
 
-            self.emitter.emit("pop rbx; pop rhs")
-            self.emitter.emit("pop rax; pop lhs")
             if binary.operator.ttype == TokenType.Plus:
-                self.emitter.emit("; addition")
-                self.emitter.emit("add rax, rbx")
-                self.emitter.emit("push rax")
+                self.emitter.emit("PUSH_BINARY_ADD")
             elif binary.operator.ttype == TokenType.Minus:
-                self.emitter.emit("; subtraction")
-                self.emitter.emit("sub rax, rbx")
-                self.emitter.emit("push rax")
+                self.emitter.emit("PUSH_BINARY_SUB")
             elif binary.operator.ttype == TokenType.Star:
-                self.emitter.emit("; multiplication")
-                self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
-                self.emitter.emit("imul rbx")
-                self.emitter.emit("push rax")
+                self.emitter.emit("PUSH_BINARY_MUL")
             elif binary.operator.ttype == TokenType.Slash:
-                self.emitter.emit("; division")
-                self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
-                self.emitter.emit("idiv rbx")
-                self.emitter.emit("push rax")
+                self.emitter.emit("PUSH_BINARY_DIV")
             elif binary.operator.ttype == TokenType.Percent:
-                self.emitter.emit("; modulo")
-                self.emitter.emit("cqo ; fill rdx to fit negative or positive number")
-                self.emitter.emit("idiv rbx")
-                self.emitter.emit("push rdx ; (remainder always in rdx)")
+                self.emitter.emit("PUSH_BINARY_MOD")
             elif binary.operator.ttype in COMPARISON_SETCC:
-                setcc_mnemonic = COMPARISON_SETCC[binary.operator.ttype]
-                self.emitter.emit("cmp rax, rbx")
-                self.emitter.emit(f"{setcc_mnemonic} al ; set AL = 1 if condition")
-                self.emitter.emit("movzx rax, al ; zero-extend AL to RAX")
-                self.emitter.emit("push rax")
-                self.comparison_count += 1
+                mnemonic = COMPARISON_SETCC[binary.operator.ttype]
+                self.emitter.emit(f"PUSH_COMPARE {mnemonic}")
             else:
                 assert False, f"unreachable binary operator: {binary.operator.ttype}"
         else:
@@ -349,46 +332,34 @@ class AsmCodeGen(Visitor):
                 or_end_label = self.or_end_label()
 
                 binary.lhs.accept(self)
-                self.emitter.emit("; or lhs")
-                self.emitter.emit("pop rax")
-                self.emitter.emit("cmp rax, 1 ; test true")
-                self.emitter.emit(f"je {or_true_label}")
+                self.emitter.emit(f"CHECK_BOOL_JUMP {or_true_label}, TRUE")
 
                 binary.rhs.accept(self)
-                self.emitter.emit("; or rhs")
-                self.emitter.emit("pop rax")
-                self.emitter.emit("cmp rax, 1 ; test true")
-                self.emitter.emit(f"je {or_true_label}")
+                self.emitter.emit(f"CHECK_BOOL_JUMP {or_true_label}, TRUE")
 
                 self.emitter.emit("; or evaluated to false")
-                self.emitter.emit("push 0")
+                self.emitter.emit("push FALSE")
                 self.emitter.emit(f"jmp {or_end_label}")
 
                 self.emitter.emit(f"{or_true_label}:", indent=0)
-                self.emitter.emit("push 1")
+                self.emitter.emit("push TRUE")
                 self.emitter.emit(f"{or_end_label}:", indent=0)
             elif binary.operator.ttype == TokenType.And:
                 and_false_label = self.and_false_label()
                 and_end_label = self.and_end_label()
 
                 binary.lhs.accept(self)
-                self.emitter.emit("; and lhs")
-                self.emitter.emit("pop rax")
-                self.emitter.emit("cmp rax, 0 ; test false")
-                self.emitter.emit(f"je {and_false_label}")
+                self.emitter.emit(f"CHECK_BOOL_JUMP {and_false_label}, FALSE")
 
                 binary.rhs.accept(self)
-                self.emitter.emit("; and rhs")
-                self.emitter.emit("pop rax")
-                self.emitter.emit("cmp rax, 0 ; test false")
-                self.emitter.emit(f"je {and_false_label}")
+                self.emitter.emit(f"CHECK_BOOL_JUMP {and_false_label}, FALSE")
 
                 self.emitter.emit("; and evaluated to true")
-                self.emitter.emit("push 1")
+                self.emitter.emit("push TRUE")
                 self.emitter.emit(f"jmp {and_end_label}")
 
                 self.emitter.emit(f"{and_false_label}:", indent=0)
-                self.emitter.emit("push 0")
+                self.emitter.emit("push FALSE")
                 self.emitter.emit(f"{and_end_label}:", indent=0)
             else:
                 assert False, f"unreachable binary operator: {binary.operator.ttype}"
@@ -396,17 +367,10 @@ class AsmCodeGen(Visitor):
     def visit_unary(self, unary: Unary) -> None:
         unary.expr.accept(self)
         if unary.operator.ttype == TokenType.Minus:
-            self.emitter.emit("; negate (unary)")
-            self.emitter.emit("pop rax")
-            self.emitter.emit("imul rax, -1")
-            self.emitter.emit("push rax")
+            self.emitter.emit("PUSH_NEGATE")
         elif unary.operator.ttype == TokenType.Not:
-            self.emitter.emit("; <not>")
-            self.emitter.emit("pop rax")
-            self.emitter.emit("cmp rax, 0")
-            self.emitter.emit(f"{COMPARISON_SETCC[TokenType.EqualEqual]} al")
-            self.emitter.emit("movzx rax, al ; zero-extend AL to RAX")
-            self.emitter.emit("push rax")
+            self.emitter.emit("PUSH_INT 0")
+            self.emitter.emit("PUSH_COMPARE setle")
         elif unary.operator.ttype == TokenType.Plus:
             pass  # Ignore "+"
         else:
@@ -419,23 +383,13 @@ class AsmCodeGen(Visitor):
 
     def visit_argv(self, argv: Argv) -> None:
         argv.expr.accept(self)
-
-        self.emitter.emit("pop rax")
-        self.emitter.emit("imul rax, 8 ; calc offset into argv")
-
-        self.emitter.emit("mov rbx, [__argv] ; addr of ptr to arg[0]")
-        self.emitter.emit("add rbx, rax ; addr of ptr to arg[i]")
-        self.emitter.emit("mov rdi, [rbx] ; ptr to arg[i]")
-
-        self.emitter.emit("push rdi ; str_len")
-        self.emitter.emit("call c_strlen")
-        self.emitter.emit("push rax ; str_len")
+        self.emitter.emit("PUSH_ARGV_STRING")
 
     def visit_booltrue(self, booltrue: BoolTrue) -> None:
-        self.emitter.emit("push 1 ; true")
+        self.emitter.emit("PUSH_BOOL TRUE")
 
     def visit_boolfalse(self, boolfalse: BoolFalse) -> None:
-        self.emitter.emit("push 0 ; false")
+        self.emitter.emit("PUSH_BOOL FALSE")
 
     @contextmanager
     def new_scope(self, is_function: bool = False):
@@ -447,24 +401,21 @@ class AsmCodeGen(Visitor):
             )
             yield
         finally:
-            self.emitter.emit(
-                f"add rsp, {self.symbol_table.reserved_space}; free reserved scope space"
-            )
+            self.emitter.emit(f"FREE_SPACE {self.symbol_table.reserved_space} ; scope")
             self.symbol_table = old_table
+
+    def nasm_macros(self) -> None:
+        self.macros_emitter.emit("%define TRUE 1", indent=0)
+        self.macros_emitter.emit("%define FALSE 0", indent=0)
+        for name, code in vars(macros).items():
+            if name.startswith("_macro_"):
+                self.macros_emitter.multi(code)
 
     def program_prologue(self) -> None:
         self.emitter.emit("global _start", indent=0)
         self.emitter.emit("", indent=0)
         self.emitter.emit("_start:", indent=0)
-        self.emitter.emit("; init base pointer")
-        self.emitter.emit("mov rbp, rsp")
-        self.emitter.emit()
-        self.emitter.emit("; save argc and argv into .bss")
-        self.emitter.emit("mov rax, [rbp] ")
-        self.emitter.emit("mov [__argc], rax")
-        self.emitter.emit("lea rax, [rbp+8] ; addr of rbp + 8")
-        self.emitter.emit("mov [__argv], rax")
-        self.emitter.emit("")
+        self.emitter.emit("PROGRAM_PROLOGUE")
 
     def program_epilogue(self):
         self.emitter.emit()
@@ -485,9 +436,7 @@ class AsmCodeGen(Visitor):
             self.emitter.emit("; rdi  | rsi  | rdx  | rcx  |  r8  |  r9", indent=0)
             self.emitter.emit(f"{fndef.name.value}:", indent=0)
 
-            self.emitter.emit("; fn prologue")
-            self.emitter.emit("push rbp")
-            self.emitter.emit("mov rbp, rsp")
+            self.emitter.emit("FN_PROLOGUE")
             self.emitter.emit()
 
             reg_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
@@ -497,7 +446,7 @@ class AsmCodeGen(Visitor):
                 for param in fndef.params:
                     vartype = VarType.from_token(param.ttype)
                     self.emitter.emit(
-                        f"sub rsp, {vartype.size} ; reserve space for param {param.name.value}"
+                        f"RESERVE_SPACE {vartype.size} ; param {param.name.value}"
                     )
                     offset = self.symbol_table.define(param.name.value, vartype)
 
@@ -529,9 +478,7 @@ class AsmCodeGen(Visitor):
 
             self.emitter.emit()
             self.emitter.emit(".epilogue:", indent=0)
-            self.emitter.emit("mov rsp, rbp")
-            self.emitter.emit("pop rbp")
-            self.emitter.emit("ret")
+            self.emitter.emit("FN_EPILOGUE")
 
     def builtins(self) -> None:
         self.emitter.emit("")
