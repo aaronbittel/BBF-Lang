@@ -9,6 +9,7 @@ from bbf.functions import FnInfo, FunctionTable
 from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
+    ArrayLiteral,
     Binary,
     BoolFalse,
     BoolTrue,
@@ -31,7 +32,15 @@ from bbf.nodes.stmt import (
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
-from bbf.varinfo import BoolType, IntType, StringType, SymbolTable, VarType, VoidType
+from bbf.varinfo import (
+    ArrayType,
+    BoolType,
+    IntType,
+    StringType,
+    SymbolTable,
+    VarType,
+    VoidType,
+)
 
 
 class AsmCodeGen(Visitor):
@@ -42,6 +51,7 @@ class AsmCodeGen(Visitor):
         self.symbol_table = SymbolTable()
         self.function_table = FunctionTable()
         self.strings: list[str] = []
+        self.arrays: list[list[str]] = []
         self.if_label_count = 0
         self.elif_label_count = 0
         self.loop_count = 0
@@ -185,7 +195,7 @@ class AsmCodeGen(Visitor):
         self.strings.append(strlit.token.value)
         str_label = make_string_label(len(self.strings) - 1)
         len_label = f"{str_label}_len"
-        self.emitter.emit(f"PUSH_STRING {str_label}, {len_label}")
+        self.emitter.emit(f"PUSH_SLICE {str_label}, {len_label}")
 
     def visit_identifier(self, ident: Identifier) -> None:
         # FIX: hack: Improve when implementing globals?
@@ -278,6 +288,9 @@ class AsmCodeGen(Visitor):
         elif decl.vartype == StringType:
             self.emitter.emit(f"STORE_VAR {offset - 8:+d} ; len[String]: {name.value}")
             self.emitter.emit(f"STORE_VAR {offset:+d} ; ptr[String]: {name.value}")
+        elif isinstance(decl.vartype, ArrayType):
+            self.emitter.emit(f"STORE_VAR {offset - 8:+d} ; len[Array]: {name.value}")
+            self.emitter.emit(f"STORE_VAR {offset:+d} ; ptr[Array]: {name.value}")
         else:
             raise CodeGenError(
                 f"ERROR: {name.position}: Unsupported VarType `{decl.vartype}`"
@@ -384,6 +397,12 @@ class AsmCodeGen(Visitor):
     def visit_argv(self, argv: Argv) -> None:
         argv.expr.accept(self)
         self.emitter.emit("PUSH_ARGV_STRING")
+
+    def visit_arrayliteral(self, array: ArrayLiteral) -> None:
+        self.arrays.append(list(map(lambda item: item.token.value, array.items)))
+        array_label = make_array_label(len(self.arrays) - 1)
+        len_label = f"{array_label}_len"
+        self.emitter.emit(f"PUSH_SLICE {array_label}, {len_label}")
 
     def visit_booltrue(self, booltrue: BoolTrue) -> None:
         self.emitter.emit("PUSH_BOOL TRUE")
@@ -498,8 +517,12 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("__false_len: equ $ - __false")
         for i, raw_s in enumerate(self.strings):
             label = make_string_label(i)
-            self.emitter.emit(f"{label}_len: dq {len(raw_s)}")
             self.emitter.emit(f"{label}: db {encode_nasm_string(raw_s)}")
+            self.emitter.emit(f"{label}_len: dq {len(raw_s)}")
+        for i, int_arr in enumerate(self.arrays):
+            label = make_array_label(i)
+            self.emitter.emit(f"{label}: dq {', '.join(n for n in int_arr)}")
+            self.emitter.emit(f"{label}_len: dq {len(int_arr)}")
 
     def bss_section(self) -> None:
         self.emitter.emit("")
@@ -555,6 +578,10 @@ def encode_nasm_string(string: str) -> str:
             if i == len(string) - 1:
                 output += '"'
     return output
+
+
+def make_array_label(i: int) -> str:
+    return f"arr_{i:02}"
 
 
 def make_string_label(i: int) -> str:

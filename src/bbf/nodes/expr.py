@@ -84,6 +84,14 @@ class FnCall(Expr):
 
 
 @dataclass
+class ArrayLiteral(Expr):
+    items: list[IntegerLit]
+
+    def accept[T](self, visitor: Visitor[T]) -> T:
+        return visitor.visit_arrayliteral(self)
+
+
+@dataclass
 class BoolTrue(Expr):
     token: Token
 

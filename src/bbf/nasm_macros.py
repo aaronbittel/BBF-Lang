@@ -5,10 +5,10 @@ _macro_push_intlit = """
     push rax
 %endmacro"""
 
-_macro_push_strlit = """
-%macro PUSH_STRING 2
-    ; %1: str_ptr
-    ; %2: str_len
+_macro_push_slice = """
+%macro PUSH_SLICE 2
+    ; %1: ptr
+    ; %2: len
     lea rax, [%1]
     push rax
     push qword [%2]

@@ -8,6 +8,7 @@ from bbf.functions import BUILTIN_FNS, FnInfo
 from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
+    ArrayLiteral,
     Binary,
     BoolFalse,
     BoolTrue,
@@ -30,7 +31,7 @@ from bbf.nodes.stmt import (
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
-from bbf.varinfo import BoolType, IntType, StringType, VarType, VoidType
+from bbf.varinfo import ArrayType, BoolType, IntType, StringType, VarType, VoidType
 
 
 @dataclass
@@ -215,7 +216,7 @@ class TypeChecker(Visitor[VarType]):
         if decl.vartype != exprtype:
             raise TypeCheckerError(
                 f"ERROR: {decl.name.position}: "
-                f"{decl.name.value} was typed as `{decl.vartype}`, but Expr evaluated to `{exprtype}`"
+                f"{decl.name.value} was typed as `{decl.vartype.name}`, but Expr evaluated to `{exprtype.name}`"
             )
         self.scope.define(decl.name.value, decl.vartype)
         return VoidType
@@ -297,6 +298,19 @@ class TypeChecker(Visitor[VarType]):
 
     def visit_grouping(self, grouping: Grouping) -> VarType:
         return grouping.expr.accept(self)
+
+    def visit_arrayliteral(self, array: ArrayLiteral) -> VarType:
+        # TODO: handle `[]` empty array
+        # TODO: how to know which type is expected?
+        assert len(array.items) > 0
+        vartype = array.items[0].accept(self)
+        for item in array.items[1:]:
+            vt = item.accept(self)
+            if vartype != vt:
+                raise TypeCheckerError(
+                    f"ERROR: ArrayLiteral must be of the same type, but got `{vt.name}` and `{vartype.name}`."
+                )
+        return ArrayType(vartype, len(array.items))
 
     def visit_argv(self, argv: Argv) -> VarType:
         argv.expr.accept(self)

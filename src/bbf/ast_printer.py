@@ -4,6 +4,7 @@ from typing import Generator, TextIO
 
 from bbf.nodes.expr import (
     Argv,
+    ArrayLiteral,
     Binary,
     BoolFalse,
     BoolTrue,
@@ -150,6 +151,14 @@ class ASTPrinter(Visitor[None]):
         print("(", end="", file=self.out)
         grouping.expr.accept(self)
         print(")", end="", file=self.out)
+
+    def visit_arrayliteral(self, array: ArrayLiteral) -> None:
+        print("[", end=" ")
+        for i, item in enumerate(array.items):
+            if i != 0:
+                print(", ", end="")
+            item.accept(self)
+        print(" ]")
 
     def visit_argv(self, argv: Argv) -> None:
         print("argv", end="", file=self.out)

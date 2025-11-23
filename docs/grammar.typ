@@ -72,9 +72,20 @@ $
   italic("Name") #e("(") ["Arguments"] #e(")"),
   #k("true"),
   #k("false"),
+  #e("[") italic("Digit") {#e(",") italic("Digit")} #e("]")
 ) \
 "Arguments" arrow & cases(
   "Expr",
   "Expr" #e(",") "Arguments"
+) \
+"VarType" arrow & cases(
+  "PrimitiveType",
+  "PrimitiveType" #e("[") italic("Digit") #e("]"),
+) \
+"PrimitiveType" arrow & cases(
+  #k("Int"),
+  #k("String"),
+  #k("Bool"),
+  #k("Void"),
 ) \
 $

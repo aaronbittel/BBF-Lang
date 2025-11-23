@@ -3,6 +3,7 @@ from __future__ import annotations
 from bbf.lexer import Token, TokenType
 from bbf.nodes.expr import (
     Argv,
+    ArrayLiteral,
     Binary,
     BoolFalse,
     BoolTrue,
@@ -29,7 +30,7 @@ from bbf.nodes.stmt import (
     Stmt,
 )
 from bbf.nodes.toplevel import FnDef, Param, TopLevel, TopLevelStmt
-from bbf.varinfo import VarType, VoidType
+from bbf.varinfo import ArrayType, VarType, VoidType
 
 
 class ParserError(Exception):
@@ -177,12 +178,12 @@ class Parser:
     def parse_declaration(self) -> Declaration:
         name = self.consume(TokenType.Identifier, "Expected identifier in declaration")
         self.consume(TokenType.Colon, "Expected `:` in declaration for type")
-        vartype = self.type_decl()
+        vartype = self.parse_vartype()
         self.consume(TokenType.Equal, "Expected `=` in declaration")
         expr = self.expr()
         return Declaration(name, vartype, expr)
 
-    def type_decl(self) -> VarType:
+    def parse_vartype(self) -> VarType:
         if not self.match(
             TokenType.Int, TokenType.String, TokenType.Void, TokenType.Bool
         ):
@@ -190,7 +191,21 @@ class Parser:
                 token=self.peek(),
                 msg=f"Expected type annotation, but got `{self.peek().value}`",
             )
-        return VarType.from_token(self.previous())
+        vartype = VarType.from_token(self.previous())
+        if self.match(TokenType.OpenBracket):
+            length_token = self.consume(
+                TokenType.IntegerLit, "Expected `IntegerLit` for array length"
+            )
+            try:
+                length = int(length_token.value)
+            except ValueError:
+                raise ParserError(
+                    length_token,
+                    f"Expected `IntegerLit` for length of array, but got `{length_token.value}`",
+                )
+            self.consume(TokenType.CloseBracket, "Expected `]` for array declaration")
+            vartype = ArrayType(vartype, length)
+        return vartype
 
     def parse_assignment(self) -> Assignment:
         name = self.consume(TokenType.Identifier, "Expected identifier in assign")
@@ -358,6 +373,20 @@ class Parser:
             return BoolTrue(self.previous())
         if self.match(TokenType.BoolFalse):
             return BoolFalse(self.previous())
+        if self.match(TokenType.OpenBracket):
+            nums: list[IntegerLit] = []
+            if not self.check(TokenType.CloseBracket):
+                num = self.primary()
+                assert isinstance(num, IntegerLit)
+                nums.append(num)
+                while self.match(TokenType.Comma):
+                    num = self.primary()
+                    assert isinstance(num, IntegerLit)
+                    nums.append(num)
+                self.consume(
+                    TokenType.CloseBracket, "Expected `]` to close ArrayLiteral"
+                )
+            return ArrayLiteral(nums)
         token = self.peek()
         if token.ttype == TokenType.Colon:
             msg = (

@@ -53,7 +53,7 @@ class ArrayType(VarType):
 
     @property
     def name(self) -> str:
-        return f"Array[{self.vartype.name}; {self.length}]"
+        return f"{self.vartype.name}[{self.length}]"
 
     @property
     def size(self) -> int:
