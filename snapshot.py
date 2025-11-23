@@ -17,9 +17,6 @@ from bbf.runner import Step, generate_exe, parse, tokenize
 from bbf.type_checker import TypeChecker, TypeCheckerError
 from bbf.utils import blue, darkgray, eprint, green, red, run_cmd
 
-# TODO: print diffs on fail
-
-
 SNAPSHOTS_DIR = Path("./tests/snapshots/")
 SNAPSHOTS_DIR.mkdir(exist_ok=True, parents=True)
 CASES_DIR = Path("./tests/cases/")
