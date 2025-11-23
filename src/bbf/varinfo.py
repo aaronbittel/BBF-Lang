@@ -40,10 +40,21 @@ class PrimitiveType(VarType):
         return self.t_size
 
 
+@dataclass(frozen=True)
+class StringType_(VarType):
+    @property
+    def name(self) -> str:
+        return "String"
+
+    @property
+    def size(self) -> int:
+        return 16
+
+
 IntType = PrimitiveType("Int", 8)
-StringType = PrimitiveType("String", 16)
 BoolType = PrimitiveType("Bool", 8)
 VoidType = PrimitiveType("Void", 0)
+StringType = StringType_()
 
 
 @dataclass(frozen=True)
