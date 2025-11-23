@@ -40,7 +40,6 @@ from bbf.varinfo import (
     IntType,
     StringType,
     SymbolTable,
-    VarType,
     VoidType,
 )
 
@@ -496,7 +495,7 @@ class AsmCodeGen(Visitor):
 
             with self.new_scope(is_function=True):
                 for param in fndef.params:
-                    vartype = VarType.from_token(param.ttype)
+                    vartype = param.vartype
                     self.emitter.emit(
                         f"RESERVE_SPACE {vartype.stack_size} ; param {param.name.value}"
                     )

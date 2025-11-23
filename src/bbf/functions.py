@@ -17,10 +17,7 @@ class FnInfo(NamedTuple):
     @classmethod
     def from_node(cls, fndef: FnDef) -> "FnInfo":
         name = fndef.name.value
-        args = [
-            FnArg(param.name.value, VarType.from_token(param.ttype))
-            for param in fndef.params
-        ]
+        args = [FnArg(param.name.value, param.vartype) for param in fndef.params]
         return cls(name, args, fndef.ret_vartype)
 
 

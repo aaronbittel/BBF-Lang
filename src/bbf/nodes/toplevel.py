@@ -39,4 +39,4 @@ class TopLevelStmt(TopLevel):
 @dataclass
 class Param:
     name: Token
-    ttype: Token
+    vartype: VarType

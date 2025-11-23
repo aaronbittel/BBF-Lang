@@ -46,7 +46,7 @@ class ASTPrinter(Visitor[None]):
 
     def visit_fndef(self, fndef: FnDef) -> None:
         params = ", ".join(
-            f"{param.name.value}: {param.ttype.value}" for param in fndef.params
+            f"{param.name.value}: {param.vartype.name}" for param in fndef.params
         )
         self.write(
             f"fn {fndef.name.value}({params}) -> {fndef.ret_vartype.name} do", end="\n"

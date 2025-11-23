@@ -138,18 +138,7 @@ class Parser:
             "Expected `identifier` for function argument definition",
         )
         self.consume(TokenType.Colon, "Expected `:` in function argument definition")
-        if not self.match(
-            TokenType.Int, TokenType.String, TokenType.Void, TokenType.Bool
-        ):
-            raise ParserExpectError(
-                self.peek(),
-                "Expected `VarType` for function argument definition",
-                TokenType.Int,
-                TokenType.String,
-                TokenType.Void,
-                TokenType.Bool,
-            )
-        vartype = self.previous()
+        vartype = self.parse_vartype()
         return Param(name, vartype)
 
     def parse_fnreturn(self) -> VarType:
