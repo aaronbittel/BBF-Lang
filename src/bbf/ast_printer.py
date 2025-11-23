@@ -48,19 +48,18 @@ class ASTPrinter(Visitor[None]):
         params = ", ".join(
             f"{param.name.value}: {param.ttype.value}" for param in fndef.params
         )
-        print(
-            f"fn {fndef.name.value}({params}) -> {fndef.ret_vartype.name} do",
-            file=self.out,
+        self.write(
+            f"fn {fndef.name.value}({params}) -> {fndef.ret_vartype.name} do", end="\n"
         )
         with self.indent_block():
             for stmt in fndef.body.stmts:
                 stmt.accept(self)
-        print("end", file=self.out)
+        self.write("end", end="\n")
 
     def visit_forstmt(self, forstmt: ForStmt) -> None:
         self._ident(f"for {forstmt.loop_ident.value} in", end=" ")
         self._visit_range(forstmt.range_expr)
-        print(" do", file=self.out)
+        self.write(" do", end="\n")
         self._visit_block(forstmt.block)
         self._ident("end", end="\n")
 
@@ -74,12 +73,12 @@ class ASTPrinter(Visitor[None]):
     def visit_ifstmt(self, ifstmt: IfStmt) -> None:
         self._ident("if ", end="")
         ifstmt.condition.accept(self)
-        print(" then", file=self.out)
+        self.write(" then", end="\n")
         self._visit_block(ifstmt.if_block)
         for elifstmt in ifstmt.elifs:
             self._ident("elif ", end="")
             elifstmt.condition.accept(self)
-            print(" then", file=self.out)
+            self.write(" then", end="\n")
             self._visit_block(elifstmt.block)
         if len(ifstmt.else_block) > 0:
             self._ident("else", "\n")
@@ -90,18 +89,18 @@ class ASTPrinter(Visitor[None]):
         self._ident("return", end=" ")
         if returnstmt.expr is not None:
             returnstmt.expr.accept(self)
-        print(file=self.out)
+        self.write(end="\n")
 
     def visit_exprstmt(self, exprstmt: ExprStmt) -> None:
         self._ident()
         exprstmt.expr.accept(self)
-        print(file=self.out)
+        self.write(end="\n")
 
     def _visit_range(self, rangeexpr: Range) -> None:
         rangeexpr.start.accept(self)
-        print("..", end="", file=self.out)
+        self.write("..")
         if rangeexpr.inclusive:
-            print("=", end="", file=self.out)
+            self.write("=")
         rangeexpr.stop.accept(self)
 
     def _visit_block(self, block: Block) -> None:
@@ -110,74 +109,74 @@ class ASTPrinter(Visitor[None]):
                 stmt.accept(self)
 
     def visit_integerlit(self, intlit: IntegerLit) -> None:
-        print(f"{intlit.token.value}", end="", file=self.out)
+        self.write(f"{intlit.token.value}")
 
     def visit_stringlit(self, strlit: StringLit) -> None:
-        print(repr(strlit.token.value), end="", file=self.out)
+        self.write(repr(strlit.token.value))
 
     def visit_identifier(self, ident: Identifier) -> None:
-        print(ident.token.value, end="", file=self.out)
+        self.write(ident.token.value)
 
     def visit_fncall(self, fncall: FnCall) -> None:
-        print(f"{fncall.name.value}", end="", file=self.out)
-        print("( ", end="", file=self.out)
+        self.write(f"{fncall.name.value}")
+        self.write("( ")
         for i, arg in enumerate(fncall.args_list):
             arg.accept(self)
             if i + 1 < len(fncall.args_list):
-                print(", ", end="", file=self.out)
-        print(" )", end="", file=self.out)
+                self.write(", ")
+        self.write(" )")
 
     def visit_declaration(self, decl: Declaration) -> None:
         self._ident(f"{decl.name.value}: {decl.vartype.name} = ", end="")
         decl.expr.accept(self)
-        print(file=self.out)
+        self.write(end="\n")
 
     def visit_assignment(self, assign: Assignment) -> None:
         self._ident(f"{assign.name.value} = ", end="")
         assign.expr.accept(self)
-        print(file=self.out)
+        self.write(end="\n")
 
     def visit_binary(self, binary: Binary) -> None:
-        print("( ", end="", file=self.out)
+        self.write("( ")
         binary.lhs.accept(self)
-        print(f" {binary.operator.value} ", end="", file=self.out)
+        self.write(f" {binary.operator.value} ")
         binary.rhs.accept(self)
-        print(" )", end="", file=self.out)
+        self.write(" )")
 
     def visit_unary(self, unary: Unary) -> None:
-        print(unary.operator.value, end="", file=self.out)
+        self.write(unary.operator.value)
         unary.expr.accept(self)
 
     def visit_grouping(self, grouping: Grouping) -> None:
-        print("(", end="", file=self.out)
+        self.write("(")
         grouping.expr.accept(self)
-        print(")", end="", file=self.out)
+        self.write(")")
 
     def visit_arrayliteral(self, array: ArrayLiteral) -> None:
-        print("[", end=" ")
+        self.write("[", end=" ")
         for i, item in enumerate(array.items):
             if i != 0:
-                print(", ", end="")
+                self.write(", ")
             item.accept(self)
-        print(" ]", end="")
+        self.write(" ]")
 
     def visit_arrayaccess(self, array: ArrayAccess) -> None:
-        print(array.name.value, end="")
-        print("[", end="")
+        self.write(array.name.value)
+        self.write("[")
         array.expr.accept(self)
-        print("]", end="")
+        self.write("]")
 
     def visit_argv(self, argv: Argv) -> None:
-        print("argv", end="", file=self.out)
-        print("[", end="", file=self.out)
+        self.write("argv")
+        self.write("[")
         argv.expr.accept(self)
-        print("]", end="", file=self.out)
+        self.write("]")
 
     def visit_booltrue(self, booltrue: BoolTrue) -> None:
-        print("true", end="", file=self.out)
+        self.write("true")
 
     def visit_boolfalse(self, boolfalse: BoolFalse) -> None:
-        print("false", end="", file=self.out)
+        self.write("false")
 
     @contextmanager
     def indent_block(self, level: int = 4) -> Generator[None, None, None]:
@@ -186,4 +185,7 @@ class ASTPrinter(Visitor[None]):
         self.indent -= level
 
     def _ident(self, text: str = "", end: str = "") -> None:
-        print(f"{' ' * self.indent}{text}", end=end, file=self.out)
+        self.write(f"{' ' * self.indent}{text}", end=end)
+
+    def write(self, text: str = "", end: str = "") -> None:
+        print(text, end=end, file=self.out)
