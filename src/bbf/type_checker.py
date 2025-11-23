@@ -8,6 +8,7 @@ from bbf.functions import BUILTIN_FNS, FnInfo
 from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
+    ArrayAccess,
     ArrayLiteral,
     Binary,
     BoolFalse,
@@ -114,15 +115,17 @@ class TypeChecker(Visitor[VarType]):
             self.scope.define(forstmt.loop_ident.value, IntType)
             for stmt in forstmt.block:
                 stmt.accept(self)
+
         return VoidType
 
     @contextmanager
     def new_scope(self) -> Generator[None, None, None]:
         try:
-            old_scope = self.scope
-            self.scope = Scope(parent=old_scope)
+            self.scope = Scope(parent=self.scope)
             yield
         finally:
+            old_scope = self.scope.parent
+            assert old_scope is not None
             self.scope = old_scope
 
     def visit_doblock(self, doblock: DoBlock) -> VarType:
@@ -311,6 +314,26 @@ class TypeChecker(Visitor[VarType]):
                     f"ERROR: ArrayLiteral must be of the same type, but got `{vt.name}` and `{vartype.name}`."
                 )
         return ArrayType(vartype, len(array.items))
+
+    def visit_arrayaccess(self, array: ArrayAccess) -> VarType:
+        index_vartype = array.expr.accept(self)
+        if index_vartype != IntType:
+            raise TypeCheckerError(
+                f"ERROR: {array.name.position}: Array Index must be an `Int`, but got `{index_vartype}`"
+            )
+        name = array.name.value
+        vartype = self.scope.lookup(name)
+        if vartype is None:
+            raise TypeCheckerError(
+                f"ERROR: {array.name.position}: `{name}` is not defined."
+            )
+
+        if not isinstance(vartype, ArrayType):
+            raise TypeCheckerError(
+                f"ERROR: {array.name.position}: Indexing `{name}` is not allowed, because it is no array. `{name}` was defined as `{vartype}`."
+            )
+
+        return vartype.vartype
 
     def visit_argv(self, argv: Argv) -> VarType:
         argv.expr.accept(self)

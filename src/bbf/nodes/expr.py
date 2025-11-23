@@ -92,6 +92,15 @@ class ArrayLiteral(Expr):
 
 
 @dataclass
+class ArrayAccess(Expr):
+    name: Token
+    expr: Expr
+
+    def accept[T](self, visitor: Visitor[T]) -> T:
+        return visitor.visit_arrayaccess(self)
+
+
+@dataclass
 class BoolTrue(Expr):
     token: Token
 

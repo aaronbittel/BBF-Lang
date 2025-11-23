@@ -10,7 +10,7 @@ class VarType(Protocol):
     @property
     def name(self) -> str: ...
     @property
-    def size(self) -> int: ...
+    def stack_size(self) -> int: ...
 
     @staticmethod
     def from_token(token: Token) -> VarType:
@@ -36,7 +36,7 @@ class PrimitiveType(VarType):
         return self.t_name
 
     @property
-    def size(self) -> int:
+    def stack_size(self) -> int:
         return self.t_size
 
 
@@ -47,7 +47,7 @@ class StringType_(VarType):
         return "String"
 
     @property
-    def size(self) -> int:
+    def stack_size(self) -> int:
         return 16
 
 
@@ -67,8 +67,8 @@ class ArrayType(VarType):
         return f"{self.vartype.name}[{self.length}]"
 
     @property
-    def size(self) -> int:
-        return self.vartype.size * self.length
+    def stack_size(self) -> int:
+        return 16
 
 
 @dataclass
@@ -88,8 +88,8 @@ class SymbolTable:
     def define(self, name: str, vartype: VarType) -> int:
         offset = self.next_offset
         self.offsets[name] = VarInfo(name, vartype, offset)
-        self.next_offset -= vartype.size
-        self.reserved_space += vartype.size
+        self.next_offset -= vartype.stack_size
+        self.reserved_space += vartype.stack_size
         return offset
 
     def lookup(self, name: str) -> VarInfo | None:

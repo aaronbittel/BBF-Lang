@@ -166,3 +166,12 @@ _macro_store_var = """
     pop rax
     mov [rbp%1], rax
 %endmacro"""
+
+_macro_push_array_elem = """
+%macro PUSH_ARRAY_ELEM 1
+    ; %1: offset
+    pop rax
+    mov rbx, [rbp%1]
+    mov rax, [rbx + rax * 8]
+    push rax
+%endmacro"""

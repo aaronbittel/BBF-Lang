@@ -9,6 +9,7 @@ from bbf.functions import FnInfo, FunctionTable
 from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
+    ArrayAccess,
     ArrayLiteral,
     Binary,
     BoolFalse,
@@ -99,7 +100,7 @@ class AsmCodeGen(Visitor):
             assert range_ident is not None, f"{loop_ident.value} was just created"
             range_expr.start.accept(self)
             self.emitter.emit(f"STORE_VAR {loop_ident_offset:+d} ; range_start[Int]")
-            self.emitter.emit(f"RESERVE_SPACE {IntType.size} ; loop var")
+            self.emitter.emit(f"RESERVE_SPACE {IntType.stack_size} ; loop var")
             # TODO: move creating lables into function
             self.emitter.emit(f".loop_{self.loop_count}_start:", indent=0)
             range_expr.stop.accept(self)
@@ -279,7 +280,7 @@ class AsmCodeGen(Visitor):
     def visit_declaration(self, decl: Declaration) -> None:
         name, expr = decl.name, decl.expr
 
-        self.emitter.emit(f"RESERVE_SPACE {decl.vartype.size}")
+        self.emitter.emit(f"RESERVE_SPACE {decl.vartype.stack_size}")
         expr.accept(self)
         offset = self.symbol_table.define(name.value, decl.vartype)
 
@@ -303,7 +304,7 @@ class AsmCodeGen(Visitor):
         varinfo = self.symbol_table.lookup(name.value)
         if varinfo is None:
             raise CodeGenError(
-                f"ERROR: {name.position}: undeclared variable `{name.value}`. Did you forget to assign a type?"
+                f"ERROR: {name.position}: undeclared variable `{name.value}`. Did you forget to declare a type?"
             )
         if varinfo.vartype in (IntType, BoolType):
             self.emitter.emit(
@@ -404,6 +405,23 @@ class AsmCodeGen(Visitor):
         len_label = f"{array_label}_len"
         self.emitter.emit(f"PUSH_SLICE {array_label}, {len_label}")
 
+    def visit_arrayaccess(self, array: ArrayAccess) -> None:
+        varinfo = self.symbol_table.lookup(array.name.value)
+        if varinfo is None:
+            raise CodeGenError(
+                f"ERROR: {array.name.position}: undeclared variable `{array.name.value}`. Did you forget to declare a type?"
+            )
+        assert isinstance(varinfo.vartype, ArrayType), (
+            "TypeChecker should have checked this"
+        )
+        if varinfo.vartype.vartype != IntType:
+            raise CodeGenError(
+                f"ERROR: {array.name.position}: Currently only int array are supported."
+            )
+
+        array.expr.accept(self)  # INDEX ON STACK
+        self.emitter.emit(f"PUSH_ARRAY_ELEM {varinfo.offset:+d}")
+
     def visit_booltrue(self, booltrue: BoolTrue) -> None:
         self.emitter.emit("PUSH_BOOL TRUE")
 
@@ -413,7 +431,6 @@ class AsmCodeGen(Visitor):
     @contextmanager
     def new_scope(self, is_function: bool = False):
         try:
-            old_table = self.symbol_table
             starting_offset = -8 if is_function else self.symbol_table.next_offset
             self.symbol_table = SymbolTable(
                 parent=self.symbol_table, next_offset=starting_offset
@@ -421,6 +438,8 @@ class AsmCodeGen(Visitor):
             yield
         finally:
             self.emitter.emit(f"FREE_SPACE {self.symbol_table.reserved_space} ; scope")
+            old_table = self.symbol_table.parent
+            assert old_table is not None
             self.symbol_table = old_table
 
     def nasm_macros(self) -> None:
@@ -465,7 +484,7 @@ class AsmCodeGen(Visitor):
                 for param in fndef.params:
                     vartype = VarType.from_token(param.ttype)
                     self.emitter.emit(
-                        f"RESERVE_SPACE {vartype.size} ; param {param.name.value}"
+                        f"RESERVE_SPACE {vartype.stack_size} ; param {param.name.value}"
                     )
                     offset = self.symbol_table.define(param.name.value, vartype)
 

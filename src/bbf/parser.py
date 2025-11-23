@@ -3,6 +3,7 @@ from __future__ import annotations
 from bbf.lexer import Token, TokenType
 from bbf.nodes.expr import (
     Argv,
+    ArrayAccess,
     ArrayLiteral,
     Binary,
     BoolFalse,
@@ -354,14 +355,14 @@ class Parser:
     def primary(self) -> Expr:
         if self.match(TokenType.IntegerLit):
             return IntegerLit(self.previous())
-        if self.check(TokenType.Identifier) and self.peek().value == "argv":
-            return self.argv()
-        if self.check(TokenType.Identifier) and self.check(
-            TokenType.OpenParen, offset=1
-        ):
-            return self.fn_call()
-        if self.match(TokenType.Identifier):
-            return Identifier(self.previous())
+        if self.check(TokenType.Identifier):
+            if self.peek().value == "argv":
+                return self.argv()
+            if self.check(TokenType.OpenParen, offset=1):
+                return self.fn_call()
+            if self.check(TokenType.OpenBracket, offset=1):
+                return self.array_access()
+            return Identifier(self.advance())
         if self.check(TokenType.OpenParen):
             self.consume(TokenType.OpenParen, "Expected `(` in expression")
             expr = self.expr()
@@ -395,6 +396,15 @@ class Parser:
         else:
             msg = f"Unknown statement beginning with `{token.value}`"
         raise ParserError(token, msg)
+
+    def array_access(self) -> ArrayAccess:
+        name = self.consume(
+            TokenType.Identifier, "Expected `Identifier` for array access"
+        )
+        self.consume(TokenType.OpenBracket, "Expected `[` for array access")
+        expr = self.expr()
+        self.consume(TokenType.CloseBracket, "Expected `]` for array access")
+        return ArrayAccess(name, expr)
 
     def parse_function_call(self) -> FnCall:
         return self.fn_call()
