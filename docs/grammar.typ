@@ -67,6 +67,7 @@ $
   italic("IntegerLit"),
   italic("StringLit"),
   italic("Name"),
+  italic("Name") #e("[") "Expr" #e("]"),
   #e("(") "Expr" #e(")"),
   "argv" #e("[") "Expr" #e("]"),
   italic("Name") #e("(") ["Arguments"] #e(")"),

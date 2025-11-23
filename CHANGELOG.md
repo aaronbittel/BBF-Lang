@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Int Array declaration -> `x: Int[4] = [1, 2, 3, 4]`
+- Array declaration (Int, Bool, String) -> `x: Int[4] = [1, 2, 3, 4]`
 - Array Access -> `y: Int = x[0]`
 
 ### Changed

@@ -1,0 +1,11 @@
+arr: Int[4] = [ 1, 2, 3, 4 ]
+for i in 0..4 do
+    stdout( itoa( arr[i] ) )
+    stdout( ' ' )
+end
+result: Int = 0
+for i in 0..4 do
+    result = ( result + arr[i] )
+end
+stdout( itoa( result ) )
+stdout( '\n' )

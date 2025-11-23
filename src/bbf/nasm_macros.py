@@ -11,7 +11,7 @@ _macro_push_slice = """
     ; %2: len
     lea rax, [%1]
     push rax
-    push qword [%2]
+    push qword %2
 %endmacro"""
 
 _macro_push_bool = """
@@ -168,10 +168,23 @@ _macro_store_var = """
 %endmacro"""
 
 _macro_push_array_elem = """
-%macro PUSH_ARRAY_ELEM 1
+%macro PUSH_INDEXED_SCALAR 1
     ; %1: offset
     pop rax
     mov rbx, [rbp%1]
     mov rax, [rbx + rax * 8]
     push rax
+%endmacro"""
+
+_macro_push_string_elem = """
+%macro PUSH_INDEXED_SLICE 1
+    ; %1: offset
+    pop rcx
+    shl rcx, 1
+    push rcx
+    PUSH_INDEXED_SCALAR %1
+
+    inc rcx
+    push rcx
+    PUSH_INDEXED_SCALAR %1
 %endmacro"""

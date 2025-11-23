@@ -53,7 +53,7 @@ class AsmCodeGen(Visitor):
         self.symbol_table = SymbolTable()
         self.function_table = FunctionTable()
         self.strings: list[str] = []
-        self.arrays: list[list[str]] = []
+        self.arrays: list[tuple[str, list[str]]] = []
         self.if_label_count = 0
         self.elif_label_count = 0
         self.loop_count = 0
@@ -194,9 +194,7 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(f"PUSH_INT {intlit.token.value}")
 
     def visit_stringlit(self, strlit: StringLit) -> None:
-        self.strings.append(strlit.token.value)
-        str_label = make_string_label(len(self.strings) - 1)
-        len_label = f"{str_label}_len"
+        str_label, len_label = self.add_string(strlit.token.value)
         self.emitter.emit(f"PUSH_SLICE {str_label}, {len_label}")
 
     def visit_identifier(self, ident: Identifier) -> None:
@@ -401,7 +399,16 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("PUSH_ARGV_STRING")
 
     def visit_arrayliteral(self, array: ArrayLiteral) -> None:
-        self.arrays.append(encode_array_literal(array))
+        if isinstance(array.items[0], StringLit):
+            str_literals = extract_literals(array)
+            arr: list[str] = []
+            for s in str_literals:
+                str_label, len_label = self.add_string(s)
+                arr.append(str_label)
+                arr.append(len_label)
+            self.arrays.append(("slice", arr))
+        else:
+            self.arrays.append(("primitive", extract_literals(array)))
         array_label = make_array_label(len(self.arrays) - 1)
         len_label = f"{array_label}_len"
         self.emitter.emit(f"PUSH_SLICE {array_label}, {len_label}")
@@ -415,13 +422,19 @@ class AsmCodeGen(Visitor):
         assert isinstance(varinfo.vartype, ArrayType), (
             "TypeChecker should have checked this"
         )
-        if varinfo.vartype.vartype not in (IntType, BoolType):
+        if varinfo.vartype.vartype not in (IntType, BoolType, StringType):
             raise CodeGenError(
-                f"ERROR: {array.name.position}: Currently only int/bool array are supported."
+                f"ERROR: {array.name.position}: Currently only int/bool/string array are supported."
             )
 
-        array.expr.accept(self)
-        self.emitter.emit(f"PUSH_ARRAY_ELEM {varinfo.offset:+d}")
+        if varinfo.vartype.vartype in (IntType, BoolType):
+            array.expr.accept(self)
+            self.emitter.emit(f"PUSH_INDEXED_SCALAR {varinfo.offset:+d}")
+        elif varinfo.vartype.vartype == StringType:
+            array.expr.accept(self)
+            self.emitter.emit(f"PUSH_INDEXED_SLICE {varinfo.offset:+d}")
+        else:
+            assert False, "unreachable"
 
     def visit_booltrue(self, booltrue: BoolTrue) -> None:
         self.emitter.emit("PUSH_BOOL TRUE")
@@ -538,11 +551,20 @@ class AsmCodeGen(Visitor):
         for i, raw_s in enumerate(self.strings):
             label = make_string_label(i)
             self.emitter.emit(f"{label}: db {encode_nasm_string(raw_s)}")
-            self.emitter.emit(f"{label}_len: dq {len(raw_s)}")
-        for i, int_arr in enumerate(self.arrays):
-            label = make_array_label(i)
-            self.emitter.emit(f"{label}: dq {', '.join(n for n in int_arr)}")
-            self.emitter.emit(f"{label}_len: dq {len(int_arr)}")
+            self.emitter.emit(f"{label}_len: equ $ - {label}")
+        for i, (arr_type, array) in enumerate(self.arrays):
+            if arr_type == "primitive":
+                label = make_array_label(i)
+                self.emitter.emit(f"{label}: dq {', '.join(n for n in array)}")
+                self.emitter.emit(f"{label}_len: dq {len(array)}")
+            elif arr_type == "slice":
+                label = make_array_label(i)
+                self.emitter.emit(f"{label}:")
+                for arr in array:
+                    self.emitter.emit(f"dq {arr}", indent=8)
+                self.emitter.emit(f"{label}_len: dq {len(array) // 2}")
+            else:
+                assert False, "unreachable"
 
     def bss_section(self) -> None:
         self.emitter.emit("")
@@ -550,6 +572,12 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("__argc: resq 1 ; argc")
         self.emitter.emit("__argv: resq 1 ; addr of ptr to argv[0]")
         self.emitter.emit("__itoa_buf: resb 32")
+
+    def add_string(self, s: str) -> tuple[str, str]:
+        self.strings.append(s)
+        str_label = make_string_label(len(self.strings) - 1)
+        len_label = f"{str_label}_len"
+        return str_label, len_label
 
     def or_true_label(self) -> str:
         lbl = f".or_true_{self.or_true_count}"
@@ -572,7 +600,7 @@ class AsmCodeGen(Visitor):
         return lbl
 
 
-def encode_array_literal(array: ArrayLiteral) -> list[str]:
+def extract_literals(array: ArrayLiteral) -> list[str]:
     # NOTE: typechecker assures that all values are of the same type
     def _encode_ints(ints: list[Expr]) -> list[str]:
         out: list[str] = []
@@ -581,19 +609,31 @@ def encode_array_literal(array: ArrayLiteral) -> list[str]:
             out.append(i.token.value)
         return out
 
+    def _encode_bools(bools: list[Expr]) -> list[str]:
+        out: list[str] = []
+        for b in bools:
+            if isinstance(b, BoolTrue):
+                v = "TRUE"
+            elif isinstance(b, BoolFalse):
+                v = "FALSE"
+            else:
+                assert False, "unreachable"
+            out.append(v)
+        return out
+
+    def _encode_strings(strings: list[Expr]) -> list[str]:
+        out: list[str] = []
+        for s in strings:
+            assert isinstance(s, StringLit)
+            out.append(s.token.value)
+        return out
+
     if isinstance(array.items[0], IntegerLit):
         return _encode_ints(array.items)
-    if isinstance(array.items[0], StringLit):
-        raise NotImplementedError
     if isinstance(array.items[0], BoolTrue) or isinstance(array.items[0], BoolFalse):
-        return list(
-            map(
-                lambda item: "TRUE" if isinstance(item, BoolTrue) else "FALSE",
-                array.items,
-            )
-        )
+        return _encode_bools(array.items)
     if isinstance(array.items[0], StringLit):
-        raise NotImplementedError
+        return _encode_strings(array.items)
     raise ValueError(f"Unknown type for array literal: `{type(array.items[0])}`")
 
 
