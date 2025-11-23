@@ -85,7 +85,7 @@ class FnCall(Expr):
 
 @dataclass
 class ArrayLiteral(Expr):
-    items: list[IntegerLit]
+    items: list[Expr]
 
     def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_arrayliteral(self)

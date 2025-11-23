@@ -14,6 +14,7 @@ from bbf.nodes.expr import (
     Binary,
     BoolFalse,
     BoolTrue,
+    Expr,
     FnCall,
     Grouping,
     Identifier,
@@ -400,7 +401,7 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("PUSH_ARGV_STRING")
 
     def visit_arrayliteral(self, array: ArrayLiteral) -> None:
-        self.arrays.append(list(map(lambda item: item.token.value, array.items)))
+        self.arrays.append(encode_array_literal(array))
         array_label = make_array_label(len(self.arrays) - 1)
         len_label = f"{array_label}_len"
         self.emitter.emit(f"PUSH_SLICE {array_label}, {len_label}")
@@ -414,12 +415,12 @@ class AsmCodeGen(Visitor):
         assert isinstance(varinfo.vartype, ArrayType), (
             "TypeChecker should have checked this"
         )
-        if varinfo.vartype.vartype != IntType:
+        if varinfo.vartype.vartype not in (IntType, BoolType):
             raise CodeGenError(
-                f"ERROR: {array.name.position}: Currently only int array are supported."
+                f"ERROR: {array.name.position}: Currently only int/bool array are supported."
             )
 
-        array.expr.accept(self)  # INDEX ON STACK
+        array.expr.accept(self)
         self.emitter.emit(f"PUSH_ARRAY_ELEM {varinfo.offset:+d}")
 
     def visit_booltrue(self, booltrue: BoolTrue) -> None:
@@ -569,6 +570,31 @@ class AsmCodeGen(Visitor):
         lbl = f".and_end_{self.and_end_count}"
         self.and_end_count += 1
         return lbl
+
+
+def encode_array_literal(array: ArrayLiteral) -> list[str]:
+    # NOTE: typechecker assures that all values are of the same type
+    def _encode_ints(ints: list[Expr]) -> list[str]:
+        out: list[str] = []
+        for i in ints:
+            assert isinstance(i, IntegerLit)
+            out.append(i.token.value)
+        return out
+
+    if isinstance(array.items[0], IntegerLit):
+        return _encode_ints(array.items)
+    if isinstance(array.items[0], StringLit):
+        raise NotImplementedError
+    if isinstance(array.items[0], BoolTrue) or isinstance(array.items[0], BoolFalse):
+        return list(
+            map(
+                lambda item: "TRUE" if isinstance(item, BoolTrue) else "FALSE",
+                array.items,
+            )
+        )
+    if isinstance(array.items[0], StringLit):
+        raise NotImplementedError
+    raise ValueError(f"Unknown type for array literal: `{type(array.items[0])}`")
 
 
 def encode_nasm_string(string: str) -> str:

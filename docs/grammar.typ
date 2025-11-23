@@ -72,7 +72,7 @@ $
   italic("Name") #e("(") ["Arguments"] #e(")"),
   #k("true"),
   #k("false"),
-  #e("[") italic("Digit") {#e(",") italic("Digit")} #e("]")
+  #e("[") "Arguments" #e("]")
 ) \
 "Arguments" arrow & cases(
   "Expr",

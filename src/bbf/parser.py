@@ -375,19 +375,13 @@ class Parser:
         if self.match(TokenType.BoolFalse):
             return BoolFalse(self.previous())
         if self.match(TokenType.OpenBracket):
-            nums: list[IntegerLit] = []
+            args: list[Expr] = []
             if not self.check(TokenType.CloseBracket):
-                num = self.primary()
-                assert isinstance(num, IntegerLit)
-                nums.append(num)
-                while self.match(TokenType.Comma):
-                    num = self.primary()
-                    assert isinstance(num, IntegerLit)
-                    nums.append(num)
+                args = self.arguments()
                 self.consume(
                     TokenType.CloseBracket, "Expected `]` to close ArrayLiteral"
                 )
-            return ArrayLiteral(nums)
+            return ArrayLiteral(args)
         token = self.peek()
         if token.ttype == TokenType.Colon:
             msg = (
@@ -414,11 +408,11 @@ class Parser:
         self.consume(TokenType.OpenParen, "Expected `(` for function call")
         args_list: list[Expr] = []
         if not self.check(TokenType.CloseParen):
-            args_list = self.args_list()
+            args_list = self.arguments()
         self.consume(TokenType.CloseParen, "Expected `)` for function call")
         return FnCall(name, args_list)
 
-    def args_list(self) -> list[Expr]:
+    def arguments(self) -> list[Expr]:
         args: list[Expr] = [self.expr()]
         while self.match(TokenType.Comma):
             args.append(self.expr())
