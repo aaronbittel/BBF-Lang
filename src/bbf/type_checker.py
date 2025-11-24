@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Generator
 
@@ -63,12 +64,11 @@ class TypeCheckerError(Exception):
 
 class TypeChecker(Visitor[VarType]):
     def __init__(self) -> None:
-        self.defined_fns: dict[str, FnInfo] = {}
-        for name, fninfo in BUILTIN_FNS.items():
-            self.defined_fns[name] = fninfo
+        self.defined_fns = deepcopy(BUILTIN_FNS)
         self.scope = Scope()
         # TODO: Handle globals better
         self.scope.define("argc", IntType)
+        self.current_fninfo: FnInfo | None = None
 
     def visit_progtoplevelstmt(self, progtoplevelstmt: ProgTopLevelStmt) -> VarType:
         for stmt in progtoplevelstmt.stmts:
@@ -88,9 +88,15 @@ class TypeChecker(Visitor[VarType]):
         self.defined_fns[fndef.name.value] = fninfo
         with self.new_scope():
             for arg in fninfo.args:
+                if arg.vartype == VoidType:
+                    raise TypeCheckerError(
+                        f"ERROR: {fndef.name.position}: `Void` is not allowed as function parameter type"
+                    )
                 self.scope.define(arg.name, arg.vartype)
+            self.current_fninfo = fninfo
             for stmt in fndef.body:
                 stmt.accept(self)
+        self.current_fninfo = None
         return VoidType
 
     def visit_forstmt(self, forstmt: ForStmt) -> VarType:
@@ -162,9 +168,15 @@ class TypeChecker(Visitor[VarType]):
         return VoidType
 
     def visit_returnstmt(self, returnstmt: ReturnStmt) -> VarType:
-        if returnstmt.expr is None:
-            return VoidType
-        return returnstmt.expr.accept(self)
+        assert self.current_fninfo is not None
+        ret_vartype = (
+            VoidType if returnstmt.expr is None else returnstmt.expr.accept(self)
+        )
+        if self.current_fninfo.return_type != ret_vartype:
+            raise TypeCheckerError(
+                f"ERROR: in function `{self.current_fninfo.name}`: return expr evaluated to `{ret_vartype.name}`, but function was typed as `{self.current_fninfo.return_type.name}`"
+            )
+        return ret_vartype
 
     def visit_exprstmt(self, exprstmt: ExprStmt) -> VarType:
         exprstmt.expr.accept(self)
@@ -240,6 +252,14 @@ class TypeChecker(Visitor[VarType]):
         return fninfo.return_type
 
     def visit_declaration(self, decl: Declaration) -> VarType:
+        if decl.vartype == VoidType:
+            raise TypeCheckerError(
+                f"ERROR: {decl.name.position}: `Void` is not allowed as variable type"
+            )
+        if isinstance(decl.vartype, ArrayType) and decl.vartype.vartype == VoidType:
+            raise TypeCheckerError(
+                f"ERROR: {decl.name.position}: `Void` is not allowed as array type"
+            )
         exprtype = decl.expr.accept(self)
         if decl.vartype != exprtype:
             raise TypeCheckerError(

@@ -32,6 +32,7 @@ from bbf.nodes.stmt import (
     Stmt,
 )
 from bbf.nodes.toplevel import FnDef, Param, TopLevel, TopLevelStmt
+from bbf.utils import darkgray
 from bbf.varinfo import ArrayType, VarType, VoidType
 
 
@@ -98,7 +99,7 @@ class Parser:
             expr = self.expr()
             return ReturnStmt(expr)
         except ParserError:
-            print("[INFO]", f"{ret.position}: `return` statement without expr ?")
+            print(darkgray(f"[INFO] {ret.position}: `return` statement without expr ?"))
         return ReturnStmt()
 
     def parse_stmt(self) -> Stmt:

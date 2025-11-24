@@ -9,10 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Array declaration (Int, Bool, String) -> `x: Int[4] = [1, 2, 3, 4]`
+- Array Declaration (Int, Bool, String) -> `x: Int[4] = [1, 2, 3, 4]`
 - Array Access -> `y: Int = x[0]`
+- Array Modification -> `x[2] = 12`
+- Array as Function Parameter and Return Type
+- Typechecker compares each vartype of return statement to function annotated vartype
 
 ### Changed
+
+- Only allow Void as function return type annotation (typechecker)
+
 ### Fixed
 
 ## 0.3.1 - 2025-11-21

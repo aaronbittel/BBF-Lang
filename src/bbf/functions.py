@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from copy import deepcopy
 from typing import NamedTuple
 
 from bbf.nodes.toplevel import FnDef
@@ -15,7 +18,7 @@ class FnInfo(NamedTuple):
     return_type: VarType
 
     @classmethod
-    def from_node(cls, fndef: FnDef) -> "FnInfo":
+    def from_node(cls, fndef: FnDef) -> FnInfo:
         name = fndef.name.value
         args = [FnArg(param.name.value, param.vartype) for param in fndef.params]
         return cls(name, args, fndef.ret_vartype)
@@ -34,7 +37,7 @@ BUILTIN_FNS = {
 
 class FunctionTable:
     def __init__(self):
-        self.fns: dict[str, FnInfo] = dict(BUILTIN_FNS)
+        self.fns: dict[str, FnInfo] = deepcopy(BUILTIN_FNS)
 
     def define(self, fn: FnInfo) -> None:
         if fn.name in self.fns:
