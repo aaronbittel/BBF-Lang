@@ -274,36 +274,28 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(f"; {fn_name} function args")
         for fn_arg, expr_arg in zip(fninfo.args, stmt.args_list):
             expr_arg.accept(self)
-            if fn_arg.vartype in (IntType, BoolType):
+            if not fn_arg.vartype.is_slice:
                 assert reg_i < len(regs_order), (
                     "Currently can't handle more physcial args than 6"
                 )
                 self.emitter.emit(f"pop {regs_order[reg_i]}")
                 reg_i += 1
-            elif fn_arg.vartype.is_slice:
+            else:
                 assert reg_i + 1 < len(regs_order), (
                     "Currently can't handle more physcial args than 6"
                 )
                 self.emitter.emit(f"pop {regs_order[reg_i + 1]} ; str_len")
                 self.emitter.emit(f"pop {regs_order[reg_i]} ; str_ptr")
                 reg_i += 2
-            else:
-                raise CodeGenError(
-                    f"ERROR: Unexpected vartype `{fn_arg.vartype}` for `{fn_arg.name}` in `{fn_name}`"
-                )
 
         self.emitter.emit(f"call {fn_name} ; return_type: {fninfo.return_type.name}")
-        if fninfo.return_type in (IntType, BoolType):
+        if fninfo.return_type == VoidType:
+            return
+        if not fninfo.return_type.is_slice:
             self.emitter.emit("push rax ; return value from fn call")
-        elif fninfo.return_type == VoidType:
-            pass
-        elif fninfo.return_type.is_slice:
+        else:
             self.emitter.emit("push rax ; return str_ptr from fn call")
             self.emitter.emit("push rdi ; return str_len from fn call")
-        else:
-            raise CodeGenError(
-                f"ERROR: {stmt.name.position}: return type {fninfo.return_type.name} is currently not supported."
-            )
 
     def visit_declaration(self, decl: Declaration) -> None:
         name, expr = decl.name, decl.expr
@@ -327,19 +319,19 @@ class AsmCodeGen(Visitor):
             raise CodeGenError(
                 f"ERROR: {name.position}: undeclared variable `{name.value}`. Did you forget to declare a type?"
             )
-        if varinfo.vartype in (IntType, BoolType):
+        if not varinfo.vartype.is_slice:
             self.emitter.emit(
                 f"STORE_VAR {varinfo.offset:+d} ; var[{varinfo.vartype.name}]: {name.value}"
             )
-        elif varinfo.vartype == StringType:
+        else:
+            # TODO: Should array full assignments be handled here?
+            assert not isinstance(varinfo.vartype, ArrayType)
             self.emitter.emit(
                 f"STORE_VAR {varinfo.offset - 8:+d} ; len[String]: {name.value}"
             )
             self.emitter.emit(
                 f"STORE_VAR {varinfo.offset:+d} ; ptr[String]: {name.value}"
             )
-        else:
-            assert False, "unreachable"
 
     def visit_binary(self, binary: Binary) -> None:
         if binary.operator.ttype not in (TokenType.Or, TokenType.And):
@@ -449,14 +441,15 @@ class AsmCodeGen(Visitor):
                 f"ERROR: {array.name.position}: Currently only int/bool/string array are supported."
             )
 
-        if varinfo.vartype.vartype in (IntType, BoolType):
+        if not varinfo.vartype.vartype.is_slice:
             array.expr.accept(self)
             self.emitter.emit(f"PUSH_INDEXED_SCALAR {varinfo.offset:+d}")
-        elif varinfo.vartype.vartype == StringType:
+        else:
+            assert not isinstance(varinfo.vartype.vartype, ArrayType), (
+                "Nested arrays are currently not supported"
+            )
             array.expr.accept(self)
             self.emitter.emit(f"PUSH_INDEXED_SLICE {varinfo.offset:+d}")
-        else:
-            assert False, "unreachable"
 
     def visit_booltrue(self, booltrue: BoolTrue) -> None:
         self.emitter.emit("PUSH_BOOL TRUE")
@@ -525,13 +518,13 @@ class AsmCodeGen(Visitor):
                     )
                     offset = self.symbol_table.define(param.name.value, vartype)
 
-                    if vartype in (IntType, BoolType):
+                    if not vartype.is_slice:
                         assert reg_i <= 5, (
                             "More than 6 registers used (strings take up 2)"
                         )
                         self.emitter.emit(f"mov [rbp{offset:+d}], {reg_order[reg_i]}")
                         reg_i += 1
-                    elif vartype == StringType or isinstance(vartype, ArrayType):
+                    else:
                         assert reg_i + 1 <= 5, (
                             "More than 6 registers used (strings take up 2)"
                         )
@@ -542,10 +535,6 @@ class AsmCodeGen(Visitor):
                             f"mov [rbp{offset - 8:+d}], {reg_order[reg_i + 1]} ; store str_len"
                         )
                         reg_i += 2
-                    else:
-                        raise CodeGenError(
-                            f"ERROR: {param.name.position}: Unsupported VarType `{vartype}`"
-                        )
 
                 self.emitter.emit("; fn body")
                 for stmt in fndef.body:
