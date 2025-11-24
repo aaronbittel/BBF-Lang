@@ -18,6 +18,7 @@ from bbf.nodes.expr import (
 )
 from bbf.nodes.program import ProgTopLevelStmt
 from bbf.nodes.stmt import (
+    ArrayAssign,
     Assignment,
     Block,
     Declaration,
@@ -96,6 +97,15 @@ class ASTPrinter(Visitor[None]):
         exprstmt.expr.accept(self)
         self.write(end="\n")
 
+    def visit_array_assignment(self, array: ArrayAssign) -> None:
+        self.write(array.name.value)
+        self.write("[")
+        array.index.accept(self)
+        self.write("]")
+        self.write(" = ")
+        array.expr.accept(self)
+        self.write(end="\n")
+
     def _visit_range(self, rangeexpr: Range) -> None:
         rangeexpr.start.accept(self)
         self.write("..")
@@ -152,7 +162,7 @@ class ASTPrinter(Visitor[None]):
         grouping.expr.accept(self)
         self.write(")")
 
-    def visit_arrayliteral(self, array: ArrayLiteral) -> None:
+    def visit_array_literal(self, array: ArrayLiteral) -> None:
         self.write("[", end=" ")
         for i, item in enumerate(array.items):
             if i != 0:
@@ -160,7 +170,7 @@ class ASTPrinter(Visitor[None]):
             item.accept(self)
         self.write(" ]")
 
-    def visit_arrayaccess(self, array: ArrayAccess) -> None:
+    def visit_array_access(self, array: ArrayAccess) -> None:
         self.write(array.name.value)
         self.write("[")
         array.expr.accept(self)

@@ -18,6 +18,7 @@ from bbf.nodes.expr import (
 )
 from bbf.nodes.program import ProgTopLevelStmt
 from bbf.nodes.stmt import (
+    ArrayAssign,
     Assignment,
     Block,
     Declaration,
@@ -107,10 +108,13 @@ class Parser:
             return self.parse_for()
         if self.check(TokenType.Do):
             return self.parse_do_block()
-        if self.check(TokenType.Identifier) and self.check(TokenType.Colon, offset=1):
-            return self.parse_declaration()
-        if self.check(TokenType.Identifier) and self.check(TokenType.Equal, offset=1):
-            return self.parse_assignment()
+        if self.check(TokenType.Identifier):
+            if self.check(TokenType.Colon, offset=1):
+                return self.parse_declaration()
+            if self.check(TokenType.Equal, offset=1):
+                return self.parse_assignment()
+            if self.check(TokenType.OpenBracket, offset=1):
+                return self.parse_array_assignment()
         if self.check(TokenType.Return):
             return self.parse_return_stmt()
 
@@ -122,6 +126,17 @@ class Parser:
             )
 
         return self.parse_expr_stmt()
+
+    def parse_array_assignment(self) -> ArrayAssign:
+        name = self.consume(
+            TokenType.Identifier, "Expected `Identifier` in array assignment"
+        )
+        self.consume(TokenType.OpenBracket, "Expected `[` in array assignment")
+        index = self.expr()
+        self.consume(TokenType.CloseBracket, "Expected `[` in array assignment")
+        self.consume(TokenType.Equal, "Expected `=` in array assignment")
+        expr = self.expr()
+        return ArrayAssign(name, index, expr)
 
     def parse_expr_stmt(self) -> ExprStmt:
         return ExprStmt(self.expr())
@@ -149,15 +164,7 @@ class Parser:
 
         self.advance()  # "-"
         self.advance()  # ">"
-        if self.match(TokenType.Int, TokenType.String, TokenType.Void, TokenType.Bool):
-            return VarType.from_token(self.previous())
-        raise ParserExpectError(
-            self.peek(),
-            "Expected `VarType` for function return type declaration",
-            TokenType.Int,
-            TokenType.String,
-            TokenType.Void,
-        )
+        return self.parse_vartype()
 
     def parse_block(self) -> Block:
         block = Block()

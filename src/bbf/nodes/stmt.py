@@ -82,6 +82,16 @@ class ReturnStmt(Stmt):
 
 
 @dataclass
+class ArrayAssign(Stmt):
+    name: Token
+    index: Expr
+    expr: Expr
+
+    def accept[T](self, visitor: Visitor[T]) -> T:
+        return visitor.visit_array_assignment(self)
+
+
+@dataclass
 class ElifStmt:
     condition: Expr
     block: Block

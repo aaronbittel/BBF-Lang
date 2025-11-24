@@ -24,6 +24,7 @@ from bbf.nodes.expr import (
 )
 from bbf.nodes.program import Program, ProgTopLevelStmt
 from bbf.nodes.stmt import (
+    ArrayAssign,
     Assignment,
     Declaration,
     DoBlock,
@@ -40,6 +41,7 @@ from bbf.varinfo import (
     IntType,
     StringType,
     SymbolTable,
+    VarType,
     VoidType,
 )
 
@@ -51,6 +53,8 @@ class AsmCodeGen(Visitor):
 
         self.symbol_table = SymbolTable()
         self.function_table = FunctionTable()
+        self.current_fn_returntype: VarType | None = None
+
         self.strings: list[str] = []
         self.arrays: list[tuple[str, list[str]]] = []
         self.if_label_count = 0
@@ -183,11 +187,39 @@ class AsmCodeGen(Visitor):
     def visit_returnstmt(self, returnstmt: ReturnStmt) -> None:
         if returnstmt.expr is not None:
             returnstmt.expr.accept(self)
-            self.emitter.emit("pop rax")
+            assert self.current_fn_returntype is not None, "unreachable"
+            if not self.current_fn_returntype.is_slice:
+                self.emitter.emit("pop rax")
+            else:
+                self.emitter.emit("pop rdi")
+                self.emitter.emit("pop rax")
         self.emitter.emit("jmp .epilogue")
 
     def visit_exprstmt(self, expr_stmt: ExprStmt) -> None:
         expr_stmt.expr.accept(self)
+
+    def visit_array_assignment(self, array: ArrayAssign) -> None:
+        varinfo = self.symbol_table.lookup(array.name.value)
+        if varinfo is None:
+            raise CodeGenError(
+                f"ERROR: {array.name.position}: undeclared variable `{array.name.value}`. Did you forget to declare a type?"
+            )
+        assert isinstance(varinfo.vartype, ArrayType), (
+            "TypeChecker should have checked this"
+        )
+        if varinfo.vartype.vartype not in (IntType, BoolType, StringType):
+            raise CodeGenError(
+                f"ERROR: {array.name.position}: Currently only int/bool/string array are supported."
+            )
+
+        array.index.accept(self)
+        self.emitter.emit("pop rcx ; index")
+        array.expr.accept(self)
+        self.emitter.emit("pop r9 ; new value")
+        self.emitter.emit(f"mov rax, [rbp{varinfo.offset}]")
+        self.emitter.emit("imul rcx, 8")
+        self.emitter.emit("add rax, rcx")
+        self.emitter.emit("mov qword [rax], r9")
 
     def visit_integerlit(self, intlit: IntegerLit) -> None:
         self.emitter.emit(f"PUSH_INT {intlit.token.value}")
@@ -214,19 +246,17 @@ class AsmCodeGen(Visitor):
             raise CodeGenError(
                 f"ERROR: {ident.token.position}: identifier `{ident.token.value}` was not defined.{extra}"
             )
-        if varinfo.vartype in (IntType, BoolType):
+        if not varinfo.vartype.is_slice:
             self.emitter.emit(
                 f"PUSH_VAR {varinfo.offset:+d} ; var: {ident.token.value}"
             )
-        elif varinfo.vartype == StringType:
+        else:
             self.emitter.emit(
                 f"PUSH_VAR {varinfo.offset:+d} ; str_ptr: {ident.token.value}"
             )
             self.emitter.emit(
                 f"PUSH_VAR {varinfo.offset - 8:+d} ; str_len: {ident.token.value}"
             )
-        else:
-            assert False, f"unreachable: unknown VarType: {varinfo.vartype}"
 
     def visit_fncall(self, stmt: FnCall) -> None:
         # NOTE: Functions will push their result into rax. Calling code needs to
@@ -250,7 +280,7 @@ class AsmCodeGen(Visitor):
                 )
                 self.emitter.emit(f"pop {regs_order[reg_i]}")
                 reg_i += 1
-            elif fn_arg.vartype == StringType:
+            elif fn_arg.vartype.is_slice:
                 assert reg_i + 1 < len(regs_order), (
                     "Currently can't handle more physcial args than 6"
                 )
@@ -267,12 +297,12 @@ class AsmCodeGen(Visitor):
             self.emitter.emit("push rax ; return value from fn call")
         elif fninfo.return_type == VoidType:
             pass
-        elif fninfo.return_type == StringType:
+        elif fninfo.return_type.is_slice:
             self.emitter.emit("push rax ; return str_ptr from fn call")
             self.emitter.emit("push rdi ; return str_len from fn call")
         else:
             raise CodeGenError(
-                f"ERROR: {stmt.name.position}: return type {fninfo.return_type} is currently not supported."
+                f"ERROR: {stmt.name.position}: return type {fninfo.return_type.name} is currently not supported."
             )
 
     def visit_declaration(self, decl: Declaration) -> None:
@@ -282,18 +312,11 @@ class AsmCodeGen(Visitor):
         expr.accept(self)
         offset = self.symbol_table.define(name.value, decl.vartype)
 
-        if decl.vartype in (IntType, BoolType):
+        if not decl.vartype.is_slice:
             self.emitter.emit(f"STORE_VAR {offset:+d} ; var[Int]: {name.value}")
-        elif decl.vartype == StringType:
+        else:
             self.emitter.emit(f"STORE_VAR {offset - 8:+d} ; len[String]: {name.value}")
             self.emitter.emit(f"STORE_VAR {offset:+d} ; ptr[String]: {name.value}")
-        elif isinstance(decl.vartype, ArrayType):
-            self.emitter.emit(f"STORE_VAR {offset - 8:+d} ; len[Array]: {name.value}")
-            self.emitter.emit(f"STORE_VAR {offset:+d} ; ptr[Array]: {name.value}")
-        else:
-            raise CodeGenError(
-                f"ERROR: {name.position}: Unsupported VarType `{decl.vartype}`"
-            )
 
     def visit_assignment(self, assign: Assignment) -> None:
         name, expr = assign.name, assign.expr
@@ -397,7 +420,7 @@ class AsmCodeGen(Visitor):
         argv.expr.accept(self)
         self.emitter.emit("PUSH_ARGV_STRING")
 
-    def visit_arrayliteral(self, array: ArrayLiteral) -> None:
+    def visit_array_literal(self, array: ArrayLiteral) -> None:
         if isinstance(array.items[0], StringLit):
             str_literals = extract_literals(array)
             arr: list[str] = []
@@ -412,7 +435,7 @@ class AsmCodeGen(Visitor):
         len_label = f"{array_label}_len"
         self.emitter.emit(f"PUSH_SLICE {array_label}, {len_label}")
 
-    def visit_arrayaccess(self, array: ArrayAccess) -> None:
+    def visit_array_access(self, array: ArrayAccess) -> None:
         varinfo = self.symbol_table.lookup(array.name.value)
         if varinfo is None:
             raise CodeGenError(
@@ -479,6 +502,7 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("; USER FUNCTIONS", indent=0)
         self.emitter.emit()
         for fndef in self.user_fndefs:
+            self.current_fn_returntype = fndef.ret_vartype
             assert len(fndef.params) <= 6, (
                 "Functions with more than 6 params (next param on the stack) are currently not supported"
             )
@@ -507,7 +531,7 @@ class AsmCodeGen(Visitor):
                         )
                         self.emitter.emit(f"mov [rbp{offset:+d}], {reg_order[reg_i]}")
                         reg_i += 1
-                    elif vartype == StringType:
+                    elif vartype == StringType or isinstance(vartype, ArrayType):
                         assert reg_i + 1 <= 5, (
                             "More than 6 registers used (strings take up 2)"
                         )
@@ -530,6 +554,7 @@ class AsmCodeGen(Visitor):
             self.emitter.emit()
             self.emitter.emit(".epilogue:", indent=0)
             self.emitter.emit("FN_EPILOGUE")
+            self.current_fn_returntype = None
 
     def builtins(self) -> None:
         self.emitter.emit("")
@@ -555,13 +580,13 @@ class AsmCodeGen(Visitor):
             if arr_type == "primitive":
                 label = make_array_label(i)
                 self.emitter.emit(f"{label}: dq {', '.join(n for n in array)}")
-                self.emitter.emit(f"{label}_len: dq {len(array)}")
+                self.emitter.emit(f"{label}_len: equ ($ - {label}) / 8")
             elif arr_type == "slice":
                 label = make_array_label(i)
                 self.emitter.emit(f"{label}:")
                 for arr in array:
                     self.emitter.emit(f"dq {arr}", indent=8)
-                self.emitter.emit(f"{label}_len: dq {len(array) // 2}")
+                self.emitter.emit(f"{label}_len: equ ($ - {label}) / 8")
             else:
                 assert False, "unreachable"
 

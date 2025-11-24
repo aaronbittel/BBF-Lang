@@ -88,7 +88,7 @@ class ArrayLiteral(Expr):
     items: list[Expr]
 
     def accept[T](self, visitor: Visitor[T]) -> T:
-        return visitor.visit_arrayliteral(self)
+        return visitor.visit_array_literal(self)
 
 
 @dataclass
@@ -97,7 +97,7 @@ class ArrayAccess(Expr):
     expr: Expr
 
     def accept[T](self, visitor: Visitor[T]) -> T:
-        return visitor.visit_arrayaccess(self)
+        return visitor.visit_array_access(self)
 
 
 @dataclass

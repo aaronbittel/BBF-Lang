@@ -22,6 +22,7 @@ from bbf.nodes.expr import (
 )
 from bbf.nodes.program import ProgTopLevelStmt
 from bbf.nodes.stmt import (
+    ArrayAssign,
     Assignment,
     Declaration,
     DoBlock,
@@ -169,6 +170,30 @@ class TypeChecker(Visitor[VarType]):
         exprstmt.expr.accept(self)
         return VoidType
 
+    def visit_array_assignment(self, array: ArrayAssign) -> VarType:
+        name_vartype = self.scope.lookup(array.name.value)
+        if name_vartype is None:
+            raise TypeCheckerError(
+                f"ERROR: {array.name.position}: `{array.name.value}` is not defined."
+            )
+        if not isinstance(name_vartype, ArrayType):
+            raise TypeCheckerError(
+                f"ERROR: {array.name.position}: Cannot index `{array.name.value}`: "
+                f"expected an array, but found `{name_vartype.name}`."
+            )
+        index_vartype = array.index.accept(self)
+        if index_vartype != IntType:
+            raise TypeCheckerError(
+                f"ERROR: {array.name.position}: Array index must be of type `Int`, but got `{index_vartype}`"
+            )
+
+        value_vartype = array.expr.accept(self)
+        if name_vartype.vartype != value_vartype:
+            raise TypeCheckerError(
+                f"Expected type `{name_vartype.name}`, but got {value_vartype.name}"
+            )
+        return VoidType
+
     def visit_integerlit(self, intlit: IntegerLit) -> VarType:
         return IntType
 
@@ -302,7 +327,7 @@ class TypeChecker(Visitor[VarType]):
     def visit_grouping(self, grouping: Grouping) -> VarType:
         return grouping.expr.accept(self)
 
-    def visit_arrayliteral(self, array: ArrayLiteral) -> VarType:
+    def visit_array_literal(self, array: ArrayLiteral) -> VarType:
         # TODO: handle `[]` empty array
         # TODO: how to know which type is expected?
         assert len(array.items) > 0
@@ -315,7 +340,7 @@ class TypeChecker(Visitor[VarType]):
                 )
         return ArrayType(vartype, len(array.items))
 
-    def visit_arrayaccess(self, array: ArrayAccess) -> VarType:
+    def visit_array_access(self, array: ArrayAccess) -> VarType:
         index_vartype = array.expr.accept(self)
         if index_vartype != IntType:
             raise TypeCheckerError(

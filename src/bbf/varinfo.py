@@ -11,6 +11,8 @@ class VarType(Protocol):
     def name(self) -> str: ...
     @property
     def stack_size(self) -> int: ...
+    @property
+    def is_slice(self) -> bool: ...
 
     @staticmethod
     def from_token(token: Token) -> VarType:
@@ -39,6 +41,10 @@ class PrimitiveType(VarType):
     def stack_size(self) -> int:
         return self.t_size
 
+    @property
+    def is_slice(self) -> bool:
+        return False
+
 
 @dataclass(frozen=True)
 class StringType_(VarType):
@@ -49,6 +55,10 @@ class StringType_(VarType):
     @property
     def stack_size(self) -> int:
         return 16
+
+    @property
+    def is_slice(self) -> bool:
+        return True
 
 
 IntType = PrimitiveType("Int", 8)
@@ -69,6 +79,10 @@ class ArrayType(VarType):
     @property
     def stack_size(self) -> int:
         return 16
+
+    @property
+    def is_slice(self) -> bool:
+        return True
 
 
 @dataclass
