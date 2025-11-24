@@ -48,6 +48,9 @@ class RunStats:
         self.run_count += 1
         self.succeeded += 1
 
+    def failed(self) -> bool:
+        return len(self.failed_files) > 0
+
     def __str__(self) -> str:
         assert self.run_count == self.succeeded + len(self.failed_files) + len(
             self.skipped_files
@@ -285,9 +288,8 @@ def run_file(step: Step, filepath: Path, stats: RunStats) -> None:
             f"Missing `output` snapshot for `{filepath.name}`",
         )
     except RuntimeError as e:
-        print("runtime", repr(str(e)))
-        stats.skip(filepath, Step.Output, str(e))
-        print(darkgray("[SKIPING]"), str(e))
+        stats.fail(filepath, Step.Output, str(e))
+        print(red("[ERROR]"), str(e))
 
 
 def color_diff(expected: str, actual: str) -> None:
@@ -428,12 +430,16 @@ if __name__ == "__main__":
             sys.exit(1)
         print("=" * 90)
         print(stats)
+        if stats.failed():
+            sys.exit(1)
     elif args.command == "all":
         stats = RunStats()
         run_dir(Step.All, CASES_DIR, stats)
         run_dir(Step.All, EXAMPLES_DIR, stats)
         print("=" * 90)
         print(stats)
+        if stats.failed():
+            sys.exit(1)
     elif args.command == "clean":
         for filepath in SNAPSHOTS_DIR.rglob("*.actual"):
             filepath.unlink()
