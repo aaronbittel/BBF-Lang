@@ -201,7 +201,8 @@ class Lexer:
             else:
                 token = self._create_token(ttype=TokenType.Equal, value="=")
         elif ch == "!":
-            if self.peek(1) == "=":
+            self.advance()
+            if self.peek() == "=":
                 token = self._create_token(
                     ttype=TokenType.BangEqual, value="!=", length=2
                 )
@@ -314,7 +315,7 @@ class Lexer:
         if self.peek() == ch:
             return self.advance()
         raise LexerError(
-            msg=f"Expected `{ch}`, but found {self.peek()}", position=self.position
+            msg=f"Expected `{ch}`, but found `{self.peek()}`", position=self.position
         )
 
     def previous(self) -> str:
