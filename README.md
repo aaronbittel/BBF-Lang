@@ -65,6 +65,12 @@ x: Int = 12
 x = 24
 ```
 
+### Arrays
+```python
+x: Int[4] = [1, 2, 3, 4]
+y: Int = x[1]
+```
+
 ### If
 ```elixir
 if argc > 1 then
@@ -112,6 +118,9 @@ x: Int = 12 # they can also be inline
 null-terminated.
 - `Bool`: 64bit integer (internally)
     - Booleans are represented as integers (0 == `false`, 1 == `true`)
+- `Array`: Contiguous space, stored as ptr + len
+    - If defined in "global" scope, then store in `.data` section
+    - If defined in "local" scope (e.g. return by a function) then stored on the stack
 - `Void`: Only used in return type annotations. `x: Void = 1` is not supported
 
 ### Builtin Functions
