@@ -1,0 +1,16 @@
+Argv: 0
+
+Returncode: 1
+0
+Stdout: 49
+[4 6 8 10]
+28
+false
+true
+[1 2 3 4]
+10
+true
+false
+
+Stderr: 0
+

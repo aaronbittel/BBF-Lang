@@ -1,0 +1,43 @@
+fn print_array(arr: Int[4]) do
+    stdout("[")
+    for i in 0..4 do
+        if i != 0 then stdout(" ") end
+        stdout(itoa(arr[i]))
+    end
+    stdout("]") stdout("\n")
+end
+
+fn sum(arr: Int[4]) -> Int do
+    result: Int = 0
+    for i in 0..4 do
+        result = result + arr[i]
+    end
+    return result
+end
+
+fn contains(arr: Int[4], target: Int) -> Bool do
+    for i in 0..4 do
+        if arr[i] == target then return true end
+    end
+    return false
+end
+
+fn range(start: Int, step: Int) -> Int[4] do
+    result: Int[4] = [0, 0, 0, 0]
+    for i in 0..4 do
+        result[i] = start + i * step
+    end
+    return result
+end
+
+arr: Int[4] = range(4, 2)
+print_array(arr)
+stdout(itoa(sum(arr))) stdout("\n")
+stdout(btoa(contains(arr, 3))) stdout("\n")
+stdout(btoa(contains(arr, 6))) stdout("\n")
+
+arr: Int[4] = [1, 2, 3, 4]
+print_array(arr)
+stdout(itoa(sum(arr))) stdout("\n")
+stdout(btoa(contains(arr, 3))) stdout("\n")
+stdout(btoa(contains(arr, 6))) stdout("\n")

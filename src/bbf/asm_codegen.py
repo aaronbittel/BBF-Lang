@@ -529,6 +529,11 @@ class AsmCodeGen(Visitor):
             reg_i = 0
 
             with self.new_scope(is_function=True):
+                if isinstance(fndef.ret_vartype, ArrayType):
+                    self.emitter.emit("RESERVE_SPACE 8 ; internal array ptr")
+                    self.symbol_table.reserve(8)
+                    reg_i += 1
+
                 for param in fndef.params:
                     vartype = param.vartype
                     self.emitter.emit(
