@@ -1,7 +1,7 @@
 all: output
 
 BIN_DIR = ./bin
-FILENAME = test01
+FILENAME = scratch
 
 output:
 	@uv run bbf $(FILENAME).bbf --step output
@@ -28,4 +28,4 @@ fix:
 	@uv tool run ruff check --fix .
 	@uv run mypy . --check-untyped-defs
 
-.PHONY = run output parser lexer debug typecheck
+.PHONY: run output parser lexer debug typecheck
