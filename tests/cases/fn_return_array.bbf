@@ -1,0 +1,25 @@
+fn array() -> Int[4] do
+    return [1, 2, 3, 4]
+end
+
+fn print_array(arr: Int[4]) do
+    stdout("[")
+    for i in 0..4 do
+        if i != 0 then stdout(" ") end
+        stdout(itoa(arr[i]))
+    end
+    stdout("]") stdout("\n")
+end
+
+x: Int[4] = array()
+print_array(x)
+x[2] = 100
+print_array(x)
+
+y: Int[4] = array()
+print_array(y)
+y[2] = -999
+print_array(y)
+
+z: Int = x[0] + x[1] + x[2] + x[3] - y[2]
+stdout(itoa(z)) stdout("\n")

@@ -258,21 +258,27 @@ class AsmCodeGen(Visitor):
                 f"PUSH_VAR {varinfo.offset - 8:+d} ; str_len: {ident.token.value}"
             )
 
-    def visit_fncall(self, stmt: FnCall) -> None:
+    def visit_fncall(self, fncall: FnCall) -> None:
         # NOTE: Functions will push their result into rax. Calling code needs to
         # handle this.
-        fninfo = self.function_table.lookup(stmt.name.value)
+        fninfo = self.function_table.lookup(fncall.name.value)
         if fninfo is None:
             raise CodeGenError(
-                f"ERROR: {stmt.name.position}: No function with name `{stmt.name.value}` is defined."
+                f"ERROR: {fncall.name.position}: No function with name `{fncall.name.value}` is defined."
             )
-        fn_name = stmt.name.value
+        fn_name = fncall.name.value
 
         regs_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
         reg_i = 0
 
+        if isinstance(fninfo.return_type, ArrayType):
+            self.emitter.emit(f"RESERVE_SPACE {fninfo.return_type.total_size}")
+            self.emitter.emit("lea rdi, [rsp]")
+            reg_i += 1
+            self.symbol_table.reserve(fninfo.return_type.total_size)
+
         self.emitter.emit(f"; {fn_name} function args")
-        for fn_arg, expr_arg in zip(fninfo.args, stmt.args_list):
+        for fn_arg, expr_arg in zip(fninfo.args, fncall.args_list):
             expr_arg.accept(self)
             if not fn_arg.vartype.is_slice:
                 assert reg_i < len(regs_order), (
@@ -294,15 +300,15 @@ class AsmCodeGen(Visitor):
         if not fninfo.return_type.is_slice:
             self.emitter.emit("push rax ; return value from fn call")
         else:
-            self.emitter.emit("push rax ; return str_ptr from fn call")
-            self.emitter.emit("push rdi ; return str_len from fn call")
+            self.emitter.emit("push rax ; return ptr from fn call")
+            self.emitter.emit("push rdi ; return len from fn call")
 
     def visit_declaration(self, decl: Declaration) -> None:
         name, expr = decl.name, decl.expr
 
+        offset = self.symbol_table.define(name.value, decl.vartype)
         self.emitter.emit(f"RESERVE_SPACE {decl.vartype.stack_size}")
         expr.accept(self)
-        offset = self.symbol_table.define(name.value, decl.vartype)
 
         if not decl.vartype.is_slice:
             self.emitter.emit(f"STORE_VAR {offset:+d} ; var[Int]: {name.value}")
@@ -413,19 +419,31 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("PUSH_ARGV_STRING")
 
     def visit_array_literal(self, array: ArrayLiteral) -> None:
-        if isinstance(array.items[0], StringLit):
-            str_literals = extract_literals(array)
-            arr: list[str] = []
-            for s in str_literals:
-                str_label, len_label = self.add_string(s)
-                arr.append(str_label)
-                arr.append(len_label)
-            self.arrays.append(("slice", arr))
-        else:
-            self.arrays.append(("primitive", extract_literals(array)))
-        array_label = make_array_label(len(self.arrays) - 1)
-        len_label = f"{array_label}_len"
-        self.emitter.emit(f"PUSH_SLICE {array_label}, {len_label}")
+        # array declaration outside of a function -> .data static memory
+        if self.current_fn_returntype is None:
+            if isinstance(array.items[0], StringLit):
+                str_literals = extract_literals(array)
+                arr: list[str] = []
+                for s in str_literals:
+                    str_label, len_label = self.add_string(s)
+                    arr.append(str_label)
+                    arr.append(len_label)
+                self.arrays.append(("slice", arr))
+            else:
+                self.arrays.append(("primitive", extract_literals(array)))
+            array_label = make_array_label(len(self.arrays) - 1)
+            len_label = f"{array_label}_len"
+            self.emitter.emit(f"PUSH_SLICE {array_label}, {len_label}")
+            return
+        # array declaration inside a function -> ptr to space in rdi
+        for i, item in enumerate(array.items):
+            item.accept(self)
+            self.emitter.emit("pop rax")
+            self.emitter.emit(f"mov [rdi + {i * 8}], rax")
+
+        self.emitter.emit("push rdi")
+        assert isinstance(self.current_fn_returntype, ArrayType)
+        self.emitter.emit(f"PUSH_INT {self.current_fn_returntype.length}")
 
     def visit_array_access(self, array: ArrayAccess) -> None:
         varinfo = self.symbol_table.lookup(array.name.value)

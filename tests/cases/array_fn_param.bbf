@@ -1,0 +1,9 @@
+fn sum(arr: Int[4]) -> Int do
+    result: Int = 0
+    for i in 0..4 do
+        result = result + arr[i]
+    end
+    return result
+end
+
+exit(sum([1, 2, 3, 4]))

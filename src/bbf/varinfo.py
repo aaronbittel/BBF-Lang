@@ -84,6 +84,10 @@ class ArrayType(VarType):
     def is_slice(self) -> bool:
         return True
 
+    @property
+    def total_size(self) -> int:
+        return self.vartype.stack_size * self.length
+
 
 @dataclass
 class VarInfo:
@@ -112,3 +116,7 @@ class SymbolTable:
         if self.parent:
             return self.parent.lookup(name)
         return None
+
+    def reserve(self, size: int) -> None:
+        self.next_offset -= size
+        self.reserved_space += size
