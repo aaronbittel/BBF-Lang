@@ -1,0 +1,10 @@
+Argv: 0
+
+Returncode: 1
+0
+Stdout: 66
+content: String = read_entire_file("scratch.bbf")
+stdout(content)
+
+Stderr: 0
+

@@ -1,3 +1,60 @@
+_macro_constants = """
+%define TRUE  1
+%define FALSE 0
+
+; --- FD ---
+%define STDIN  0
+%define STDOUT 1
+%define STDERR 2
+
+; --- SYSCALLS ---
+%define SYS_READ   0
+%define SYS_WRITE  1
+%define SYS_OPEN   2
+%define SYS_CLOSE  3
+%define SYS_MMAP   9
+%define SYS_EXIT  60
+
+; --- CONSTANTS ---
+%define PAGE_SIZE 4096
+
+%define RDONLY 0
+%define WRONLY 1
+%define RDWR   2
+"""
+
+_macro_program_prologue = """
+%macro PROGRAM_PROLOGUE 0
+    ; init base pointer
+    mov rbp, rsp
+
+    ; save argc and argv into .bss
+    mov rax, [rbp]
+    mov [__argc], rax
+    lea rax, [rbp+8] ; addr of rbp + 8
+    mov [__argv], rax
+
+    ; init memory space
+    mov rdi, 1024 * 1024 ; TODO: make this configurable via compiler flags
+    call __sys_mmap
+    mov [__mem_ptr], rax
+
+%endmacro"""
+
+_macro_push_mem_ptr = """
+%macro PUSH_MEM_PTR 0
+    mov rax, [__mem_ptr]
+    push rax
+%endmacro
+"""
+
+_macro_add_mem_ptr = """
+%macro ADD_MEM_PTR 1
+    ; %1: size
+    add qword [__mem_ptr], %1
+%endmacro
+"""
+
 _macro_push_intlit = """
 %macro PUSH_INT 1
     ; %1: value
@@ -24,18 +81,6 @@ _macro_push_bool = """
     %endif
 %endmacro"""
 
-_macro_program_prologue = """
-%macro PROGRAM_PROLOGUE 0
-    ; init base pointer
-    mov rbp, rsp
-
-    ; save argc and argv into .bss
-    mov rax, [rbp]
-    mov [__argc], rax
-    lea rax, [rbp+8] ; addr of rbp + 8
-    mov [__argv], rax
-
-%endmacro"""
 
 _macro_fn_prologue = """
 %macro FN_PROLOGUE 0
@@ -114,7 +159,7 @@ _macro_argv_access = """
     mov rdi, [rbx] ; ptr to arg[i]
 
     push rdi ; str_ptr
-    call c_strlen
+    call __builtin_c_strlen
     push rax ; str_len
 %endmacro"""
 

@@ -248,7 +248,6 @@ class AsmCodeGen(Visitor):
         # handle this.
         fninfo = self.function_table.lookup(fncall.name.value)
         assert fninfo is not None, "TypeChecker: Bug"
-        fn_name = fncall.name.value
 
         regs_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
         reg_i = 0
@@ -259,7 +258,7 @@ class AsmCodeGen(Visitor):
             reg_i += 1
             self.symbol_table.reserve(fninfo.return_type.total_size)
 
-        self.emitter.emit(f"; {fn_name} function args")
+        self.emitter.emit(f"; {fninfo.name} function args")
         for fn_arg, expr_arg in zip(fninfo.args, fncall.args_list):
             expr_arg.accept(self)
             if not fn_arg.vartype.is_slice:
@@ -276,7 +275,9 @@ class AsmCodeGen(Visitor):
                 self.emitter.emit(f"pop {regs_order[reg_i]} ; str_ptr")
                 reg_i += 2
 
-        self.emitter.emit(f"call {fn_name} ; return_type: {fninfo.return_type.name}")
+        self.emitter.emit(
+            f"call {fninfo.callname} ; return_type: {fninfo.return_type.name}"
+        )
         if fninfo.return_type == VoidType:
             return
         if not fninfo.return_type.is_slice:
@@ -468,6 +469,7 @@ class AsmCodeGen(Visitor):
                 self.macros_emitter.multi(code)
 
     def program_prologue(self) -> None:
+        self.emitter.emit("global __sys_mmap", indent=0)
         self.emitter.emit("global _start", indent=0)
         self.emitter.emit("", indent=0)
         self.emitter.emit("_start:", indent=0)
@@ -477,7 +479,7 @@ class AsmCodeGen(Visitor):
         self.emitter.emit()
         self.emitter.emit("; default exit 0")
         self.emitter.emit("mov rdi, 0")
-        self.emitter.emit("call exit")
+        self.emitter.emit("call __sys_exit")
 
     def user_defined_fns(self):
         self.emitter.emit()
@@ -557,8 +559,8 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("__false_len: equ $ - __false")
         for i, raw_s in enumerate(self.strings):
             label = make_string_label(i)
-            self.emitter.emit(f"{label}: db {encode_nasm_string(raw_s)}")
-            self.emitter.emit(f"{label}_len: equ $ - {label}")
+            self.emitter.emit(f"{label}: db {encode_nasm_string(raw_s)}, 0")
+            self.emitter.emit(f"{label}_len: equ $ - {label} - 1")
         for i, (arr_type, array) in enumerate(self.arrays):
             if arr_type == "primitive":
                 label = make_array_label(i)
@@ -576,8 +578,9 @@ class AsmCodeGen(Visitor):
     def bss_section(self) -> None:
         self.emitter.emit("")
         self.emitter.emit("section .bss", indent=0)
-        self.emitter.emit("__argc: resq 1 ; argc")
-        self.emitter.emit("__argv: resq 1 ; addr of ptr to argv[0]")
+        self.emitter.emit("__mem_ptr: resq 1")
+        self.emitter.emit("__argc: resq 1")
+        self.emitter.emit("__argv: resq 1")
         self.emitter.emit("__itoa_buf: resb 32")
 
     def add_string(self, s: str) -> tuple[str, str]:

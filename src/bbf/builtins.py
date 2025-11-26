@@ -1,14 +1,13 @@
 _builtin_exit = """
 ; rdi: exit_code
-exit:
-    mov rax, 60
+__sys_exit:
+    mov rax, SYS_EXIT
     syscall"""
 
 _builtin_atoi = """
 ; rdi: str_ptr, rsi: str_len
-atoi:
-    push rbp
-    mov rbp, rsp
+__builtin_atoi:
+    FN_PROLOGUE
     xor rax, rax
     mov r9, rdi ; r9: ptr into str
     lea r11, [rdi + rsi] ; r11: end ptr
@@ -25,12 +24,12 @@ atoi:
     jmp .loop
 
 .return:
-    pop rbp
-    ret"""
+    FN_EPILOGUE"""
 
 _builtin_itoa = """
 ; rdi: int
-itoa:
+__builtin_itoa:
+    FN_PROLOGUE
     mov rbx, 10 ; factor 10 used for division and modulo
     mov rax, rdi ; rax: number
 
@@ -63,13 +62,12 @@ itoa:
     lea rax, [__itoa_buf + r9] ; pointer to start of string
     mov rdi, 32
     sub rdi, r9 ; length
-    ret"""
+    FN_EPILOGUE"""
 
 _builtin_btoa = """
 ; rdi: bool
-btoa:
-    push rbp
-    mov rbp, rsp
+__builtin_btoa:
+    FN_PROLOGUE
 
     cmp rdi, 1
     je .ret_true
@@ -83,49 +81,45 @@ btoa:
     mov rdi, __true_len
 
 .end:
-    pop rbp
-    ret
+    FN_EPILOGUE
 """
 
 _builtin_stdout = """
 ; rdi: str_ptr, rsi: str_len
-stdout:
-    push rbp
-    mov rbp, rsp
+__sys_stdout:
+    FN_PROLOGUE
 
     mov r9, rdi
     mov r10, rsi
 
-    mov rax, 1
-    mov rdi, 1 ; stdout
+    mov rax, SYS_WRITE
+    mov rdi, STDOUT
     mov rsi, r9
     mov rdx, r10
     syscall
 
-    pop rbp
-    ret"""
+    FN_EPILOGUE"""
 
 _builtin_stderr = """
 ; rdi: str_ptr, rsi: str_len
-stderr:
-    push rbp
-    mov rbp, rsp
+__sys_stderr:
+    FN_PROLOGUE
 
     mov r9, rdi
     mov r10, rsi
 
-    mov rax, 1
-    mov rdi, 2 ; stderr
+    mov rax, SYS_WRITE
+    mov rdi, STDERR
     mov rsi, r9
     mov rdx, r10
     syscall
 
-    pop rbp
-    ret"""
+    FN_EPILOGUE"""
 
 _builtin_c_strlen = """
 ; rdi: str_ptr
-c_strlen:
+__builtin_c_strlen:
+    FN_PROLOGUE
     xor rax, rax
 
 .loop:
@@ -136,4 +130,77 @@ c_strlen:
     jmp .loop
 
 .return:
+    FN_EPILOGUE"""
+
+_builtin_read_entire_file = """
+; rdi: ptr_filename, _rsi: len (unused) -> null-terminated string for `sys_open`
+__builtin_read_entire_file:
+    FN_PROLOGUE
+
+    mov rsi, RDONLY
+    mov rdx, 0
+    call __sys_open
+    mov r10, rax ; r10: fd
+
+    PUSH_MEM_PTR
+    pop r9     ; r9: out_ptr
+    xor r8, r8 ; r8: total bytes
+    mov rdi, r10
+    mov rsi, r9
+    mov rdx, PAGE_SIZE
+
+.loop:
+    call __sys_read
+
+    add r8, rax
+    add rsi, rax
+    cmp rax, PAGE_SIZE
+    je .loop
+
+    mov rdi, r10
+    call __sys_close
+
+    ADD_MEM_PTR r8
+
+    mov rax, r9
+    mov rdi, r8
+    FN_EPILOGUE"""
+
+_builtin_open_file = """
+; rdi: filename_ptr, rsi: flags, rdx: mode
+__sys_open:
+    mov rax, SYS_OPEN
+    syscall
     ret"""
+
+_builtin_close = """
+; rdi: fd
+__sys_close:
+    mov rax, SYS_CLOSE
+    syscall
+    ret"""
+
+_builtin_read = """
+; rdi: fd, rsi: ptr, rdx: count
+__sys_read:
+    mov rax, SYS_READ
+    syscall
+    ret"""
+
+_builtin_mmap = """
+; rdi: length
+__sys_mmap:
+    FN_PROLOGUE
+    mov r9, rdi ; r9: length
+
+    mov rax, SYS_MMAP
+    mov rdi, 0              ; addr = NULL (let kernel choose)
+    mov rsi, r9             ; length = 1 MB
+    mov rdx, 3              ; PROT_READ | PROT_WRITE
+    mov r10, 0x20 | 0x02    ; MAP_PRIVATE | MAP_ANONYMOUS
+    mov r8, -1              ; fd = -1
+    mov r9, 0               ; offset = 0
+    syscall
+
+    FN_EPILOGUE
+"""

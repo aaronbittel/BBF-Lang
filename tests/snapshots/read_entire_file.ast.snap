@@ -1,0 +1,2 @@
+content: String = read_entire_file( 'scratch.bbf' )
+stdout( content )

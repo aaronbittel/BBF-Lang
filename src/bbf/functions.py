@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from functools import partial
 from typing import NamedTuple
 
 from bbf.nodes.toplevel import FnDef
@@ -16,6 +17,7 @@ class FnInfo(NamedTuple):
     name: str
     args: list[FnArg]
     return_type: VarType
+    prefix: str = ""
 
     @classmethod
     def from_node(cls, fndef: FnDef) -> FnInfo:
@@ -23,15 +25,26 @@ class FnInfo(NamedTuple):
         args = [FnArg(param.name.value, param.vartype) for param in fndef.params]
         return cls(name, args, fndef.ret_vartype)
 
+    @property
+    def callname(self) -> str:
+        return f"{self.prefix}{self.name}"
+
+
+syscall = partial(FnInfo, prefix="__sys_")
+builtin = partial(FnInfo, prefix="__builtin_")
+
 
 # Built-in functions
 BUILTIN_FNS = {
-    "exit": FnInfo("exit", [FnArg("x", IntType)], VoidType),
-    "atoi": FnInfo("atoi", [FnArg("x", StringType)], IntType),
-    "itoa": FnInfo("itoa", [FnArg("x", IntType)], StringType),
-    "btoa": FnInfo("btoa", [FnArg("x", BoolType)], StringType),
-    "stdout": FnInfo("stdout", [FnArg("x", StringType)], VoidType),
-    "stderr": FnInfo("stderr", [FnArg("x", StringType)], VoidType),
+    "exit": syscall("exit", [FnArg("x", IntType)], VoidType),
+    "stdout": syscall("stdout", [FnArg("x", StringType)], VoidType),
+    "stderr": syscall("stderr", [FnArg("x", StringType)], VoidType),
+    "atoi": builtin("atoi", [FnArg("x", StringType)], IntType),
+    "itoa": builtin("itoa", [FnArg("x", IntType)], StringType),
+    "btoa": builtin("btoa", [FnArg("x", BoolType)], StringType),
+    "read_entire_file": builtin(
+        "read_entire_file", [FnArg("filename", StringType)], StringType
+    ),
 }
 
 
