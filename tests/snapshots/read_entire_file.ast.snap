@@ -1,2 +1,2 @@
-content: String = read_entire_file( 'scratch.bbf' )
+content: String = read_entire_file( './tests/cases/read_entire_file.bbf' )
 stdout( content )
