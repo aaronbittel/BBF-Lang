@@ -221,7 +221,14 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(f"PUSH_INT {intlit.token.value}")
 
     def visit_stringlit(self, strlit: StringLit) -> None:
-        str_label, len_label = self.add_string(strlit.token.value)
+        for i, s in enumerate(self.strings):
+            if s == strlit.token.value:
+                str_label = make_string_label(i)
+                len_label = f"{str_label}_len"
+                break
+        else:
+            str_label, len_label = self.add_string(strlit.token.value)
+
         self.emitter.emit(f"PUSH_SLICE {str_label}, {len_label}")
 
     def visit_identifier(self, ident: Identifier) -> None:
