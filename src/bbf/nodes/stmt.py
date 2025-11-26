@@ -75,6 +75,7 @@ class ExprStmt(Stmt):
 
 @dataclass
 class ReturnStmt(Stmt):
+    ret_token: Token
     expr: Expr | None = None
 
     def accept[T](self, visitor: Visitor[T]) -> T:

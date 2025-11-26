@@ -200,17 +200,13 @@ class AsmCodeGen(Visitor):
 
     def visit_array_assignment(self, array: ArrayAssign) -> None:
         varinfo = self.symbol_table.lookup(array.name.value)
-        if varinfo is None:
-            raise CodeGenError(
-                f"ERROR: {array.name.position}: undeclared variable `{array.name.value}`. Did you forget to declare a type?"
-            )
+        assert varinfo is not None, "TypeChecker: Bug"
         assert isinstance(varinfo.vartype, ArrayType), (
             "TypeChecker should have checked this"
         )
-        if varinfo.vartype.vartype not in (IntType, BoolType, StringType):
-            raise CodeGenError(
-                f"ERROR: {array.name.position}: Currently only int/bool/string array are supported."
-            )
+        assert varinfo.vartype.vartype in (IntType, BoolType, StringType), (
+            "TypeChecker: Bug"
+        )
 
         array.index.accept(self)
         self.emitter.emit("pop rcx ; index")
@@ -234,18 +230,7 @@ class AsmCodeGen(Visitor):
             self.emitter.emit("PUSH_ARGC")
             return
         varinfo = self.symbol_table.lookup(ident.token.value)
-        if varinfo is None:
-            is_numeric_with_underscores = lambda value: all(
-                ch.isdigit() or ch == "_" for ch in value
-            )
-            extra = (
-                " Did you mean to write a number?"
-                if is_numeric_with_underscores(ident.token.value)
-                else ""
-            )
-            raise CodeGenError(
-                f"ERROR: {ident.token.position}: identifier `{ident.token.value}` was not defined.{extra}"
-            )
+        assert varinfo is not None, "TypeChecker: Bug"
         if not varinfo.vartype.is_slice:
             self.emitter.emit(
                 f"PUSH_VAR {varinfo.offset:+d} ; var: {ident.token.value}"
@@ -262,10 +247,7 @@ class AsmCodeGen(Visitor):
         # NOTE: Functions will push their result into rax. Calling code needs to
         # handle this.
         fninfo = self.function_table.lookup(fncall.name.value)
-        if fninfo is None:
-            raise CodeGenError(
-                f"ERROR: {fncall.name.position}: No function with name `{fncall.name.value}` is defined."
-            )
+        assert fninfo is not None, "TypeChecker: Bug"
         fn_name = fncall.name.value
 
         regs_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
@@ -321,10 +303,7 @@ class AsmCodeGen(Visitor):
         expr.accept(self)
 
         varinfo = self.symbol_table.lookup(name.value)
-        if varinfo is None:
-            raise CodeGenError(
-                f"ERROR: {name.position}: undeclared variable `{name.value}`. Did you forget to declare a type?"
-            )
+        assert varinfo is not None, "TypeChecker: Bug"
         if not varinfo.vartype.is_slice:
             self.emitter.emit(
                 f"STORE_VAR {varinfo.offset:+d} ; var[{varinfo.vartype.name}]: {name.value}"
@@ -407,9 +386,7 @@ class AsmCodeGen(Visitor):
         elif unary.operator.ttype == TokenType.Plus:
             pass  # Ignore "+"
         else:
-            raise CodeGenError(
-                f"ERROR: {unary.operator.position}: unsupported unary operator type {unary.operator}"
-            )
+            assert False, "TypeChecker: Bug"
 
     def visit_grouping(self, grouping: Grouping) -> None:
         grouping.expr.accept(self)
@@ -447,17 +424,11 @@ class AsmCodeGen(Visitor):
 
     def visit_array_access(self, array: ArrayAccess) -> None:
         varinfo = self.symbol_table.lookup(array.name.value)
-        if varinfo is None:
-            raise CodeGenError(
-                f"ERROR: {array.name.position}: undeclared variable `{array.name.value}`. Did you forget to declare a type?"
-            )
-        assert isinstance(varinfo.vartype, ArrayType), (
-            "TypeChecker should have checked this"
+        assert varinfo is not None, "TypeChecker: Bug"
+        assert isinstance(varinfo.vartype, ArrayType), "TypeChecker: Bug"
+        assert varinfo.vartype.vartype in (IntType, BoolType, StringType), (
+            "TypeChecker: Bug"
         )
-        if varinfo.vartype.vartype not in (IntType, BoolType, StringType):
-            raise CodeGenError(
-                f"ERROR: {array.name.position}: Currently only int/bool/string array are supported."
-            )
 
         if not varinfo.vartype.vartype.is_slice:
             array.expr.accept(self)

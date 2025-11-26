@@ -2,8 +2,8 @@ import sys
 
 from bbf.ast_printer import ASTPrinter
 from bbf.cli import parse_cli_args
-from bbf.lexer import dump_tokens
 from bbf.runner import Step, generate_exe, parse, tokenize
+from bbf.token import dump_tokens
 from bbf.type_checker import TypeChecker
 from bbf.utils import blue, run_cmd
 

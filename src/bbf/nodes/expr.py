@@ -4,13 +4,17 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from bbf.lexer import Token
+from bbf.span import Span
+from bbf.token import Token
 
 if TYPE_CHECKING:
     from bbf.nodes.visitor import Visitor
 
 
+@dataclass(kw_only=True)
 class Expr(ABC):
+    span: Span
+
     @abstractmethod
     def accept[T](self, visitor: Visitor[T]) -> T: ...
 

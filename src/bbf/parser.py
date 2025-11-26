@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from bbf.lexer import Token, TokenType
 from bbf.nodes.expr import (
     Argv,
     ArrayAccess,
@@ -32,6 +31,8 @@ from bbf.nodes.stmt import (
     Stmt,
 )
 from bbf.nodes.toplevel import FnDef, Param, TopLevel, TopLevelStmt
+from bbf.span import Span
+from bbf.token import Token, TokenType
 from bbf.utils import darkgray
 from bbf.varinfo import ArrayType, VarType, VoidType
 
@@ -94,13 +95,19 @@ class Parser:
         return FnDef(name, args, return_type, block)
 
     def parse_return_stmt(self) -> ReturnStmt:
-        ret = self.consume(TokenType.Return, "Expected `return` for return statement")
+        ret_token = self.consume(
+            TokenType.Return, "Expected `return` for return statement"
+        )
         try:
             expr = self.expr()
-            return ReturnStmt(expr)
+            return ReturnStmt(ret_token, expr)
         except ParserError:
-            print(darkgray(f"[INFO] {ret.position}: `return` statement without expr ?"))
-        return ReturnStmt()
+            print(
+                darkgray(
+                    f"[INFO] {ret_token.position}: `return` statement without expr ?"
+                )
+            )
+        return ReturnStmt(ret_token)
 
     def parse_stmt(self) -> Stmt:
         if self.check(TokenType.If):
@@ -283,7 +290,9 @@ class Parser:
         while self.match(TokenType.Or):
             operator = self.previous()
             right = self.or_expr()
-            expr = Binary(expr, operator, right)
+            expr = Binary(
+                expr, operator, right, span=Span(expr.span.start, right.span.end)
+            )
         return expr
 
     def or_expr(self) -> Expr:
@@ -291,7 +300,9 @@ class Parser:
         while self.match(TokenType.And):
             operator = self.previous()
             right = self.and_expr()
-            expr = Binary(expr, operator, right)
+            expr = Binary(
+                expr, operator, right, span=Span(expr.span.start, right.span.end)
+            )
         return expr
 
     def and_expr(self) -> Expr:
@@ -302,7 +313,9 @@ class Parser:
         while self.match(TokenType.BangEqual, TokenType.EqualEqual):
             operator = self.previous()
             right = self.comparison()
-            expr = Binary(expr, operator, right)
+            expr = Binary(
+                expr, operator, right, span=Span(expr.span.start, right.span.end)
+            )
         return expr
 
     def comparison(self) -> Expr:
@@ -315,7 +328,9 @@ class Parser:
         ):
             operator = self.previous()
             right = self.term()
-            expr = Binary(expr, operator, right)
+            expr = Binary(
+                expr, operator, right, span=Span(expr.span.start, right.span.end)
+            )
         return expr
 
     def term(self) -> Expr:
@@ -323,7 +338,9 @@ class Parser:
         while self.match(TokenType.Minus, TokenType.Plus):
             operator = self.previous()
             right = self.factor()
-            expr = Binary(expr, operator, right)
+            expr = Binary(
+                expr, operator, right, span=Span(expr.span.start, right.span.end)
+            )
         return expr
 
     def factor(self) -> Expr:
@@ -331,27 +348,22 @@ class Parser:
         while self.match(TokenType.Slash, TokenType.Star, TokenType.Percent):
             operator = self.previous()
             right = self.unary()
-            expr = Binary(expr, operator, right)
+            expr = Binary(
+                expr, operator, right, span=Span(expr.span.start, right.span.end)
+            )
         return expr
 
     def unary(self) -> Expr:
-        if self.match(TokenType.Minus):
+        if self.match(TokenType.Minus, TokenType.Plus, TokenType.Not):
             operator = self.previous()
             right = self.unary()
-            return Unary(operator, right)
-        if self.match(TokenType.Plus):
-            operator = self.previous()
-            right = self.unary()
-            return Unary(operator, right)
-        if self.match(TokenType.Not):
-            operator = self.previous()
-            right = self.unary()
-            return Unary(operator, right)
+            return Unary(operator, right, span=Span(operator.position, right.span.end))
         return self.primary()
 
     def primary(self) -> Expr:
         if self.match(TokenType.IntegerLit):
-            return IntegerLit(self.previous())
+            token = self.previous()
+            return IntegerLit(token, span=Span.from_token(token))
         if self.check(TokenType.Identifier):
             if self.peek().value == "argv":
                 return self.argv()
@@ -359,26 +371,32 @@ class Parser:
                 return self.fn_call()
             if self.check(TokenType.OpenBracket, offset=1):
                 return self.array_access()
-            return Identifier(self.advance())
+            token = self.advance()
+            return Identifier(token, span=Span.from_token(token))
         if self.check(TokenType.OpenParen):
-            self.consume(TokenType.OpenParen, "Expected `(` in expression")
+            start = self.consume(TokenType.OpenParen, "Expected `(` in expression")
             expr = self.expr()
-            self.consume(TokenType.CloseParen, "Expected ')' after expression.")
-            return Grouping(expr)
+            end = self.consume(TokenType.CloseParen, "Expected ')' after expression.")
+            return Grouping(expr, span=Span(start.position, end.position))
         if self.match(TokenType.StringLit):
-            return StringLit(self.previous())
+            token = self.previous()
+            return StringLit(token, span=Span.from_token(token))
         if self.match(TokenType.BoolTrue):
-            return BoolTrue(self.previous())
+            token = self.previous()
+            return BoolTrue(token, span=Span.from_token(token))
         if self.match(TokenType.BoolFalse):
-            return BoolFalse(self.previous())
+            token = self.previous()
+            return BoolFalse(token, span=Span.from_token(token))
         if self.match(TokenType.OpenBracket):
+            start = self.previous()
             args: list[Expr] = []
             if not self.check(TokenType.CloseBracket):
                 args = self.arguments()
                 self.consume(
                     TokenType.CloseBracket, "Expected `]` to close ArrayLiteral"
                 )
-            return ArrayLiteral(args)
+            end = self.previous()
+            return ArrayLiteral(args, span=Span(start.position, end.position))
         token = self.peek()
         if token.ttype == TokenType.Colon:
             msg = (
@@ -394,8 +412,8 @@ class Parser:
         )
         self.consume(TokenType.OpenBracket, "Expected `[` for array access")
         expr = self.expr()
-        self.consume(TokenType.CloseBracket, "Expected `]` for array access")
-        return ArrayAccess(name, expr)
+        end = self.consume(TokenType.CloseBracket, "Expected `]` for array access")
+        return ArrayAccess(name, expr, span=Span(name.position, end.position))
 
     def parse_function_call(self) -> FnCall:
         return self.fn_call()
@@ -406,8 +424,8 @@ class Parser:
         args_list: list[Expr] = []
         if not self.check(TokenType.CloseParen):
             args_list = self.arguments()
-        self.consume(TokenType.CloseParen, "Expected `)` for function call")
-        return FnCall(name, args_list)
+        end = self.consume(TokenType.CloseParen, "Expected `)` for function call")
+        return FnCall(name, args_list, span=Span(name.position, end.position))
 
     def arguments(self) -> list[Expr]:
         args: list[Expr] = [self.expr()]
@@ -416,11 +434,11 @@ class Parser:
         return args
 
     def argv(self) -> Expr:
-        self.consume(TokenType.Identifier, "Expected `argv`")
+        start = self.consume(TokenType.Identifier, "Expected `argv`")
         self.consume(TokenType.OpenBracket, "Expected `[` in argv access")
         expr = self.expr()
-        self.consume(TokenType.CloseBracket, "Expected `]` in argv access")
-        return Argv(expr)
+        end = self.consume(TokenType.CloseBracket, "Expected `]` in argv access")
+        return Argv(span=Span(start.position, end.position), expr=expr)
 
     def peek(self, offset: int = 0) -> Token:
         return self.tokens[self.index + offset]

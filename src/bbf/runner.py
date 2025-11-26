@@ -5,10 +5,9 @@ from typing import Self
 
 from bbf.asm_codegen import AsmCodeGen
 from bbf.emitter import Emitter
-from bbf.lexer import Lexer, Token
+from bbf.lexer import Lexer, Source, Token
 from bbf.nodes.program import ProgTopLevelStmt
 from bbf.parser import Parser
-from bbf.source import Source
 from bbf.utils import run_cmd
 
 

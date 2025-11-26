@@ -66,6 +66,7 @@ class TypeChecker(Visitor[VarType]):
     def __init__(self) -> None:
         self.defined_fns = deepcopy(BUILTIN_FNS)
         self.scope = Scope()
+        self.expected_vartype: VarType | None = None
         # TODO: Handle globals better
         self.scope.define("argc", IntType)
         self.current_fninfo: FnInfo | None = None
@@ -105,14 +106,14 @@ class TypeChecker(Visitor[VarType]):
         if start_type != IntType:
             # TODO: add precise position information
             raise TypeCheckerError(
-                f"ERROR: {forstmt.loop_ident.position}: "
+                f"ERROR: {forstmt.range_expr.start.span.start}: "
                 f"for-loop start expression must be Int, but got `{start_type.name}`"
             )
         stop_type = rangeexpr.stop.accept(self)
         if stop_type != IntType:
             # TODO: add precise position information
             raise TypeCheckerError(
-                f"ERROR: {forstmt.loop_ident.position}: "
+                f"ERROR: {forstmt.range_expr.stop.span.start}: "
                 f"for-loop stop expression must be Int, but got `{stop_type.name}`"
             )
 
@@ -169,12 +170,20 @@ class TypeChecker(Visitor[VarType]):
 
     def visit_returnstmt(self, returnstmt: ReturnStmt) -> VarType:
         assert self.current_fninfo is not None
-        ret_vartype = (
-            VoidType if returnstmt.expr is None else returnstmt.expr.accept(self)
-        )
+        if returnstmt.expr is None:
+            if self.current_fninfo.return_type != VoidType:
+                raise TypeCheckerError(
+                    f"ERROR at {returnstmt.ret_token.position}: return has type `{VoidType.name}`, but function `{self.current_fninfo.name}` is typed as `{self.current_fninfo.return_type.name}`"
+                )
+            return VoidType
+        vartype = self.current_fninfo.return_type
+        vartype = vartype.vartype if isinstance(vartype, ArrayType) else vartype
+        with self.expecting(vartype):
+            ret_vartype = returnstmt.expr.accept(self)
+
         if self.current_fninfo.return_type != ret_vartype:
             raise TypeCheckerError(
-                f"ERROR: in function `{self.current_fninfo.name}`: return expr evaluated to `{ret_vartype.name}`, but function was typed as `{self.current_fninfo.return_type.name}`"
+                f"ERROR at {returnstmt.expr.span.start}: return has type `{ret_vartype.name}`, but function `{self.current_fninfo.name}` is typed as `{self.current_fninfo.return_type.name}`"
             )
         return ret_vartype
 
@@ -196,7 +205,7 @@ class TypeChecker(Visitor[VarType]):
         index_vartype = array.index.accept(self)
         if index_vartype != IntType:
             raise TypeCheckerError(
-                f"ERROR: {array.name.position}: Array index must be of type `Int`, but got `{index_vartype}`"
+                f"ERROR: {array.index.span.start}: Array index must be of type `Int`, but got `{index_vartype}`"
             )
 
         value_vartype = array.expr.accept(self)
@@ -238,8 +247,10 @@ class TypeChecker(Visitor[VarType]):
             )
 
         for i, (fnarg, arg) in enumerate(zip(fninfo.args, fncall.args_list), start=1):
-            actual = arg.accept(self)
             expected = fnarg.vartype
+            vartype = expected.vartype if isinstance(expected, ArrayType) else expected
+            with self.expecting(vartype):
+                actual = arg.accept(self)
             param_name = "" if fnname in BUILTIN_FNS else f" `{fnarg.name}`"
             if expected != actual:
                 raise TypeCheckerError(
@@ -260,10 +271,17 @@ class TypeChecker(Visitor[VarType]):
             raise TypeCheckerError(
                 f"ERROR: {decl.name.position}: `Void` is not allowed as array type"
             )
-        exprtype = decl.expr.accept(self)
+        expected_vartype = (
+            decl.vartype.vartype
+            if isinstance(decl.vartype, ArrayType)
+            else decl.vartype
+        )
+        with self.expecting(expected_vartype):
+            exprtype = decl.expr.accept(self)
+
         if decl.vartype != exprtype:
             raise TypeCheckerError(
-                f"ERROR: {decl.name.position}: "
+                f"ERROR: {decl.expr.span.start}: "
                 f"{decl.name.value} was typed as `{decl.vartype.name}`, but Expr evaluated to `{exprtype.name}`"
             )
         self.scope.define(decl.name.value, decl.vartype)
@@ -271,18 +289,26 @@ class TypeChecker(Visitor[VarType]):
 
     def visit_assignment(self, assign: Assignment) -> VarType:
         name = assign.name.value
-        actual_type = assign.expr.accept(self)
         expected_type = self.scope.lookup(name)
         if expected_type is None:
             raise TypeCheckerError(
                 f"ERROR at {assign.name.position}: "
                 f"Cannot assign to `{name}` because it is not defined."
             )
+
+        vartype = (
+            expected_type.vartype
+            if isinstance(expected_type, ArrayType)
+            else expected_type
+        )
+        with self.expecting(vartype):
+            actual_type = assign.expr.accept(self)
+
         if expected_type != actual_type:
             raise TypeCheckerError(
-                f"ERROR at {assign.name.position}: "
+                f"ERROR at {assign.expr.span.start}: "
                 f"Type mismatch in assignment to `{name}`. "
-                f"Expected: {expected_type.name}, but got: {actual_type.name}"
+                f"Expected: `{expected_type.name}`, but got: `{actual_type.name}`"
             )
         return VoidType
 
@@ -338,7 +364,7 @@ class TypeChecker(Visitor[VarType]):
             return BoolType
 
         raise TypeCheckerError(
-            f"ERROR: {unary.operator.position}: "
+            f"ERROR: {unary.expr.span.start}: "
             f"Unary operator `{unary.operator.value}` is not allowed on type `{expr_type.name}`. "
             f"Allowed types: "
             f"{'Int' if unary.operator.ttype in (TokenType.Plus, TokenType.Minus) else 'Bool'}"
@@ -349,28 +375,30 @@ class TypeChecker(Visitor[VarType]):
 
     def visit_array_literal(self, array: ArrayLiteral) -> VarType:
         # TODO: handle `[]` empty array
-        # TODO: how to know which type is expected?
         assert len(array.items) > 0
-        vartype = array.items[0].accept(self)
-        for item in array.items[1:]:
-            vt = item.accept(self)
-            if vartype != vt:
+        assert self.expected_vartype is not None
+
+        vartype = self.expected_vartype
+        for item in array.items:
+            vartype = item.accept(self)
+            if self.expected_vartype != vartype:
                 raise TypeCheckerError(
-                    f"ERROR: ArrayLiteral must be of the same type, but got `{vt.name}` and `{vartype.name}`."
+                    f"ERROR: {item.span.start}: Expected `{self.expected_vartype.name}`, but got `{vartype.name}`"
                 )
         return ArrayType(vartype, len(array.items))
 
     def visit_array_access(self, array: ArrayAccess) -> VarType:
-        index_vartype = array.expr.accept(self)
-        if index_vartype != IntType:
-            raise TypeCheckerError(
-                f"ERROR: {array.name.position}: Array Index must be an `Int`, but got `{index_vartype}`"
-            )
         name = array.name.value
         vartype = self.scope.lookup(name)
         if vartype is None:
             raise TypeCheckerError(
                 f"ERROR: {array.name.position}: `{name}` is not defined."
+            )
+
+        index_vartype = array.expr.accept(self)
+        if index_vartype != IntType:
+            raise TypeCheckerError(
+                f"ERROR: {array.expr.span.start}: Array Index must be an `Int`, but got `{index_vartype}`"
             )
 
         if not isinstance(vartype, ArrayType):
@@ -389,3 +417,12 @@ class TypeChecker(Visitor[VarType]):
 
     def visit_boolfalse(self, boolfalse: BoolFalse) -> VarType:
         return BoolType
+
+    @contextmanager
+    def expecting(self, vartype: VarType | None):
+        old_expected = self.expected_vartype
+        self.expected_vartype = vartype
+        try:
+            yield
+        finally:
+            self.expected_vartype = old_expected
