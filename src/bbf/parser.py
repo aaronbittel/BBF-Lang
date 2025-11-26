@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from bbf.nodes.expr import (
     Argv,
-    ArrayAccess,
     ArrayLiteral,
     Binary,
     BoolFalse,
@@ -13,6 +12,7 @@ from bbf.nodes.expr import (
     Identifier,
     IntegerLit,
     StringLit,
+    Subscript,
     Unary,
 )
 from bbf.nodes.program import ProgTopLevelStmt
@@ -370,7 +370,7 @@ class Parser:
             if self.check(TokenType.OpenParen, offset=1):
                 return self.fn_call()
             if self.check(TokenType.OpenBracket, offset=1):
-                return self.array_access()
+                return self.indexing()
             token = self.advance()
             return Identifier(token, span=Span.from_token(token))
         if self.check(TokenType.OpenParen):
@@ -406,14 +406,14 @@ class Parser:
             msg = f"Unknown statement beginning with `{token.value}`"
         raise ParserError(token, msg)
 
-    def array_access(self) -> ArrayAccess:
+    def indexing(self) -> Subscript:
         name = self.consume(
             TokenType.Identifier, "Expected `Identifier` for array access"
         )
         self.consume(TokenType.OpenBracket, "Expected `[` for array access")
         expr = self.expr()
         end = self.consume(TokenType.CloseBracket, "Expected `]` for array access")
-        return ArrayAccess(name, expr, span=Span(name.position, end.position))
+        return Subscript(name, expr, span=Span(name.position, end.position))
 
     def parse_function_call(self) -> FnCall:
         return self.fn_call()

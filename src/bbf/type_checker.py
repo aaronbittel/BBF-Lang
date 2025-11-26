@@ -9,7 +9,6 @@ from bbf.functions import BUILTIN_FNS, FnInfo
 from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
-    ArrayAccess,
     ArrayLiteral,
     Binary,
     BoolFalse,
@@ -19,6 +18,7 @@ from bbf.nodes.expr import (
     Identifier,
     IntegerLit,
     StringLit,
+    Subscript,
     Unary,
 )
 from bbf.nodes.program import ProgTopLevelStmt
@@ -387,26 +387,30 @@ class TypeChecker(Visitor[VarType]):
                 )
         return ArrayType(vartype, len(array.items))
 
-    def visit_array_access(self, array: ArrayAccess) -> VarType:
-        name = array.name.value
+    def visit_indexing(self, subscript: Subscript) -> VarType:
+        name = subscript.name.value
         vartype = self.scope.lookup(name)
         if vartype is None:
             raise TypeCheckerError(
-                f"ERROR: {array.name.position}: `{name}` is not defined."
+                f"ERROR: {subscript.name.position}: `{name}` is not defined."
             )
 
-        index_vartype = array.expr.accept(self)
+        index_vartype = subscript.index.accept(self)
         if index_vartype != IntType:
             raise TypeCheckerError(
-                f"ERROR: {array.expr.span.start}: Array Index must be an `Int`, but got `{index_vartype}`"
+                f"ERROR: {subscript.index.span.start}: Array Index must be an `Int`, but got `{index_vartype}`"
             )
 
-        if not isinstance(vartype, ArrayType):
+        if isinstance(vartype, ArrayType):
+            return vartype.vartype
+        elif vartype == StringType:
+            return vartype
+        else:
             raise TypeCheckerError(
-                f"ERROR: {array.name.position}: Indexing `{name}` is not allowed, because it is no array. `{name}` was defined as `{vartype}`."
+                f"ERROR: {subscript.name.position}: Indexing `{name}` is not allowed. "
+                f"`{name}` was defined as `{vartype.name}`. "
+                "It is only allowed for type `Array` and `String`."
             )
-
-        return vartype.vartype
 
     def visit_argv(self, argv: Argv) -> VarType:
         argv.expr.accept(self)

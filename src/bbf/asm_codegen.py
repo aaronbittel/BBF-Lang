@@ -9,7 +9,6 @@ from bbf.functions import FnInfo, FunctionTable
 from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
-    ArrayAccess,
     ArrayLiteral,
     Binary,
     BoolFalse,
@@ -20,6 +19,7 @@ from bbf.nodes.expr import (
     Identifier,
     IntegerLit,
     StringLit,
+    Subscript,
     Unary,
 )
 from bbf.nodes.program import Program, ProgTopLevelStmt
@@ -423,23 +423,29 @@ class AsmCodeGen(Visitor):
         assert isinstance(self.current_fn_returntype, ArrayType)
         self.emitter.emit(f"PUSH_INT {self.current_fn_returntype.length}")
 
-    def visit_array_access(self, array: ArrayAccess) -> None:
-        varinfo = self.symbol_table.lookup(array.name.value)
+    def visit_indexing(self, subscript: Subscript) -> None:
+        varinfo = self.symbol_table.lookup(subscript.name.value)
         assert varinfo is not None, "TypeChecker: Bug"
-        assert isinstance(varinfo.vartype, ArrayType), "TypeChecker: Bug"
-        assert varinfo.vartype.vartype in (IntType, BoolType, StringType), (
-            "TypeChecker: Bug"
-        )
 
-        if not varinfo.vartype.vartype.is_slice:
-            array.expr.accept(self)
-            self.emitter.emit(f"PUSH_INDEXED_SCALAR {varinfo.offset:+d}")
-        else:
-            assert not isinstance(varinfo.vartype.vartype, ArrayType), (
-                "Nested arrays are currently not supported"
+        if isinstance(varinfo.vartype, ArrayType):
+            assert varinfo.vartype.vartype in (IntType, BoolType, StringType), (
+                "TypeChecker: Bug"
             )
-            array.expr.accept(self)
-            self.emitter.emit(f"PUSH_INDEXED_SLICE {varinfo.offset:+d}")
+
+            if not varinfo.vartype.vartype.is_slice:
+                subscript.index.accept(self)
+                self.emitter.emit(f"PUSH_INDEXED_SCALAR {varinfo.offset:+d}")
+            else:
+                assert not isinstance(varinfo.vartype.vartype, ArrayType), (
+                    "Nested arrays are currently not supported"
+                )
+                subscript.index.accept(self)
+                self.emitter.emit(f"PUSH_INDEXED_SLICE {varinfo.offset:+d}")
+        elif varinfo.vartype == StringType:
+            subscript.index.accept(self)
+            self.emitter.emit(f"PUSH_STRING_ELEM {varinfo.offset:+d}")
+        else:
+            assert False, "TypeChecker: Bug"
 
     def visit_booltrue(self, booltrue: BoolTrue) -> None:
         self.emitter.emit("PUSH_BOOL TRUE")

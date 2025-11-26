@@ -4,7 +4,6 @@ from typing import Generator, TextIO
 
 from bbf.nodes.expr import (
     Argv,
-    ArrayAccess,
     ArrayLiteral,
     Binary,
     BoolFalse,
@@ -14,6 +13,7 @@ from bbf.nodes.expr import (
     Identifier,
     IntegerLit,
     StringLit,
+    Subscript,
     Unary,
 )
 from bbf.nodes.program import ProgTopLevelStmt
@@ -170,10 +170,10 @@ class ASTPrinter(Visitor[None]):
             item.accept(self)
         self.write(" ]")
 
-    def visit_array_access(self, array: ArrayAccess) -> None:
-        self.write(array.name.value)
+    def visit_indexing(self, subscript: Subscript) -> None:
+        self.write(subscript.name.value)
         self.write("[")
-        array.expr.accept(self)
+        subscript.index.accept(self)
         self.write("]")
 
     def visit_argv(self, argv: Argv) -> None:

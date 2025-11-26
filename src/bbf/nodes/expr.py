@@ -96,12 +96,12 @@ class ArrayLiteral(Expr):
 
 
 @dataclass
-class ArrayAccess(Expr):
+class Subscript(Expr):
     name: Token
-    expr: Expr
+    index: Expr
 
     def accept[T](self, visitor: Visitor[T]) -> T:
-        return visitor.visit_array_access(self)
+        return visitor.visit_indexing(self)
 
 
 @dataclass

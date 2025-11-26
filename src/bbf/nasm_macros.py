@@ -202,34 +202,45 @@ _macro_argc = """
 _macro_push_var = """
 %macro PUSH_VAR 1
     ; %1: offset
-    push qword [rbp%1]
+    push qword [rbp + %1]
 %endmacro"""
 
 _macro_store_var = """
 %macro STORE_VAR 1
     ; %1: offset
     pop rax
-    mov [rbp%1], rax
+    mov [rbp + %1], rax
 %endmacro"""
 
-_macro_push_array_elem = """
+_macro_push_indexed_slice = """
+%macro PUSH_INDEXED_SLICE 1
+; %1: offset
+pop rcx
+shl rcx, 1
+push rcx
+PUSH_INDEXED_SCALAR %1
+
+inc rcx
+push rcx
+PUSH_INDEXED_SCALAR %1
+%endmacro"""
+
+_macro_push_array_scalar = """
 %macro PUSH_INDEXED_SCALAR 1
     ; %1: offset
     pop rax
-    mov rbx, [rbp%1]
+    mov rbx, [rbp + %1]
     mov rax, [rbx + rax * 8]
     push rax
 %endmacro"""
 
-_macro_push_string_elem = """
-%macro PUSH_INDEXED_SLICE 1
-    ; %1: offset
-    pop rcx
-    shl rcx, 1
-    push rcx
-    PUSH_INDEXED_SCALAR %1
 
-    inc rcx
-    push rcx
-    PUSH_INDEXED_SCALAR %1
+_macro_push_string_elem = """
+%macro PUSH_STRING_ELEM 1
+    ; %1: offset
+    pop rax
+    mov rbx, [rbp + %1]
+    lea rax, [rbx + rax]
+    push rax
+    push 1
 %endmacro"""
