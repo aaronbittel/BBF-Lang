@@ -320,10 +320,25 @@ class AsmCodeGen(Visitor):
             )
 
     def visit_binary(self, binary: Binary) -> None:
-        if binary.operator.ttype not in (TokenType.Or, TokenType.And):
+        assert binary.lhs.vartype == binary.rhs.vartype, "TypeChecker: Bug"
+        if binary.lhs.vartype == StringType:
             binary.lhs.accept(self)
             binary.rhs.accept(self)
-
+            self.emitter.emit("pop rcx ; len rhs")
+            self.emitter.emit("pop rdx ; ptr rhs")
+            self.emitter.emit("pop rsi ; len lhs")
+            self.emitter.emit("pop rdi ; ptr lhs")
+            self.emitter.emit("call __builtin_strcmp")
+            if binary.operator.ttype == TokenType.EqualEqual:
+                pass
+            elif binary.operator.ttype == TokenType.BangEqual:
+                self.emitter.emit("xor rax, 1")
+            else:
+                assert False, "TypeChecker: Bug"
+            self.emitter.emit("push rax")
+        elif binary.lhs.vartype == IntType:
+            binary.lhs.accept(self)
+            binary.rhs.accept(self)
             if binary.operator.ttype == TokenType.Plus:
                 self.emitter.emit("PUSH_BINARY_ADD")
             elif binary.operator.ttype == TokenType.Minus:
@@ -336,10 +351,10 @@ class AsmCodeGen(Visitor):
                 self.emitter.emit("PUSH_BINARY_MOD")
             elif binary.operator.ttype in COMPARISON_SETCC:
                 mnemonic = COMPARISON_SETCC[binary.operator.ttype]
-                self.emitter.emit(f"PUSH_COMPARE {mnemonic}")
+                self.emitter.emit(f"PUSH_INT_COMPARE {mnemonic}")
             else:
                 assert False, f"unreachable binary operator: {binary.operator.ttype}"
-        else:
+        elif binary.lhs.vartype == BoolType:
             if binary.operator.ttype == TokenType.Or:
                 or_true_label = self.or_true_label()
                 or_end_label = self.or_end_label()
@@ -376,6 +391,8 @@ class AsmCodeGen(Visitor):
                 self.emitter.emit(f"{and_end_label}:", indent=0)
             else:
                 assert False, f"unreachable binary operator: {binary.operator.ttype}"
+        else:
+            assert False, "unreachable"
 
     def visit_unary(self, unary: Unary) -> None:
         unary.expr.accept(self)
@@ -383,7 +400,7 @@ class AsmCodeGen(Visitor):
             self.emitter.emit("PUSH_NEGATE")
         elif unary.operator.ttype == TokenType.Not:
             self.emitter.emit("PUSH_INT 0")
-            self.emitter.emit("PUSH_COMPARE setle")
+            self.emitter.emit("PUSH_INT_COMPARE setle")
         elif unary.operator.ttype == TokenType.Plus:
             pass  # Ignore "+"
         else:
@@ -565,7 +582,9 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("__false_len: equ $ - __false")
         for i, raw_s in enumerate(self.strings):
             label = make_string_label(i)
-            self.emitter.emit(f"{label}: db {encode_nasm_string(raw_s)}, 0")
+            nasm_str = encode_nasm_string(raw_s)
+            output = f"{nasm_str}, 0" if nasm_str != "" else "0"
+            self.emitter.emit(f"{label}: db {output}")
             self.emitter.emit(f"{label}_len: equ $ - {label} - 1")
         for i, (arr_type, array) in enumerate(self.arrays):
             if arr_type == "primitive":

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from bbf.span import Span
 from bbf.token import Token
+from bbf.varinfo import VarType
 
 if TYPE_CHECKING:
     from bbf.nodes.visitor import Visitor
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
 @dataclass(kw_only=True)
 class Expr(ABC):
     span: Span
+    vartype: VarType | None = None
 
     @abstractmethod
     def accept[T](self, visitor: Visitor[T]) -> T: ...

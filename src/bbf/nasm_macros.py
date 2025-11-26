@@ -139,7 +139,7 @@ _macro_binary_mod = """
 %endmacro"""
 
 _macro_compare = """
-%macro PUSH_COMPARE 1
+%macro PUSH_INT_COMPARE 1
     ; %1 = setcc mnemonic
     pop rbx
     pop rax

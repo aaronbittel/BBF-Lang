@@ -1,0 +1,11 @@
+content: String = "Hello, World!"
+same: String    = "Hello, World!"
+other: String   = "Hello World!"
+
+if content == same then stdout("SAME\n") end
+if content != same then stdout("WRONG\n") end
+if content != other then stdout("NOT SAME\n") end
+if content == other then stdout("OHOH") end
+
+stdout(btoa(content[0] == same[0])) stdout("\n")
+stdout(btoa(content[0] == other[0])) stdout("\n")

@@ -204,3 +204,39 @@ __sys_mmap:
 
     FN_EPILOGUE
 """
+
+_builtin_strcmp = """
+; rdi: ptr1, rsi: len1, rdx: ptr2, rcx: len2
+__builtin_strcmp:
+    ; compare lengths
+    cmp rsi, rcx
+    jne .return_false
+
+    test rsi, rsi
+    je .return_true
+
+    ; compare content
+.loop:
+    mov al, byte [rdi]
+    mov bl, byte [rdx]
+    cmp al, bl
+    jne .return_false
+
+    ; move ptrs forward
+    inc rdi
+    inc rdx
+
+    ; decrement lhs length
+    dec rsi
+
+    jnz .loop
+
+.return_true:
+    mov rax, TRUE
+    jmp .end
+
+.return_false:
+    mov rax, FALSE
+
+.end:
+    ret"""

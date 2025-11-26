@@ -146,7 +146,9 @@ class TypeChecker(Visitor[VarType]):
         cond_type = ifstmt.condition.accept(self)
         if cond_type != BoolType:
             # TODO: add precise position information
-            raise TypeCheckerError(f"if condition must be `Bool`, got {cond_type.name}")
+            raise TypeCheckerError(
+                f"if condition must be `Bool`, got `{cond_type.name}`"
+            )
 
         with self.new_scope():
             for stmt in ifstmt.if_block:
@@ -216,9 +218,11 @@ class TypeChecker(Visitor[VarType]):
         return VoidType
 
     def visit_integerlit(self, intlit: IntegerLit) -> VarType:
+        intlit.vartype = IntType
         return IntType
 
     def visit_stringlit(self, strlit: StringLit) -> VarType:
+        strlit.vartype = StringType
         return StringType
 
     def visit_identifier(self, ident: Identifier) -> VarType:
@@ -228,6 +232,7 @@ class TypeChecker(Visitor[VarType]):
             raise TypeCheckerError(
                 f"ERROR: {ident.token.position}: `{name}` is not defined."
             )
+        ident.vartype = vartype
         return vartype
 
     def visit_fncall(self, fncall: FnCall) -> VarType:
@@ -260,6 +265,7 @@ class TypeChecker(Visitor[VarType]):
                     f"but got `{actual.name}`"
                 )
 
+        fncall.vartype = fninfo.return_type
         return fninfo.return_type
 
     def visit_declaration(self, decl: Declaration) -> VarType:
@@ -329,8 +335,10 @@ class TypeChecker(Visitor[VarType]):
             TokenType.Slash,
             TokenType.Percent,
         ):
+            binary.vartype = IntType
             return IntType
 
+        binary.vartype = BoolType
         if lhs_type == IntType and binary.operator.ttype in (
             TokenType.Greater,
             TokenType.GreaterEqual,
@@ -347,6 +355,12 @@ class TypeChecker(Visitor[VarType]):
         ):
             return BoolType
 
+        if lhs_type == StringType and binary.operator.ttype in (
+            TokenType.EqualEqual,
+            TokenType.BangEqual,
+        ):
+            return BoolType
+
         raise TypeCheckerError(
             f"ERROR: {binary.operator.position}: "
             f"Operator `{binary.operator.value}` is not supported between {lhs_type.name} and {rhs_type.name}"
@@ -358,9 +372,11 @@ class TypeChecker(Visitor[VarType]):
             TokenType.Minus,
             TokenType.Plus,
         ):
+            unary.vartype = IntType
             return IntType
 
         if expr_type == BoolType and unary.operator.ttype == TokenType.Not:
+            unary.vartype = BoolType
             return BoolType
 
         raise TypeCheckerError(
@@ -371,7 +387,8 @@ class TypeChecker(Visitor[VarType]):
         )
 
     def visit_grouping(self, grouping: Grouping) -> VarType:
-        return grouping.expr.accept(self)
+        grouping.vartype = grouping.expr.accept(self)
+        return grouping.vartype
 
     def visit_array_literal(self, array: ArrayLiteral) -> VarType:
         # TODO: handle `[]` empty array
@@ -385,6 +402,7 @@ class TypeChecker(Visitor[VarType]):
                 raise TypeCheckerError(
                     f"ERROR: {item.span.start}: Expected `{self.expected_vartype.name}`, but got `{vartype.name}`"
                 )
+        array.vartype = vartype
         return ArrayType(vartype, len(array.items))
 
     def visit_indexing(self, subscript: Subscript) -> VarType:
@@ -402,8 +420,10 @@ class TypeChecker(Visitor[VarType]):
             )
 
         if isinstance(vartype, ArrayType):
+            subscript.vartype = vartype.vartype
             return vartype.vartype
         elif vartype == StringType:
+            subscript.vartype = vartype
             return vartype
         else:
             raise TypeCheckerError(
@@ -414,12 +434,15 @@ class TypeChecker(Visitor[VarType]):
 
     def visit_argv(self, argv: Argv) -> VarType:
         argv.expr.accept(self)
+        argv.vartype = StringType
         return StringType
 
     def visit_booltrue(self, booltrue: BoolTrue) -> VarType:
+        booltrue.vartype = BoolType
         return BoolType
 
     def visit_boolfalse(self, boolfalse: BoolFalse) -> VarType:
+        boolfalse.vartype = BoolType
         return BoolType
 
     @contextmanager
