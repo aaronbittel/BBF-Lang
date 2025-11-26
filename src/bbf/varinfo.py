@@ -89,6 +89,25 @@ class ArrayType(VarType):
         return self.vartype.stack_size * self.length
 
 
+@dataclass(frozen=True)
+class SliceType(VarType):
+    vartype: VarType
+    length: int = 0
+    capacity: int = 8
+
+    @property
+    def name(self) -> str:
+        return f"[{self.vartype.name}]"
+
+    @property
+    def stack_size(self) -> int:
+        return 24
+
+    @property
+    def is_slice(self) -> bool:
+        return True
+
+
 @dataclass
 class VarInfo:
     name: str

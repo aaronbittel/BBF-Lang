@@ -34,7 +34,15 @@ from bbf.nodes.stmt import (
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
 from bbf.nodes.visitor import Visitor
-from bbf.varinfo import ArrayType, BoolType, IntType, StringType, VarType, VoidType
+from bbf.varinfo import (
+    ArrayType,
+    BoolType,
+    IntType,
+    SliceType,
+    StringType,
+    VarType,
+    VoidType,
+)
 
 
 @dataclass
@@ -70,6 +78,7 @@ class TypeChecker(Visitor[VarType]):
         # TODO: Handle globals better
         self.scope.define("argc", IntType)
         self.current_fninfo: FnInfo | None = None
+        self.is_slice = False
 
     def visit_progtoplevelstmt(self, progtoplevelstmt: ProgTopLevelStmt) -> VarType:
         for stmt in progtoplevelstmt.stmts:
@@ -277,15 +286,16 @@ class TypeChecker(Visitor[VarType]):
             raise TypeCheckerError(
                 f"ERROR: {decl.name.position}: `Void` is not allowed as array type"
             )
-        expected_vartype = (
-            decl.vartype.vartype
-            if isinstance(decl.vartype, ArrayType)
-            else decl.vartype
-        )
+        expected_vartype = decl.vartype
+        if isinstance(decl.vartype, ArrayType) or isinstance(decl.vartype, SliceType):
+            expected_vartype = decl.vartype.vartype
         with self.expecting(expected_vartype):
+            if isinstance(decl.vartype, SliceType):
+                self.is_slice = True
             exprtype = decl.expr.accept(self)
+            self.is_slice = False
 
-        if decl.vartype != exprtype:
+        if not isinstance(decl.vartype, SliceType) and decl.vartype != exprtype:
             raise TypeCheckerError(
                 f"ERROR: {decl.expr.span.start}: "
                 f"{decl.name.value} was typed as `{decl.vartype.name}`, but Expr evaluated to `{exprtype.name}`"
@@ -402,8 +412,12 @@ class TypeChecker(Visitor[VarType]):
                 raise TypeCheckerError(
                     f"ERROR: {item.span.start}: Expected `{self.expected_vartype.name}`, but got `{vartype.name}`"
                 )
-        array.vartype = vartype
-        return ArrayType(vartype, len(array.items))
+        array.vartype = (
+            SliceType(vartype, length=len(array.items))
+            if self.is_slice
+            else ArrayType(vartype, len(array.items))
+        )
+        return array.vartype
 
     def visit_indexing(self, subscript: Subscript) -> VarType:
         name = subscript.name.value

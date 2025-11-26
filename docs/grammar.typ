@@ -82,6 +82,7 @@ $
 "VarType" arrow & cases(
   "PrimitiveType",
   "PrimitiveType" #e("[") italic("Digit") #e("]"),
+  #e("[") "PrimitiveType" #e("]"),
 ) \
 "PrimitiveType" arrow & cases(
   #k("Int"),

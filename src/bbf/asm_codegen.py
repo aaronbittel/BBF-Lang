@@ -39,6 +39,7 @@ from bbf.varinfo import (
     ArrayType,
     BoolType,
     IntType,
+    SliceType,
     StringType,
     SymbolTable,
     VarType,
@@ -54,13 +55,16 @@ class AsmCodeGen(Visitor):
         self.symbol_table = SymbolTable()
         self.function_table = FunctionTable()
         self.current_fn_returntype: VarType | None = None
+        self.user_fndefs: list[FnDef] = []
 
         self.strings: list[str] = []
         self.arrays: list[tuple[str, list[str]]] = []
+
+        self.is_slice = False
+
         self.if_label_count = 0
         self.elif_label_count = 0
         self.loop_count = 0
-        self.user_fndefs: list[FnDef] = []
         self.or_true_count = 0
         self.or_end_count = 0
         self.and_false_count = 0
@@ -298,13 +302,21 @@ class AsmCodeGen(Visitor):
 
         offset = self.symbol_table.define(name.value, decl.vartype)
         self.emitter.emit(f"RESERVE_SPACE {decl.vartype.stack_size}")
+
+        if isinstance(decl.vartype, SliceType):
+            self.is_slice = True
         expr.accept(self)
 
-        if not decl.vartype.is_slice:
+        if self.is_slice:  # SliceType
+            self.emitter.emit(f"STORE_VAR {offset - 16:+d} ; cap[Int]: {name.value}")
+            self.emitter.emit(f"STORE_VAR {offset - 8:+d} ; len[Int]: {name.value}")
+            self.emitter.emit(f"STORE_VAR {offset:+d} ; ptr[Int]: {name.value}")
+        elif not decl.vartype.is_slice:
             self.emitter.emit(f"STORE_VAR {offset:+d} ; var[Int]: {name.value}")
         else:
             self.emitter.emit(f"STORE_VAR {offset - 8:+d} ; len[String]: {name.value}")
             self.emitter.emit(f"STORE_VAR {offset:+d} ; ptr[String]: {name.value}")
+        self.is_slice = False
 
     def visit_assignment(self, assign: Assignment) -> None:
         name, expr = assign.name, assign.expr
@@ -423,20 +435,40 @@ class AsmCodeGen(Visitor):
     def visit_array_literal(self, array: ArrayLiteral) -> None:
         # array declaration outside of a function -> .data static memory
         if self.current_fn_returntype is None:
-            if isinstance(array.items[0], StringLit):
-                str_literals = extract_literals(array)
-                arr: list[str] = []
-                for s in str_literals:
-                    str_label, len_label = self.add_string(s)
-                    arr.append(str_label)
-                    arr.append(len_label)
-                self.arrays.append(("slice", arr))
+            if self.is_slice:
+                assert (
+                    isinstance(array.vartype, SliceType)
+                    and array.vartype.vartype == IntType
+                )
+                self.emitter.emit("PUSH_MEM_PTR")
+                self.emitter.emit("pop r10")
+                for i, item in enumerate(array.items):
+                    item.accept(self)
+                    self.emitter.emit("pop rax")
+                    self.emitter.emit(f"mov [r10 + {i} * 8], rax")
+                self.emitter.emit(f"ADD_MEM_PTR {len(array.items)}")
+
+                self.emitter.emit("push r10")
+                self.emitter.emit(f"push {len(array.items)}")
+                self.emitter.emit(
+                    f"push {max(len(array.items), array.vartype.capacity)}"
+                )
+                return
             else:
-                self.arrays.append(("primitive", extract_literals(array)))
-            array_label = make_array_label(len(self.arrays) - 1)
-            len_label = f"{array_label}_len"
-            self.emitter.emit(f"PUSH_SLICE {array_label}, {len_label}")
-            return
+                if isinstance(array.items[0], StringLit):
+                    str_literals = extract_literals(array)
+                    arr: list[str] = []
+                    for s in str_literals:
+                        str_label, len_label = self.add_string(s)
+                        arr.append(str_label)
+                        arr.append(len_label)
+                    self.arrays.append(("slice", arr))
+                else:
+                    self.arrays.append(("primitive", extract_literals(array)))
+                array_label = make_array_label(len(self.arrays) - 1)
+                len_label = f"{array_label}_len"
+                self.emitter.emit(f"PUSH_SLICE {array_label}, {len_label}")
+                return
         # array declaration inside a function -> ptr to space in rdi
         for i, item in enumerate(array.items):
             item.accept(self)

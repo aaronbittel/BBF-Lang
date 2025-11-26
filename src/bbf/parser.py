@@ -34,7 +34,7 @@ from bbf.nodes.toplevel import FnDef, Param, TopLevel, TopLevelStmt
 from bbf.span import Span
 from bbf.token import Token, TokenType
 from bbf.utils import darkgray
-from bbf.varinfo import ArrayType, VarType, VoidType
+from bbf.varinfo import ArrayType, SliceType, VarType, VoidType
 
 
 class ParserError(Exception):
@@ -189,6 +189,15 @@ class Parser:
         return Declaration(name, vartype, expr)
 
     def parse_vartype(self) -> VarType:
+        if self.match(TokenType.OpenBracket):
+            try:
+                vartype = VarType.from_token(self.advance())
+            except ValueError:
+                raise ParserError(
+                    self.peek(), f"`{self.peek()}` is not a valid VarType."
+                )
+            self.consume(TokenType.CloseBracket, "Expected `]` for slice type.")
+            return SliceType(vartype)
         if not self.match(
             TokenType.Int, TokenType.String, TokenType.Void, TokenType.Bool
         ):
@@ -196,7 +205,10 @@ class Parser:
                 token=self.peek(),
                 msg=f"Expected type annotation, but got `{self.peek().value}`",
             )
-        vartype = VarType.from_token(self.previous())
+        try:
+            vartype = VarType.from_token(self.previous())
+        except ValueError:
+            raise ParserError(self.peek(), f"`{self.peek()}` is not a valid VarType.")
         if self.match(TokenType.OpenBracket):
             length_token = self.consume(
                 TokenType.IntegerLit, "Expected `IntegerLit` for array length"
