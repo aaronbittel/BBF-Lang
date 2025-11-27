@@ -498,6 +498,9 @@ class AsmCodeGen(Visitor):
                 )
                 subscript.index.accept(self)
                 self.emitter.emit(f"PUSH_INDEXED_SLICE {varinfo.offset:+d}")
+        elif isinstance(varinfo.vartype, SliceType):
+            subscript.index.accept(self)
+            self.emitter.emit(f"PUSH_INDEXED_SCALAR {varinfo.offset:+d}")
         elif varinfo.vartype == StringType:
             subscript.index.accept(self)
             self.emitter.emit(f"PUSH_STRING_ELEM {varinfo.offset:+d}")

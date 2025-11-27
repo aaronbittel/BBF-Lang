@@ -442,7 +442,7 @@ class TypeChecker(Visitor[VarType]):
                 f"ERROR: {subscript.index.span.start}: Array Index must be an `Int`, but got `{index_vartype}`"
             )
 
-        if isinstance(vartype, ArrayType):
+        if isinstance(vartype, ArrayType) or isinstance(vartype, SliceType):
             subscript.vartype = vartype.vartype
             return vartype.vartype
         elif vartype == StringType:
