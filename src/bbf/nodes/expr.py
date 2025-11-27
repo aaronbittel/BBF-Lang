@@ -98,7 +98,7 @@ class ArrayLiteral(Expr):
 
 
 @dataclass
-class Subscript(Expr):
+class Indexing(Expr):
     name: Token
     index: Expr
 

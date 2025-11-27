@@ -83,13 +83,13 @@ class ReturnStmt(Stmt):
 
 
 @dataclass
-class ArrayAssign(Stmt):
-    name: Token
+class IndexAssign(Stmt):
+    target: Token
     index: Expr
-    expr: Expr
+    value: Expr
 
     def accept[T](self, visitor: Visitor[T]) -> T:
-        return visitor.visit_array_assignment(self)
+        return visitor.visit_index_assign(self)
 
 
 @dataclass

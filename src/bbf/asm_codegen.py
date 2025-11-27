@@ -18,20 +18,20 @@ from bbf.nodes.expr import (
     FnCall,
     Grouping,
     Identifier,
+    Indexing,
     IntegerLit,
     StringLit,
-    Subscript,
     Unary,
 )
 from bbf.nodes.program import Program, ProgTopLevelStmt
 from bbf.nodes.stmt import (
-    ArrayAssign,
     Assignment,
     Declaration,
     DoBlock,
     ExprStmt,
     ForStmt,
     IfStmt,
+    IndexAssign,
     ReturnStmt,
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
@@ -203,8 +203,8 @@ class AsmCodeGen(Visitor):
     def visit_exprstmt(self, expr_stmt: ExprStmt) -> None:
         expr_stmt.expr.accept(self)
 
-    def visit_array_assignment(self, array: ArrayAssign) -> None:
-        varinfo = self.symbol_table.lookup(array.name.value)
+    def visit_index_assign(self, index_assign: IndexAssign) -> None:
+        varinfo = self.symbol_table.lookup(index_assign.target.value)
         assert varinfo is not None, "TypeChecker: Bug"
         assert isinstance(varinfo.vartype, ArrayType), (
             "TypeChecker should have checked this"
@@ -213,9 +213,9 @@ class AsmCodeGen(Visitor):
             "TypeChecker: Bug"
         )
 
-        array.index.accept(self)
+        index_assign.index.accept(self)
         self.emitter.emit("pop rcx ; index")
-        array.expr.accept(self)
+        index_assign.value.accept(self)
         self.emitter.emit("pop r9 ; new value")
         self.emitter.emit(f"mov rax, [rbp{varinfo.offset}]")
         self.emitter.emit("imul rcx, 8")
@@ -480,7 +480,7 @@ class AsmCodeGen(Visitor):
         assert isinstance(self.current_fn_returntype, ArrayType)
         self.emitter.emit(f"PUSH_INT {self.current_fn_returntype.length}")
 
-    def visit_indexing(self, subscript: Subscript) -> None:
+    def visit_indexing(self, subscript: Indexing) -> None:
         varinfo = self.symbol_table.lookup(subscript.name.value)
         assert varinfo is not None, "TypeChecker: Bug"
 

@@ -10,14 +10,13 @@ from bbf.nodes.expr import (
     FnCall,
     Grouping,
     Identifier,
+    Indexing,
     IntegerLit,
     StringLit,
-    Subscript,
     Unary,
 )
 from bbf.nodes.program import ProgTopLevelStmt
 from bbf.nodes.stmt import (
-    ArrayAssign,
     Assignment,
     Block,
     Declaration,
@@ -26,6 +25,7 @@ from bbf.nodes.stmt import (
     ExprStmt,
     ForStmt,
     IfStmt,
+    IndexAssign,
     Range,
     ReturnStmt,
     Stmt,
@@ -122,7 +122,7 @@ class Parser:
             if self.check(TokenType.Equal, offset=1):
                 return self.parse_assignment()
             if self.check(TokenType.OpenBracket, offset=1):
-                return self.parse_array_assignment()
+                return self.parse_index_assign()
         if self.check(TokenType.Return):
             return self.parse_return_stmt()
 
@@ -135,7 +135,7 @@ class Parser:
 
         return self.parse_expr_stmt()
 
-    def parse_array_assignment(self) -> ArrayAssign:
+    def parse_index_assign(self) -> IndexAssign:
         name = self.consume(
             TokenType.Identifier, "Expected `Identifier` in array assignment"
         )
@@ -144,7 +144,7 @@ class Parser:
         self.consume(TokenType.CloseBracket, "Expected `[` in array assignment")
         self.consume(TokenType.Equal, "Expected `=` in array assignment")
         expr = self.expr()
-        return ArrayAssign(name, index, expr)
+        return IndexAssign(name, index, expr)
 
     def parse_expr_stmt(self) -> ExprStmt:
         return ExprStmt(self.expr())
@@ -417,14 +417,14 @@ class Parser:
             msg = f"Unknown statement beginning with `{token.value}`"
         raise ParserError(token, msg)
 
-    def indexing(self) -> Subscript:
+    def indexing(self) -> Indexing:
         name = self.consume(
             TokenType.Identifier, "Expected `Identifier` for array access"
         )
         self.consume(TokenType.OpenBracket, "Expected `[` for array access")
         expr = self.expr()
         end = self.consume(TokenType.CloseBracket, "Expected `]` for array access")
-        return Subscript(name, expr, span=Span(name.position, end.position))
+        return Indexing(name, expr, span=Span(name.position, end.position))
 
     def parse_function_call(self) -> FnCall:
         return self.fn_call()

@@ -16,20 +16,20 @@ from bbf.nodes.expr import (
     FnCall,
     Grouping,
     Identifier,
+    Indexing,
     IntegerLit,
     StringLit,
-    Subscript,
     Unary,
 )
 from bbf.nodes.program import ProgTopLevelStmt
 from bbf.nodes.stmt import (
-    ArrayAssign,
     Assignment,
     Declaration,
     DoBlock,
     ExprStmt,
     ForStmt,
     IfStmt,
+    IndexAssign,
     ReturnStmt,
 )
 from bbf.nodes.toplevel import FnDef, TopLevelStmt
@@ -200,24 +200,24 @@ class TypeChecker(Visitor[VarType]):
         exprstmt.expr.accept(self)
         return VoidType
 
-    def visit_array_assignment(self, array: ArrayAssign) -> VarType:
-        name_vartype = self.scope.lookup(array.name.value)
+    def visit_index_assign(self, index_assign: IndexAssign) -> VarType:
+        name_vartype = self.scope.lookup(index_assign.target.value)
         if name_vartype is None:
             raise TypeCheckerError(
-                f"ERROR: {array.name.position}: `{array.name.value}` is not defined."
+                f"ERROR: {index_assign.target.position}: `{index_assign.target.value}` is not defined."
             )
         if not isinstance(name_vartype, ArrayType):
             raise TypeCheckerError(
-                f"ERROR: {array.name.position}: Cannot index `{array.name.value}`: "
+                f"ERROR: {index_assign.target.position}: Cannot index `{index_assign.target.value}`: "
                 f"expected an array, but found `{name_vartype.name}`."
             )
-        index_vartype = array.index.accept(self)
+        index_vartype = index_assign.index.accept(self)
         if index_vartype != IntType:
             raise TypeCheckerError(
-                f"ERROR: {array.index.span.start}: Array index must be of type `Int`, but got `{index_vartype}`"
+                f"ERROR: {index_assign.index.span.start}: Array index must be of type `Int`, but got `{index_vartype}`"
             )
 
-        value_vartype = array.expr.accept(self)
+        value_vartype = index_assign.value.accept(self)
         if name_vartype.vartype != value_vartype:
             raise TypeCheckerError(
                 f"Expected type `{name_vartype.name}`, but got {value_vartype.name}"
@@ -428,7 +428,7 @@ class TypeChecker(Visitor[VarType]):
         array.vartype = vartype
         return vartype
 
-    def visit_indexing(self, subscript: Subscript) -> VarType:
+    def visit_indexing(self, subscript: Indexing) -> VarType:
         name = subscript.name.value
         vartype = self.scope.lookup(name)
         if vartype is None:
