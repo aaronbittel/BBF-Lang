@@ -313,14 +313,14 @@ class AsmCodeGen(Visitor):
 
         if slice_method_entry.field_access:
             self.emitter.emit(
-                f"PUSH_STRUCT_FIELD {varinfo.offset}, {slice_method_entry.field_offset}"
+                f"PUSH_STACK_STRUCT_FIELD {varinfo.offset}, {slice_method_entry.field_offset}"
             )
             return
 
         fninfo = slice_method_entry.factory(varinfo.vartype.vartype)
 
         regs_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
-        reg_i = 3
+        reg_i = 1
 
         self.emitter.emit(f"; {fninfo.name} method args")
         for fn_arg, expr_arg in zip(fninfo.args, methodcall.args):
@@ -339,17 +339,11 @@ class AsmCodeGen(Visitor):
                 self.emitter.emit(f"pop {regs_order[reg_i]} ; str_ptr")
                 reg_i += 2
 
-        self.emitter.emit(f"mov rdi, [rbp{varinfo.offset:+d}] ; slice ptr")
-        self.emitter.emit(f"mov rsi, [rbp{varinfo.offset - 8:+d}] ; slice len")
-        self.emitter.emit(f"mov rdx, [rbp{varinfo.offset - 16:+d}] ; slice cap")
+        self.emitter.emit(f"lea rdi, [rbp{varinfo.offset:+d}] ; slice ptr")
 
         self.emitter.emit(
             f"call {fninfo.callname}_{varinfo.vartype.vartype.stack_size} ; return_type: {fninfo.return_type.name}"
         )
-        self.emitter.emit(f"; update `{methodcall.target.value}`")
-        self.emitter.emit(f"mov [rbp{varinfo.offset:+d}], rdi ; slice ptr")
-        self.emitter.emit(f"mov [rbp{varinfo.offset - 8:+d}], rsi ; slice len")
-        self.emitter.emit(f"mov [rbp{varinfo.offset - 16:+d}], rdx ; slice cap")
 
         if fninfo.return_type == VoidType:
             return
@@ -573,10 +567,18 @@ class AsmCodeGen(Visitor):
                 self.emitter.emit(f"PUSH_INDEXED_SLICE {varinfo.offset:+d}")
         elif isinstance(varinfo.vartype, SliceType):
             subscript.index.accept(self)
+            self.emitter.emit("pop rcx")
+            self.emitter.emit(f"lea rbx, [rbp + {varinfo.offset:+d}] ; data ptr")
+            self.emitter.emit("PUSH_PTR_STRUCT_FIELD rbx, 0")
+            self.emitter.emit("pop rax")
             if varinfo.vartype.vartype.is_slice:
-                self.emitter.emit(f"PUSH_INDEXED_SLICE {varinfo.offset:+d}")
+                self.emitter.emit("shl rcx, 4")
+                self.emitter.emit("push qword [rax + rcx]")
+                self.emitter.emit("add rcx, 8")
+                self.emitter.emit("push qword [rax + rcx]")
             else:
-                self.emitter.emit(f"PUSH_INDEXED_SCALAR {varinfo.offset:+d}")
+                self.emitter.emit("shl rcx, 3")
+                self.emitter.emit("push qword [rax + rcx]")
         elif varinfo.vartype == StringType:
             subscript.index.accept(self)
             self.emitter.emit(f"PUSH_STRING_ELEM {varinfo.offset:+d}")

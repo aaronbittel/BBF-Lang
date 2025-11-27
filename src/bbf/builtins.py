@@ -240,27 +240,44 @@ __builtin_strcmp:
     ret"""
 
 _builtin_append_8 = """
-; TODO: normally first return value would be in `rax`
-; rdi: ptr, rsi: len, rdx: cap, rcx: int / bool
+; rdi: struct_ptr, rsi: int / bool
 __builtin_append_8:
+    mov r11, rsi
+
+    PUSH_PTR_STRUCT_FIELD rdi, -8
+    pop rsi
+    PUSH_PTR_STRUCT_FIELD rdi, -16
+    pop rdx
+
     cmp rsi, rdx
     jl .add
 
-    push rdx
+    push rdx ; save old_cap
+    push rdi ; save struct ptr
 
-    mov rdx, rdi
+    PUSH_PTR_STRUCT_FIELD rdi, 0
+    pop rdx ; old data ptr
+
     PUSH_MEM_PTR
-    pop rdi
+    pop r8 ; new data ptr
+    STORE_PTR_STRUCT_FIELD rdi, 0, r8 ; save new data ptr into struct
+
+    mov rdi, r8
     call __builtin_copy_slice_8
 
-    pop rdx
+    pop rdi ; restore struct ptr
+
+    pop rdx ; restore old_cap
     shl rdx, 1
-    ADD_MEM_PTR rdx, 8 ; TODO: make this work for all type sizes
-    mov r11, [__mem_ptr]
+    STORE_PTR_STRUCT_FIELD rdi, -16, rdx
+    ADD_MEM_PTR rdx, 8
 
 .add:
-    mov qword [rdi + rsi * 8], rcx
+    PUSH_PTR_STRUCT_FIELD rdi, 0
+    pop rax
+    mov qword [rax + rsi * 8], r11
     inc rsi
+    STORE_PTR_STRUCT_FIELD rdi, -8, rsi
 
     ret
 
@@ -286,31 +303,49 @@ __builtin_copy_slice_8:
 """
 
 _builtin_append_16 = """
-; TODO: normally first return value would be in `rax`
-; rdi: ptr, rsi: len, rdx: cap, rcx: str_ptr, r8: str_len
+; rdi: struct_ptr, rsi: str_ptr, rdx: str_len
 __builtin_append_16:
-    cmp rsi, rdx
+    push rdx ; save str_len
+    mov r11, rsi
+
+    PUSH_PTR_STRUCT_FIELD rdi, -8
+    pop rsi ; struct len
+    PUSH_PTR_STRUCT_FIELD rdi, -16
+    pop r13 ; struct cap
+
+    cmp rsi, r13
     jl .add
 
-    push rdx
+    push rdi ; save struct ptr
 
-    mov rdx, rdi
+    PUSH_PTR_STRUCT_FIELD rdi, 0
+    pop rdx ; old data ptr
+
     PUSH_MEM_PTR
-    pop rdi
+    pop r8 ; new data ptr
+    STORE_PTR_STRUCT_FIELD rdi, 0, r8 ; save new data ptr into struct
+
+    mov rdi, r8
     call __builtin_copy_slice_16
 
-    pop rdx
-    shl rdx, 1
-    ADD_MEM_PTR rdx, 8 ; TODO: make this work for all type sizes
-    mov r11, [__mem_ptr]
+    pop rdi ; restore struct ptr
+
+    shl r13, 1
+    ADD_MEM_PTR r13, 16
 
 .add:
+    PUSH_PTR_STRUCT_FIELD rdi, 0
+    pop rax
+
     mov r12, rsi
-    imul r12, 2
-    mov qword [rdi + r12 * 8], rcx
-    inc r12
-    mov qword [rdi + r12 * 8], r8
+    shl r12, 4
+    mov qword [rax + r12], r11
+    add r12, 8
+    pop rdx ; restore str_len
+    mov qword [rax + r12], rdx
+
     inc rsi
+    STORE_PTR_STRUCT_FIELD rdi, -8, rsi
 
     ret
 
