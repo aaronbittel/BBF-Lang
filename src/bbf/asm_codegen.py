@@ -206,9 +206,9 @@ class AsmCodeGen(Visitor):
     def visit_index_assign(self, index_assign: IndexAssign) -> None:
         varinfo = self.symbol_table.lookup(index_assign.target.value)
         assert varinfo is not None, "TypeChecker: Bug"
-        assert isinstance(varinfo.vartype, ArrayType), (
-            "TypeChecker should have checked this"
-        )
+        assert isinstance(varinfo.vartype, ArrayType) or isinstance(
+            varinfo.vartype, SliceType
+        ), "TypeChecker should have checked this"
         assert varinfo.vartype.vartype in (IntType, BoolType, StringType), (
             "TypeChecker: Bug"
         )

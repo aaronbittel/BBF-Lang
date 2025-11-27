@@ -201,15 +201,15 @@ class TypeChecker(Visitor[VarType]):
         return VoidType
 
     def visit_index_assign(self, index_assign: IndexAssign) -> VarType:
-        name_vartype = self.scope.lookup(index_assign.target.value)
-        if name_vartype is None:
+        vartype = self.scope.lookup(index_assign.target.value)
+        if vartype is None:
             raise TypeCheckerError(
                 f"ERROR: {index_assign.target.position}: `{index_assign.target.value}` is not defined."
             )
-        if not isinstance(name_vartype, ArrayType):
+        if not (isinstance(vartype, ArrayType) or isinstance(vartype, SliceType)):
             raise TypeCheckerError(
                 f"ERROR: {index_assign.target.position}: Cannot index `{index_assign.target.value}`: "
-                f"expected an array, but found `{name_vartype.name}`."
+                f"expected an array, but found `{vartype.name}`."
             )
         index_vartype = index_assign.index.accept(self)
         if index_vartype != IntType:
@@ -218,9 +218,9 @@ class TypeChecker(Visitor[VarType]):
             )
 
         value_vartype = index_assign.value.accept(self)
-        if name_vartype.vartype != value_vartype:
+        if vartype.vartype != value_vartype:
             raise TypeCheckerError(
-                f"Expected type `{name_vartype.name}`, but got {value_vartype.name}"
+                f"Expected type `{vartype.name}`, but got {value_vartype.name}"
             )
         return VoidType
 
