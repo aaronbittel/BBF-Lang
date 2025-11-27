@@ -6,7 +6,7 @@ from contextlib import contextmanager
 import bbf.builtins as bbf_builtins
 import bbf.nasm_macros as macros
 from bbf.emitter import Emitter
-from bbf.functions import FnInfo, FunctionTable
+from bbf.functions import SLICE_METHODS, FnInfo, FunctionTable
 from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
@@ -20,6 +20,7 @@ from bbf.nodes.expr import (
     Identifier,
     Indexing,
     IntegerLit,
+    MethodCall,
     StringLit,
     Unary,
 )
@@ -107,9 +108,9 @@ class AsmCodeGen(Visitor):
             )
             range_ident = self.symbol_table.lookup(loop_ident.value)
             assert range_ident is not None, f"{loop_ident.value} was just created"
+            self.emitter.emit(f"RESERVE_SPACE {IntType.stack_size} ; loop var")
             range_expr.start.accept(self)
             self.emitter.emit(f"STORE_VAR {loop_ident_offset:+d} ; range_start[Int]")
-            self.emitter.emit(f"RESERVE_SPACE {IntType.stack_size} ; loop var")
             # TODO: move creating lables into function
             self.emitter.emit(f".loop_{self.loop_count}_start:", indent=0)
             range_expr.stop.accept(self)
@@ -256,8 +257,6 @@ class AsmCodeGen(Visitor):
             )
 
     def visit_fncall(self, fncall: FnCall) -> None:
-        # NOTE: Functions will push their result into rax. Calling code needs to
-        # handle this.
         fninfo = self.function_table.lookup(fncall.name.value)
         assert fninfo is not None, "TypeChecker: Bug"
 
@@ -271,7 +270,7 @@ class AsmCodeGen(Visitor):
             self.symbol_table.reserve(fninfo.return_type.total_size)
 
         self.emitter.emit(f"; {fninfo.name} function args")
-        for fn_arg, expr_arg in zip(fninfo.args, fncall.args_list):
+        for fn_arg, expr_arg in zip(fninfo.args, fncall.args):
             expr_arg.accept(self)
             if not fn_arg.vartype.is_slice:
                 assert reg_i < len(regs_order), (
@@ -290,6 +289,54 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(
             f"call {fninfo.callname} ; return_type: {fninfo.return_type.name}"
         )
+        if fninfo.return_type == VoidType:
+            return
+        if not fninfo.return_type.is_slice:
+            self.emitter.emit("push rax ; return value from fn call")
+        else:
+            self.emitter.emit("push rax ; return ptr from fn call")
+            self.emitter.emit("push rdi ; return len from fn call")
+
+    def visit_methodcall(self, methodcall: MethodCall) -> None:
+        varinfo = self.symbol_table.lookup(methodcall.target.value)
+        assert varinfo is not None, "TypeChecker: Bug"
+        assert isinstance(varinfo.vartype, SliceType), "TypeChecker: Bug"
+
+        fninfo = SLICE_METHODS.get(methodcall.method.value)
+        assert fninfo is not None, "TypeChecker: Bug"
+
+        regs_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+        reg_i = 3
+
+        self.emitter.emit(f"; {fninfo.name} method args")
+        for fn_arg, expr_arg in zip(fninfo.args, methodcall.args):
+            expr_arg.accept(self)
+            if not fn_arg.vartype.is_slice:
+                assert reg_i < len(regs_order), (
+                    "Currently can't handle more physcial args than 6"
+                )
+                self.emitter.emit(f"pop {regs_order[reg_i]}")
+                reg_i += 1
+            else:
+                assert reg_i + 1 < len(regs_order), (
+                    "Currently can't handle more physcial args than 6"
+                )
+                self.emitter.emit(f"pop {regs_order[reg_i + 1]} ; str_len")
+                self.emitter.emit(f"pop {regs_order[reg_i]} ; str_ptr")
+                reg_i += 2
+
+        self.emitter.emit(f"mov rdi, [rbp{varinfo.offset:+d}] ; slice ptr")
+        self.emitter.emit(f"mov rsi, [rbp{varinfo.offset - 8:+d}] ; slice len")
+        self.emitter.emit(f"mov rdx, [rbp{varinfo.offset - 16:+d}] ; slice cap")
+
+        self.emitter.emit(
+            f"call {fninfo.callname} ; return_type: {fninfo.return_type.name}"
+        )
+        self.emitter.emit(f"; update `{methodcall.target.value}`")
+        self.emitter.emit(f"mov [rbp{varinfo.offset:+d}], rdi ; slice ptr")
+        self.emitter.emit(f"mov [rbp{varinfo.offset - 8:+d}], rsi ; slice len")
+        self.emitter.emit(f"mov [rbp{varinfo.offset - 16:+d}], rdx ; slice cap")
+
         if fninfo.return_type == VoidType:
             return
         if not fninfo.return_type.is_slice:

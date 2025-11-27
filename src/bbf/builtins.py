@@ -238,3 +238,49 @@ __builtin_strcmp:
 
 .end:
     ret"""
+
+_builtin_append = """
+; TODO: normally first return value would be in `rax`
+; rdi: ptr, rsi: len, rdx: cap; rcx: new-item
+__builtin_append:
+    cmp rsi, rdx
+    jl .add
+
+    push rdx
+
+    mov rdx, rdi
+    PUSH_MEM_PTR
+    pop rdi
+    call __builtin_copy_slice
+
+    pop rdx
+    shl rdx, 1
+    ADD_MEM_PTR rdx, 8 ; TODO: make this work for all type sizes
+    mov r11, [__mem_ptr]
+
+.add:
+    mov qword [rdi + rsi * 8], rcx
+    inc rsi
+
+    ret
+
+; TODO: normally first return value would be in `rax`
+; rdi: new_ptr, rsi: len, rdx: old_ptr
+__builtin_copy_slice:
+    mov r9, rdi  ; r9:  new_ptr
+    mov r10, rsi ; r10: len_count
+
+.loop:
+    cmp r10, 0
+    je .end
+
+    mov rax, [rdx]
+    mov [r9], rax
+    add r9, 8
+    add rdx, 8
+    dec r10
+    jmp .loop
+
+.end:
+    ret
+"""

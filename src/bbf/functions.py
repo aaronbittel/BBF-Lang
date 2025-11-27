@@ -34,7 +34,6 @@ syscall = partial(FnInfo, prefix="__sys_")
 builtin = partial(FnInfo, prefix="__builtin_")
 
 
-# Built-in functions
 BUILTIN_FNS = {
     "exit": syscall("exit", [FnArg("x", IntType)], VoidType),
     "stdout": syscall("stdout", [FnArg("x", StringType)], VoidType),
@@ -45,6 +44,10 @@ BUILTIN_FNS = {
     "read_entire_file": builtin(
         "read_entire_file", [FnArg("filename", StringType)], StringType
     ),
+}
+
+SLICE_METHODS = {
+    "append": builtin("append", [FnArg("item", IntType)], VoidType),
 }
 
 

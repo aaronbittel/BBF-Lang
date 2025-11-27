@@ -5,7 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Generator
 
-from bbf.functions import BUILTIN_FNS, FnInfo
+from bbf.functions import BUILTIN_FNS, SLICE_METHODS, FnInfo
 from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
@@ -18,6 +18,7 @@ from bbf.nodes.expr import (
     Identifier,
     Indexing,
     IntegerLit,
+    MethodCall,
     StringLit,
     Unary,
 )
@@ -251,14 +252,14 @@ class TypeChecker(Visitor[VarType]):
                 f"ERROR: {fncall.name.position}: Undefined function `{fnname}`"
             )
 
-        if len(fninfo.args) != len(fncall.args_list):
+        if len(fninfo.args) != len(fncall.args):
             raise TypeCheckerError(
                 f"ERROR: {fncall.name.position}: "
                 f"Function `{fnname}` expects {len(fninfo.args)} arguments, "
-                f"but got {len(fncall.args_list)}"
+                f"but got {len(fncall.args)}"
             )
 
-        for i, (fnarg, arg) in enumerate(zip(fninfo.args, fncall.args_list), start=1):
+        for i, (fnarg, arg) in enumerate(zip(fninfo.args, fncall.args), start=1):
             expected = fnarg.vartype
             with self.expecting(expected):
                 actual = arg.accept(self)
@@ -272,6 +273,49 @@ class TypeChecker(Visitor[VarType]):
                 )
 
         fncall.vartype = fninfo.return_type
+        return fninfo.return_type
+
+    def visit_methodcall(self, methodcall: MethodCall) -> VarType:
+        target = methodcall.target
+        vartype = self.scope.lookup(target.value)
+        if vartype is None:
+            raise TypeCheckerError(
+                f"ERROR: {target.position}: `{target.value}` is not defined."
+            )
+
+        method_token = methodcall.method
+        if not isinstance(vartype, SliceType):
+            raise TypeCheckerError(
+                f"ERROR: {method_token.position}: "
+                f"There is no method `{method_token.value}` defined on type `{vartype.name}`"
+            )
+        fninfo = SLICE_METHODS.get(method_token.value)
+        if fninfo is None:
+            raise TypeCheckerError(
+                f"ERROR: {method_token.position}: "
+                f"There is no method `{method_token.value}` defined on type `{vartype.name}`"
+            )
+
+        if len(fninfo.args) != len(methodcall.args):
+            raise TypeCheckerError(
+                f"ERROR: {methodcall.target.position}: "
+                f"Function `{fninfo.name}` expects {len(fninfo.args)} arguments, "
+                f"but got {len(methodcall.args)}"
+            )
+
+        for i, (fnarg, arg) in enumerate(zip(fninfo.args, methodcall.args), start=1):
+            expected = fnarg.vartype
+            with self.expecting(expected):
+                actual = arg.accept(self)
+            if expected != actual:
+                raise TypeCheckerError(
+                    f"ERROR: {methodcall.target.position}: "
+                    f"Type mismatch in call to `{fninfo.name}`: "
+                    f"expected `{expected.name}` for {i}. parameter, "
+                    f"but got `{actual.name}`"
+                )
+
+        methodcall.vartype = fninfo.return_type
         return fninfo.return_type
 
     def visit_declaration(self, decl: Declaration) -> VarType:

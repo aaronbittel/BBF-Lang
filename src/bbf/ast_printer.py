@@ -13,6 +13,7 @@ from bbf.nodes.expr import (
     Identifier,
     Indexing,
     IntegerLit,
+    MethodCall,
     StringLit,
     Unary,
 )
@@ -128,11 +129,22 @@ class ASTPrinter(Visitor[None]):
         self.write(ident.token.value)
 
     def visit_fncall(self, fncall: FnCall) -> None:
-        self.write(f"{fncall.name.value}")
+        self.write(fncall.name.value)
         self.write("( ")
-        for i, arg in enumerate(fncall.args_list):
+        for i, arg in enumerate(fncall.args):
             arg.accept(self)
-            if i + 1 < len(fncall.args_list):
+            if i + 1 < len(fncall.args):
+                self.write(", ")
+        self.write(" )")
+
+    def visit_methodcall(self, methodcall: MethodCall) -> None:
+        self.write(methodcall.target.value)
+        self.write(".")
+        self.write(methodcall.method.value)
+        self.write("( ")
+        for i, arg in enumerate(methodcall.args):
+            arg.accept(self)
+            if i + 1 < len(methodcall.args):
                 self.write(", ")
         self.write(" )")
 

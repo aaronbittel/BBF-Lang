@@ -83,10 +83,20 @@ class Argv(Expr):
 @dataclass
 class FnCall(Expr):
     name: Token
-    args_list: list[Expr]
+    args: list[Expr]
 
     def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_fncall(self)
+
+
+@dataclass
+class MethodCall(Expr):
+    target: Token
+    method: Token
+    args: list[Expr]
+
+    def accept[T](self, visitor: Visitor[T]) -> T:
+        return visitor.visit_methodcall(self)
 
 
 @dataclass

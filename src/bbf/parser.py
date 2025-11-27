@@ -12,6 +12,7 @@ from bbf.nodes.expr import (
     Identifier,
     Indexing,
     IntegerLit,
+    MethodCall,
     StringLit,
     Unary,
 )
@@ -383,6 +384,10 @@ class Parser:
                 return self.fn_call()
             if self.check(TokenType.OpenBracket, offset=1):
                 return self.indexing()
+            if self.check(TokenType.Dot, offset=1) and self.check(
+                TokenType.Identifier, offset=2
+            ):
+                return self.method_call()
             token = self.advance()
             return Identifier(token, span=Span.from_token(token))
         if self.check(TokenType.OpenParen):
@@ -416,6 +421,23 @@ class Parser:
         else:
             msg = f"Unknown statement beginning with `{token.value}`"
         raise ParserError(token, msg)
+
+    def method_call(self) -> MethodCall:
+        name = self.consume(
+            TokenType.Identifier, "Expected `Identifier` for method call target"
+        )
+        self.consume(TokenType.Dot, "Expected `.` for method call")
+        method_name = self.consume(
+            TokenType.Identifier, "Expected `Identifier` for method name"
+        )
+        self.consume(TokenType.OpenParen, "Expected `(` for method call")
+        args: list[Expr] = []
+        if not self.check(TokenType.CloseParen):
+            args = self.arguments()
+        end = self.consume(TokenType.CloseParen, "Expected `)` for method call")
+        return MethodCall(
+            name, method_name, args, span=Span(name.position, end.position)
+        )
 
     def indexing(self) -> Indexing:
         name = self.consume(
