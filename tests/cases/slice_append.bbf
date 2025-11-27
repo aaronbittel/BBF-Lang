@@ -1,9 +1,19 @@
-list: [Int] = []
+nums: [Int] = []
+bools: [Bool] = []
+strings: [String] = []
 
 for i in 1..=10 do
-    list.append(i * 2)
+    nums.append(i * 2)
+    if i % 2 == 0 then
+        bools.append(true)
+    else
+        bools.append(false)
+    end
+    strings.append("hi")
 end
 
 for i in 0..10 do
-    stdout(itoa(list[i])) stdout(" ")
+    stdout(itoa(nums[i])) stdout(" ")
+    stdout(btoa(bools[i])) stdout(" ")
+    stdout(strings[i]) stdout("\n")
 end

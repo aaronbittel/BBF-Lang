@@ -239,10 +239,10 @@ __builtin_strcmp:
 .end:
     ret"""
 
-_builtin_append = """
+_builtin_append_8 = """
 ; TODO: normally first return value would be in `rax`
-; rdi: ptr, rsi: len, rdx: cap; rcx: new-item
-__builtin_append:
+; rdi: ptr, rsi: len, rdx: cap, rcx: int / bool
+__builtin_append_8:
     cmp rsi, rdx
     jl .add
 
@@ -251,7 +251,7 @@ __builtin_append:
     mov rdx, rdi
     PUSH_MEM_PTR
     pop rdi
-    call __builtin_copy_slice
+    call __builtin_copy_slice_8
 
     pop rdx
     shl rdx, 1
@@ -266,7 +266,7 @@ __builtin_append:
 
 ; TODO: normally first return value would be in `rax`
 ; rdi: new_ptr, rsi: len, rdx: old_ptr
-__builtin_copy_slice:
+__builtin_copy_slice_8:
     mov r9, rdi  ; r9:  new_ptr
     mov r10, rsi ; r10: len_count
 
@@ -274,6 +274,60 @@ __builtin_copy_slice:
     cmp r10, 0
     je .end
 
+    mov rax, [rdx]
+    mov [r9], rax
+    add r9, 8
+    add rdx, 8
+    dec r10
+    jmp .loop
+
+.end:
+    ret
+"""
+
+_builtin_append_16 = """
+; TODO: normally first return value would be in `rax`
+; rdi: ptr, rsi: len, rdx: cap, rcx: str_ptr, r8: str_len
+__builtin_append_16:
+    cmp rsi, rdx
+    jl .add
+
+    push rdx
+
+    mov rdx, rdi
+    PUSH_MEM_PTR
+    pop rdi
+    call __builtin_copy_slice_16
+
+    pop rdx
+    shl rdx, 1
+    ADD_MEM_PTR rdx, 8 ; TODO: make this work for all type sizes
+    mov r11, [__mem_ptr]
+
+.add:
+    mov r12, rsi
+    imul r12, 2
+    mov qword [rdi + r12 * 8], rcx
+    inc r12
+    mov qword [rdi + r12 * 8], r8
+    inc rsi
+
+    ret
+
+; TODO: normally first return value would be in `rax`
+; rdi: new_ptr, rsi: len, rdx: old_ptr
+__builtin_copy_slice_16:
+    mov r9, rdi  ; r9:  new_ptr
+    mov r10, rsi ; r10: len_count
+
+.loop:
+    cmp r10, 0
+    je .end
+
+    mov rax, [rdx]
+    mov [r9], rax
+    add r9, 8
+    add rdx, 8
     mov rax, [rdx]
     mov [r9], rax
     add r9, 8

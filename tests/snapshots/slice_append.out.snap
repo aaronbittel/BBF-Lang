@@ -2,7 +2,17 @@ Argv: 0
 
 Returncode: 1
 0
-Stdout: 26
-2 4 6 8 10 12 14 16 18 20 
+Stdout: 111
+2 false hi
+4 true hi
+6 false hi
+8 true hi
+10 false hi
+12 true hi
+14 false hi
+16 true hi
+18 false hi
+20 true hi
+
 Stderr: 0
 

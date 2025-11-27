@@ -46,8 +46,13 @@ BUILTIN_FNS = {
     ),
 }
 
+
+def make_append_method(elem_type: VarType) -> FnInfo:
+    return builtin("append", [FnArg("elem", elem_type)], VoidType)
+
+
 SLICE_METHODS = {
-    "append": builtin("append", [FnArg("item", IntType)], VoidType),
+    "append": make_append_method,
 }
 
 

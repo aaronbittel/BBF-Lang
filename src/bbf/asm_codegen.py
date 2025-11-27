@@ -308,8 +308,10 @@ class AsmCodeGen(Visitor):
         assert varinfo is not None, "TypeChecker: Bug"
         assert isinstance(varinfo.vartype, SliceType), "TypeChecker: Bug"
 
-        fninfo = SLICE_METHODS.get(methodcall.method.value)
-        assert fninfo is not None, "TypeChecker: Bug"
+        fninfo_factory = SLICE_METHODS.get(methodcall.method.value)
+        assert fninfo_factory is not None, "TypeChecker: Bug"
+
+        fninfo = fninfo_factory(varinfo.vartype.vartype)
 
         regs_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
         reg_i = 3
@@ -336,7 +338,7 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(f"mov rdx, [rbp{varinfo.offset - 16:+d}] ; slice cap")
 
         self.emitter.emit(
-            f"call {fninfo.callname} ; return_type: {fninfo.return_type.name}"
+            f"call {fninfo.callname}_{varinfo.vartype.vartype.stack_size} ; return_type: {fninfo.return_type.name}"
         )
         self.emitter.emit(f"; update `{methodcall.target.value}`")
         self.emitter.emit(f"mov [rbp{varinfo.offset:+d}], rdi ; slice ptr")
@@ -490,19 +492,28 @@ class AsmCodeGen(Visitor):
         # array declaration outside of a function -> .data static memory
         if self.current_fn_returntype is None:
             if self.is_slice:
-                assert (
-                    isinstance(array.vartype, SliceType)
-                    and array.vartype.vartype == IntType
-                )
+                assert isinstance(array.vartype, SliceType)
+
                 self.emitter.emit("PUSH_MEM_PTR")
                 self.emitter.emit("pop r10")
+
                 for i, item in enumerate(array.items):
                     item.accept(self)
-                    self.emitter.emit("pop rax")
-                    self.emitter.emit(f"mov [r10 + {i} * 8], rax")
+                    if array.vartype.vartype in (IntType, BoolType):
+                        self.emitter.emit("pop rax")
+                        self.emitter.emit(f"mov [r10 + {i} * 8], rax")
+                    elif array.vartype.vartype == StringType:
+                        self.emitter.emit("pop rax ; str_len")
+                        self.emitter.emit(f"mov [r10 + {i * 2 + 1} * 8], rax")
+                        self.emitter.emit("pop rax ; str_ptr")
+                        self.emitter.emit(f"mov [r10 + {i * 2} * 8], rax")
+                    else:
+                        assert False, f"unreachable: {array.vartype.name}"
 
                 cap = calculate_slice_capacity(len(array.items))
-                self.emitter.emit(f"ADD_MEM_PTR {cap}, 8")
+                self.emitter.emit(
+                    f"ADD_MEM_PTR {cap}, {array.vartype.vartype.stack_size}"
+                )
 
                 self.emitter.emit("push r10")
                 self.emitter.emit(f"push {len(array.items)}")
@@ -553,7 +564,10 @@ class AsmCodeGen(Visitor):
                 self.emitter.emit(f"PUSH_INDEXED_SLICE {varinfo.offset:+d}")
         elif isinstance(varinfo.vartype, SliceType):
             subscript.index.accept(self)
-            self.emitter.emit(f"PUSH_INDEXED_SCALAR {varinfo.offset:+d}")
+            if varinfo.vartype.vartype.is_slice:
+                self.emitter.emit(f"PUSH_INDEXED_SLICE {varinfo.offset:+d}")
+            else:
+                self.emitter.emit(f"PUSH_INDEXED_SCALAR {varinfo.offset:+d}")
         elif varinfo.vartype == StringType:
             subscript.index.accept(self)
             self.emitter.emit(f"PUSH_STRING_ELEM {varinfo.offset:+d}")

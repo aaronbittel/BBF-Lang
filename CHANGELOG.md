@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - String indexing
 - String comparison
 - Slice Type `x: [Int] = [1, 2, 3]` is a growable container
-- `append()` for [Int] slices: `x.append(4)`
+- `append()` for slices: `x.append(4)`
 
 ### Changed
 
