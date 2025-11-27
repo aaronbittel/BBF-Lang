@@ -56,6 +56,10 @@ def make_len_method(elem_type: VarType) -> FnInfo:
     return builtin("len", [], IntType)
 
 
+def make_cap_method(elem_type: VarType) -> FnInfo:
+    return builtin("cap", [], IntType)
+
+
 @dataclass(frozen=True)
 class SliceMethod:
     factory: Callable[..., FnInfo]
@@ -66,6 +70,7 @@ class SliceMethod:
 SLICE_METHODS: dict[str, SliceMethod] = {
     "append": SliceMethod(factory=make_append_method, field_access=False),
     "len": SliceMethod(factory=make_len_method, field_access=True, field_offset=8),
+    "cap": SliceMethod(factory=make_cap_method, field_access=True, field_offset=16),
 }
 
 

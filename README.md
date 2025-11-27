@@ -151,6 +151,8 @@ Represented as ptr + len + cap.
 ### Builtin Slice Methods
 - `append(x: Int) -> Void`: Append x to end of slice, automatically reallocates if len
 would be > capacity
+- `len() -> Int`: Return the length of the slice
+- `cap() -> Int`: Return the capacity of the slice
 
 ## Examples / Playground
 
