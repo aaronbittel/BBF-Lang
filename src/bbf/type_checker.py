@@ -78,7 +78,6 @@ class TypeChecker(Visitor[VarType]):
         # TODO: Handle globals better
         self.scope.define("argc", IntType)
         self.current_fninfo: FnInfo | None = None
-        self.is_slice = False
 
     def visit_progtoplevelstmt(self, progtoplevelstmt: ProgTopLevelStmt) -> VarType:
         for stmt in progtoplevelstmt.stmts:
@@ -188,7 +187,6 @@ class TypeChecker(Visitor[VarType]):
                 )
             return VoidType
         vartype = self.current_fninfo.return_type
-        vartype = vartype.vartype if isinstance(vartype, ArrayType) else vartype
         with self.expecting(vartype):
             ret_vartype = returnstmt.expr.accept(self)
 
@@ -262,8 +260,7 @@ class TypeChecker(Visitor[VarType]):
 
         for i, (fnarg, arg) in enumerate(zip(fninfo.args, fncall.args_list), start=1):
             expected = fnarg.vartype
-            vartype = expected.vartype if isinstance(expected, ArrayType) else expected
-            with self.expecting(vartype):
+            with self.expecting(expected):
                 actual = arg.accept(self)
             param_name = "" if fnname in BUILTIN_FNS else f" `{fnarg.name}`"
             if expected != actual:
@@ -286,20 +283,16 @@ class TypeChecker(Visitor[VarType]):
             raise TypeCheckerError(
                 f"ERROR: {decl.name.position}: `Void` is not allowed as array type"
             )
-        expected_vartype = decl.vartype
-        if isinstance(decl.vartype, ArrayType) or isinstance(decl.vartype, SliceType):
-            expected_vartype = decl.vartype.vartype
-        with self.expecting(expected_vartype):
-            if isinstance(decl.vartype, SliceType):
-                self.is_slice = True
-            exprtype = decl.expr.accept(self)
-            self.is_slice = False
 
-        if not isinstance(decl.vartype, SliceType) and decl.vartype != exprtype:
+        with self.expecting(decl.vartype):
+            expr_vartype = decl.expr.accept(self)
+
+        if decl.vartype != expr_vartype:
             raise TypeCheckerError(
                 f"ERROR: {decl.expr.span.start}: "
-                f"{decl.name.value} was typed as `{decl.vartype.name}`, but Expr evaluated to `{exprtype.name}`"
+                f"{decl.name.value} was typed as `{decl.vartype.name}`, but Expr evaluated to `{expr_vartype.name}`"
             )
+
         self.scope.define(decl.name.value, decl.vartype)
         return VoidType
 
@@ -405,19 +398,28 @@ class TypeChecker(Visitor[VarType]):
         assert len(array.items) > 0
         assert self.expected_vartype is not None
 
-        vartype = self.expected_vartype
-        for item in array.items:
-            vartype = item.accept(self)
-            if self.expected_vartype != vartype:
+        if isinstance(self.expected_vartype, ArrayType):
+            if self.expected_vartype.length != len(array.items):
                 raise TypeCheckerError(
-                    f"ERROR: {item.span.start}: Expected `{self.expected_vartype.name}`, but got `{vartype.name}`"
+                    f"ERROR: {array.span.start}: Fixed-size array length mismatch: "
+                    f"Expected {self.expected_vartype.length}, got {len(array.items)}"
                 )
-        array.vartype = (
-            SliceType(vartype, length=len(array.items))
-            if self.is_slice
-            else ArrayType(vartype, len(array.items))
+        else:
+            assert False, "unreachable"
+
+        exp_item_vt = self.expected_vartype.vartype
+        for item in array.items:
+            item_vt = item.accept(self)
+            if exp_item_vt != item_vt:
+                raise TypeCheckerError(
+                    f"ERROR: {item.span.start}: Array element type mismatch: "
+                    f"Expected `{exp_item_vt.name}`, got `{item_vt.name}`"
+                )
+        return (
+            ArrayType(exp_item_vt, len(array.items))
+            if isinstance(self.expected_vartype, ArrayType)
+            else SliceType(exp_item_vt)
         )
-        return array.vartype
 
     def visit_indexing(self, subscript: Subscript) -> VarType:
         name = subscript.name.value
@@ -460,7 +462,7 @@ class TypeChecker(Visitor[VarType]):
         return BoolType
 
     @contextmanager
-    def expecting(self, vartype: VarType | None):
+    def expecting(self, vartype: VarType):
         old_expected = self.expected_vartype
         self.expected_vartype = vartype
         try:

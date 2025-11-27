@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from contextlib import contextmanager
 
 import bbf.builtins as bbf_builtins
@@ -450,9 +451,8 @@ class AsmCodeGen(Visitor):
 
                 self.emitter.emit("push r10")
                 self.emitter.emit(f"push {len(array.items)}")
-                self.emitter.emit(
-                    f"push {max(len(array.items), array.vartype.capacity)}"
-                )
+                cap = calculate_slice_capacity(len(array.items))
+                self.emitter.emit(f"push {cap}")
                 return
             else:
                 if isinstance(array.items[0], StringLit):
@@ -759,3 +759,9 @@ COMPARISON_SETCC = {
     TokenType.EqualEqual: "sete",  # ==
     TokenType.BangEqual: "setne",  # !=
 }
+
+
+def calculate_slice_capacity(length: int) -> int:
+    # This ensures that capacity > length. Because currently no freeing of allocatated
+    # memory is implemented.
+    return int(max(8, 2 ** (1 + math.ceil(math.log2(length)))))

@@ -92,8 +92,6 @@ class ArrayType(VarType):
 @dataclass(frozen=True)
 class SliceType(VarType):
     vartype: VarType
-    length: int = 0
-    capacity: int = 8
 
     @property
     def name(self) -> str:
