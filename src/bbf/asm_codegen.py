@@ -50,9 +50,15 @@ from bbf.varinfo import (
 
 
 class AsmCodeGen(Visitor):
-    def __init__(self, emitter: Emitter, macros_emitter: Emitter) -> None:
+    def __init__(
+        self,
+        emitter: Emitter,
+        macros_emitter: Emitter,
+        global_buffer_cap: int,
+    ) -> None:
         self.emitter = emitter
         self.macros_emitter = macros_emitter
+        self.global_buffer_cap = global_buffer_cap
 
         self.symbol_table = SymbolTable()
         self.function_table = FunctionTable()
@@ -586,7 +592,7 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("global _start", indent=0)
         self.emitter.emit("", indent=0)
         self.emitter.emit("_start:", indent=0)
-        self.emitter.emit("PROGRAM_PROLOGUE")
+        self.emitter.emit(f"PROGRAM_PROLOGUE {self.global_buffer_cap}")
 
     def program_epilogue(self):
         self.emitter.emit()

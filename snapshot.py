@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Generator, Literal, NamedTuple, TextIO
 
 from bbf.ast_printer import ASTPrinter
+from bbf.config import GLOBAL_BUFFER_CAPACITY
 from bbf.lexer import Token
 from bbf.nodes.program import ProgTopLevelStmt
 from bbf.runner import Step, generate_exe, parse, tokenize
@@ -149,7 +150,7 @@ def runner_gen(
     yield RunnerResult(Step.TypeCheck, content=typecheck_to_str(prog))
 
     exe = TMP_DIR / "out"
-    generate_exe(prog, exe_path=exe)
+    generate_exe(prog, exe_path=exe, buffer_size=GLOBAL_BUFFER_CAPACITY)
 
     if argv is None:
         raise MissingArgvError

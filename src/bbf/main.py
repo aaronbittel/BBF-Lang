@@ -28,7 +28,9 @@ def main() -> None:
             sys.exit(0)
 
     exe_path = args.output / args.filepath.stem if args.output.is_dir() else args.output
-    generate_exe(prog, exe_path=exe_path, verbose=args.verbose)
+    generate_exe(
+        prog, exe_path=exe_path, buffer_size=args.buffer_size, verbose=args.verbose
+    )
     if not args.quiet:
         print(blue("[INFO]"), f"Successfully compiled program to `{exe_path}`")
 

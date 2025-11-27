@@ -115,7 +115,8 @@ end
 
 ### Memory Allocation
 
-- At program start, a 1 MiB buffer is allocated using `mmap`.
+- At program start, a 1 MiB buffer is allocated using `mmap`. Can be configured using
+`-b, --buffer-size` flag
 - Currently, only slices use this buffer for storing their elements.
 
 ### Comments

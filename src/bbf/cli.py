@@ -4,10 +4,8 @@ from pathlib import Path
 from typing import Self
 
 from bbf import __version__
+from bbf.config import BIN_DIR, GLOBAL_BUFFER_CAPACITY
 from bbf.runner import Step
-
-BIN_DIR = Path("./bin")
-BIN_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @dataclass(frozen=True)
@@ -19,7 +17,7 @@ class TypedNamespace:
     typecheck: bool = True
     output: Path = BIN_DIR
     verbose: bool = False
-    version: bool = False
+    buffer_size: int = GLOBAL_BUFFER_CAPACITY
 
     @classmethod
     def from_namespace(cls, args: argparse.Namespace) -> Self:
@@ -31,6 +29,7 @@ class TypedNamespace:
             args.typecheck,
             args.output,
             args.verbose,
+            args.buffer_size,
         )
 
 
@@ -99,9 +98,50 @@ def parse_cli_args() -> TypedNamespace:
         help="Show this help message and exit",
     )
     parser.add_argument(
+        "--buffer-size",
+        "-b",
+        metavar="SIZE",
+        type=parse_size,
+        default=GLOBAL_BUFFER_CAPACITY,
+        help=(
+            "Size of the global slice allocation buffer. "
+            "Accepts plain bytes or human-readable units like 512K, 2M, 1MiB. "
+            "Default: 1MiB."
+        ),
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
         help="Show the program version and exit",
     )
     return TypedNamespace.from_namespace(parser.parse_args())
+
+
+def parse_size(s: str) -> int:
+    """Parse human-readable sizes like: 1024, 512K, 2M, 1MiB, 4GB Returns the size in bytes."""
+    s = s.strip().lower()
+
+    if s.isdigit():
+        return int(s)
+
+    units = {
+        "k": 1024,
+        "kb": 1024,
+        "kib": 1024,
+        "m": 1024**2,
+        "mb": 1024**2,
+        "mib": 1024**2,
+        "g": 1024**3,
+        "gb": 1024**3,
+        "gib": 1024**3,
+    }
+
+    for suffix, scale in units.items():
+        if s.endswith(suffix):
+            num = s[: -len(suffix)].strip()
+            if not num.replace(".", "", 1).isdigit():
+                raise argparse.ArgumentTypeError(f"Invalid size: {s}")
+            return int(float(num) * scale)
+
+    raise argparse.ArgumentTypeError(f"Invalid size format: {s}")

@@ -55,11 +55,11 @@ def parse(tokens: list[Token]) -> ProgTopLevelStmt:
 
 
 def generate_exe(
-    prog: ProgTopLevelStmt, exe_path: Path, *, verbose: bool = False
+    prog: ProgTopLevelStmt, exe_path: Path, buffer_size: int, *, verbose: bool = False
 ) -> None:
     main_emitter = Emitter()
     nasm_macros_emitter = Emitter()
-    asm_codegen = AsmCodeGen(main_emitter, nasm_macros_emitter)
+    asm_codegen = AsmCodeGen(main_emitter, nasm_macros_emitter, buffer_size)
     asm_codegen.generate_prog(prog)
 
     basedir = Path(exe_path.parent)

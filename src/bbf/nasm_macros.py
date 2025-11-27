@@ -24,7 +24,8 @@ _macro_constants = """
 """
 
 _macro_program_prologue = """
-%macro PROGRAM_PROLOGUE 0
+%macro PROGRAM_PROLOGUE 1
+    ; %1: mem size
     ; init base pointer
     mov rbp, rsp
 
@@ -35,7 +36,7 @@ _macro_program_prologue = """
     mov [__argv], rax
 
     ; init memory space
-    mov rdi, 1024 * 1024 ; TODO: make this configurable via compiler flags
+    mov rdi, %1
     call __sys_mmap
     mov [__mem_ptr], rax
 
