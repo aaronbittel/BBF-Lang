@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Self
 
@@ -15,7 +15,7 @@ class Source(NamedTuple):
 
 @dataclass
 class Position:
-    source: Source
+    source: Source = field(repr=False)
     line: int
     column: int
 

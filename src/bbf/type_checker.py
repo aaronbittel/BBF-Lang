@@ -394,18 +394,23 @@ class TypeChecker(Visitor[VarType]):
         return grouping.vartype
 
     def visit_array_literal(self, array: ArrayLiteral) -> VarType:
-        # TODO: handle `[]` empty array
-        assert len(array.items) > 0
         assert self.expected_vartype is not None
 
         if isinstance(self.expected_vartype, ArrayType):
+            if len(array.items) == 0:
+                raise TypeCheckerError(
+                    f"ERROR: {array.span.start}: "
+                    "Fixed-size arrays cannot have length 0."
+                )
             if self.expected_vartype.length != len(array.items):
                 raise TypeCheckerError(
                     f"ERROR: {array.span.start}: Fixed-size array length mismatch: "
                     f"Expected {self.expected_vartype.length}, got {len(array.items)}"
                 )
+        elif isinstance(self.expected_vartype, SliceType):
+            pass
         else:
-            assert False, "unreachable"
+            assert False, f"unreachable: {self.expected_vartype.name}"
 
         exp_item_vt = self.expected_vartype.vartype
         for item in array.items:
@@ -415,11 +420,13 @@ class TypeChecker(Visitor[VarType]):
                     f"ERROR: {item.span.start}: Array element type mismatch: "
                     f"Expected `{exp_item_vt.name}`, got `{item_vt.name}`"
                 )
-        return (
+        vartype = (
             ArrayType(exp_item_vt, len(array.items))
             if isinstance(self.expected_vartype, ArrayType)
             else SliceType(exp_item_vt)
         )
+        array.vartype = vartype
+        return vartype
 
     def visit_indexing(self, subscript: Subscript) -> VarType:
         name = subscript.name.value

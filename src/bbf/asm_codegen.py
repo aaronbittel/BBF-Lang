@@ -447,11 +447,12 @@ class AsmCodeGen(Visitor):
                     item.accept(self)
                     self.emitter.emit("pop rax")
                     self.emitter.emit(f"mov [r10 + {i} * 8], rax")
-                self.emitter.emit(f"ADD_MEM_PTR {len(array.items)}")
+
+                cap = calculate_slice_capacity(len(array.items))
+                self.emitter.emit(f"ADD_MEM_PTR {cap}, 8")
 
                 self.emitter.emit("push r10")
                 self.emitter.emit(f"push {len(array.items)}")
-                cap = calculate_slice_capacity(len(array.items))
                 self.emitter.emit(f"push {cap}")
                 return
             else:
@@ -760,8 +761,12 @@ COMPARISON_SETCC = {
     TokenType.BangEqual: "setne",  # !=
 }
 
+MIN_SLICE_CAPACITY = 8
+
 
 def calculate_slice_capacity(length: int) -> int:
     # This ensures that capacity > length. Because currently no freeing of allocatated
     # memory is implemented.
-    return int(max(8, 2 ** (1 + math.ceil(math.log2(length)))))
+    if length == 0:
+        return MIN_SLICE_CAPACITY
+    return int(max(MIN_SLICE_CAPACITY, 2 ** (1 + math.ceil(math.log2(length)))))

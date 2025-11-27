@@ -404,10 +404,9 @@ class Parser:
             args: list[Expr] = []
             if not self.check(TokenType.CloseBracket):
                 args = self.arguments()
-                self.consume(
-                    TokenType.CloseBracket, "Expected `]` to close ArrayLiteral"
-                )
-            end = self.previous()
+            end = self.consume(
+                TokenType.CloseBracket, "Expected `]` to close ArrayLiteral"
+            )
             return ArrayLiteral(args, span=Span(start.position, end.position))
         token = self.peek()
         if token.ttype == TokenType.Colon:

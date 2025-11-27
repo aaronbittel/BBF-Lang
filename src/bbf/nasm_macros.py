@@ -49,9 +49,12 @@ _macro_push_mem_ptr = """
 """
 
 _macro_add_mem_ptr = """
-%macro ADD_MEM_PTR 1
-    ; %1: size
-    add qword [__mem_ptr], %1
+%macro ADD_MEM_PTR 2
+    ; %1: len(items)
+    ; %2: size of item
+    mov rax, %1
+    imul rax, %2
+    add qword [__mem_ptr], rax
 %endmacro
 """
 

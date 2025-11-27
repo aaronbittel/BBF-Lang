@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Calculation of slice capacity and mem ptr offset
+
 ## 0.4.2 - 2025-11-26
 
 ### Added

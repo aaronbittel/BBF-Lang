@@ -160,7 +160,7 @@ __builtin_read_entire_file:
     mov rdi, r10
     call __sys_close
 
-    ADD_MEM_PTR r8
+    ADD_MEM_PTR r8, 1
 
     mov rax, r9
     mov rdi, r8
@@ -190,7 +190,6 @@ __sys_read:
 _builtin_mmap = """
 ; rdi: length
 __sys_mmap:
-    FN_PROLOGUE
     mov r9, rdi ; r9: length
 
     mov rax, SYS_MMAP
@@ -201,8 +200,7 @@ __sys_mmap:
     mov r8, -1              ; fd = -1
     mov r9, 0               ; offset = 0
     syscall
-
-    FN_EPILOGUE
+    ret
 """
 
 _builtin_strcmp = """
