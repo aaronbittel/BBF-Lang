@@ -248,3 +248,12 @@ _macro_push_string_elem = """
     push rax
     push 1
 %endmacro"""
+
+_macro_push_struct_field = """
+%macro PUSH_STRUCT_FIELD 2
+    ; %1: struct ptr offset
+    ; %2: field offset
+    mov rax, [rbp + %1 - %2]
+    push rax
+%endmacro
+"""

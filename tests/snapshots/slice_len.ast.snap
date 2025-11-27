@@ -1,0 +1,12 @@
+nums: [Int] = [ 1, 2, 3 ]
+stdout( itoa( nums.len(  ) ) )
+stdout( '\n' )
+strings: [String] = [  ]
+stdout( itoa( strings.len(  ) ) )
+stdout( '\n' )
+strings.append( 'Hello, World' )
+strings.append( 'Hello, World' )
+strings.append( 'Hello, World' )
+strings.append( 'Hello, World' )
+stdout( itoa( strings.len(  ) ) )
+stdout( '\n' )

@@ -289,14 +289,14 @@ class TypeChecker(Visitor[VarType]):
                 f"ERROR: {method_token.position}: "
                 f"There is no method `{method_token.value}` defined on type `{vartype.name}`"
             )
-        fninfo_factory = SLICE_METHODS.get(method_token.value)
-        if fninfo_factory is None:
+        slice_method_entry = SLICE_METHODS.get(method_token.value)
+        if slice_method_entry is None:
             raise TypeCheckerError(
                 f"ERROR: {method_token.position}: "
                 f"There is no method `{method_token.value}` defined on type `{vartype.name}`"
             )
 
-        fninfo = fninfo_factory(vartype.vartype)
+        fninfo = slice_method_entry.factory(vartype.vartype)
 
         if len(fninfo.args) != len(methodcall.args):
             raise TypeCheckerError(

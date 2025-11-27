@@ -308,10 +308,16 @@ class AsmCodeGen(Visitor):
         assert varinfo is not None, "TypeChecker: Bug"
         assert isinstance(varinfo.vartype, SliceType), "TypeChecker: Bug"
 
-        fninfo_factory = SLICE_METHODS.get(methodcall.method.value)
-        assert fninfo_factory is not None, "TypeChecker: Bug"
+        slice_method_entry = SLICE_METHODS.get(methodcall.method.value)
+        assert slice_method_entry is not None, "TypeChecker: Bug"
 
-        fninfo = fninfo_factory(varinfo.vartype.vartype)
+        if slice_method_entry.field_access:
+            self.emitter.emit(
+                f"PUSH_STRUCT_FIELD {varinfo.offset}, {slice_method_entry.field_offset}"
+            )
+            return
+
+        fninfo = slice_method_entry.factory(varinfo.vartype.vartype)
 
         regs_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
         reg_i = 3
@@ -347,6 +353,9 @@ class AsmCodeGen(Visitor):
 
         if fninfo.return_type == VoidType:
             return
+
+        raise NotImplementedError
+
         if not fninfo.return_type.is_slice:
             self.emitter.emit("push rax ; return value from fn call")
         else:

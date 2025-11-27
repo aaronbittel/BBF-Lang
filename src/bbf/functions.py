@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
 from functools import partial
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 from bbf.nodes.toplevel import FnDef
 from bbf.varinfo import BoolType, IntType, StringType, VarType, VoidType
@@ -51,8 +52,20 @@ def make_append_method(elem_type: VarType) -> FnInfo:
     return builtin("append", [FnArg("elem", elem_type)], VoidType)
 
 
-SLICE_METHODS = {
-    "append": make_append_method,
+def make_len_method(elem_type: VarType) -> FnInfo:
+    return builtin("len", [], IntType)
+
+
+@dataclass(frozen=True)
+class SliceMethod:
+    factory: Callable[..., FnInfo]
+    field_access: bool = True
+    field_offset: int = 0
+
+
+SLICE_METHODS: dict[str, SliceMethod] = {
+    "append": SliceMethod(factory=make_append_method, field_access=False),
+    "len": SliceMethod(factory=make_len_method, field_access=True, field_offset=8),
 }
 
 
