@@ -71,6 +71,13 @@ x: Int[4] = [1, 2, 3, 4]
 y: Int = x[1]
 ```
 
+### Slices
+```python
+x: [Int] = [1, 2, 3]
+x.append(4)
+y: Int = x[3] # y == 4
+```
+
 ### If
 ```elixir
 if argc > 1 then
@@ -106,6 +113,11 @@ end
 ```
 - Functions can return `Void` or any supported type.
 
+### Memory Allocation
+
+- At program start, a 1 MiB buffer is allocated using `mmap`.
+- Currently, only slices use this buffer for storing their elements.
+
 ### Comments
 ```python
 # all comments are single line comments starting with `#`
@@ -121,6 +133,10 @@ null-terminated.
 - `Array`: Contiguous space, stored as ptr + len
     - If defined in "global" scope, then store in `.data` section
     - If defined in "local" scope (e.g. return by a function) then stored on the stack
+- `Slice`: A growable, contiguous sequence of elements stored in the global buffer.
+Represented as ptr + len + cap.
+    - When `append()` would cause len > cap, the slice is automatically reallocated in
+    the buffer and its capacity is doubled.
 - `Void`: Only used in return type annotations. `x: Void = 1` is not supported
 
 ### Builtin Functions
@@ -130,6 +146,10 @@ null-terminated.
 - `btoa(x: Int) -> String`: Convert Bool to String
 - `stdout(str: String) -> Void`: Print str to stdout
 - `stderr(str: String) -> Void`: Print str to stderr
+
+### Builtin Slice Methods
+- `append(x: Int) -> Void`: Append x to end of slice, automatically reallocates if len
+would be > capacity
 
 ## Examples / Playground
 
