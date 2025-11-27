@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Builtin function `read_entire_file(filename: String)`
 - String indexing
 - String comparison
+- Slice Type `x: [Int] = [1, 2, 3]` is a growable container
+- `append()` for [Int] slices: `x.append(4)`
 
 ### Changed
 
