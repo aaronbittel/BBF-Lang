@@ -198,7 +198,7 @@ class Parser:
                     self.peek(), f"`{self.peek()}` is not a valid VarType."
                 )
             self.consume(TokenType.CloseBracket, "Expected `]` for slice type.")
-            return SliceType(vartype)
+            return SliceType(vartype=vartype, copy_by_value=False)
         if not self.match(
             TokenType.Int, TokenType.String, TokenType.Void, TokenType.Bool
         ):
@@ -222,7 +222,7 @@ class Parser:
                     f"Expected `IntegerLit` for length of array, but got `{length_token.value}`",
                 )
             self.consume(TokenType.CloseBracket, "Expected `]` for array declaration")
-            vartype = ArrayType(vartype, length)
+            vartype = ArrayType(vartype=vartype, length=length, copy_by_value=False)
         return vartype
 
     def parse_assignment(self) -> Assignment:

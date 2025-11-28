@@ -1,20 +1,23 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TypeGuard
 
 from bbf.lexer import Token, TokenType
 
 
-class VarType(Protocol):
+@dataclass(frozen=True)
+class VarType(ABC):
+    copy_by_value: bool
+
     @property
+    @abstractmethod
     def name(self) -> str: ...
     @property
+    @abstractmethod
     def stack_size(self) -> int: ...
-    @property
-    def is_slice(self) -> bool: ...
-    @property
-    def copy_by_value(self) -> bool: ...
+
     @property
     def fn_param_size(self) -> int:
         if self.copy_by_value:
@@ -48,17 +51,11 @@ class PrimitiveType(VarType):
     def stack_size(self) -> int:
         return self.t_size
 
-    @property
-    def is_slice(self) -> bool:
-        return False
-
-    @property
-    def copy_by_value(self) -> bool:
-        return True
-
 
 @dataclass(frozen=True)
 class StringType_(VarType):
+    copy_by_value: bool = True
+
     @property
     def name(self) -> str:
         return "String"
@@ -67,19 +64,11 @@ class StringType_(VarType):
     def stack_size(self) -> int:
         return 16
 
-    @property
-    def is_slice(self) -> bool:
-        return True
 
-    @property
-    def copy_by_value(self) -> bool:
-        return True
-
-
-IntType = PrimitiveType("Int", 8)
-BoolType = PrimitiveType("Bool", 8)
-VoidType = PrimitiveType("Void", 0)
-StringType = StringType_()
+IntType = PrimitiveType(t_name="Int", t_size=8, copy_by_value=True)
+BoolType = PrimitiveType(t_name="Bool", t_size=8, copy_by_value=True)
+VoidType = PrimitiveType(t_name="Void", t_size=0, copy_by_value=True)
+StringType = StringType_(copy_by_value=True)
 
 
 @dataclass(frozen=True)
@@ -96,16 +85,8 @@ class ArrayType(VarType):
         return 16
 
     @property
-    def is_slice(self) -> bool:
-        return True
-
-    @property
     def total_size(self) -> int:
         return self.vartype.stack_size * self.length
-
-    @property
-    def copy_by_value(self) -> bool:
-        return True
 
 
 @dataclass(frozen=True)
@@ -119,14 +100,6 @@ class SliceType(VarType):
     @property
     def stack_size(self) -> int:
         return 24
-
-    @property
-    def is_slice(self) -> bool:
-        return True
-
-    @property
-    def copy_by_value(self) -> bool:
-        return False
 
 
 @dataclass
@@ -167,3 +140,19 @@ class SymbolTable:
     def reserve(self, size: int) -> None:
         self.next_offset -= size
         self.reserved_space += size
+
+
+def is_slice(vartype: VarType) -> TypeGuard[SliceType]:
+    return isinstance(vartype, SliceType)
+
+
+def is_array(vartype: VarType) -> TypeGuard[ArrayType]:
+    return isinstance(vartype, ArrayType)
+
+
+def is_string(vartype: VarType) -> TypeGuard[StringType_]:
+    return isinstance(vartype, StringType_)
+
+
+def is_primitive(vartype: VarType) -> TypeGuard[PrimitiveType]:
+    return isinstance(vartype, PrimitiveType)

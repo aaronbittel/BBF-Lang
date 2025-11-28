@@ -41,11 +41,17 @@ from bbf.varinfo import (
     ArrayType,
     BoolType,
     IntType,
+    PrimitiveType,
     SliceType,
     StringType,
+    StringType_,
     SymbolTable,
     VarType,
     VoidType,
+    is_array,
+    is_primitive,
+    is_slice,
+    is_string,
 )
 
 """
@@ -75,8 +81,6 @@ class AsmCodeGen(Visitor):
 
         self.strings: list[str] = []
         self.arrays: list[tuple[str, list[str]]] = []
-
-        self.is_slice = False
 
         self.if_label_count = 0
         self.elif_label_count = 0
@@ -208,11 +212,16 @@ class AsmCodeGen(Visitor):
         if returnstmt.expr is not None:
             returnstmt.expr.accept(self)
             assert self.current_fn_returntype is not None, "unreachable"
-            if not self.current_fn_returntype.is_slice:
-                self.emitter.emit("pop rax")
-            else:
-                self.emitter.emit("pop rdi")
-                self.emitter.emit("pop rax")
+            match self.current_fn_returntype:
+                case PrimitiveType():
+                    self.emitter.emit("pop rax")
+                case StringType_() | ArrayType():
+                    self.emitter.emit("pop rdi")
+                    self.emitter.emit("pop rax")
+                case SliceType():
+                    raise NotImplementedError
+                case x:
+                    assert False, f"unreachable: {x.name}"
         self.emitter.emit("jmp .epilogue")
 
     def visit_exprstmt(self, expr_stmt: ExprStmt) -> None:
@@ -221,9 +230,9 @@ class AsmCodeGen(Visitor):
     def visit_index_assign(self, index_assign: IndexAssign) -> None:
         varinfo = self.symbol_table.lookup(index_assign.target.value)
         assert varinfo is not None, "TypeChecker: Bug"
-        assert isinstance(varinfo.vartype, ArrayType) or isinstance(
-            varinfo.vartype, SliceType
-        ), "TypeChecker should have checked this"
+        assert is_array(varinfo.vartype) or is_slice(varinfo.vartype), (
+            "TypeChecker should have checked this"
+        )
         assert varinfo.vartype.vartype in (IntType, BoolType, StringType), (
             "TypeChecker: Bug"
         )
@@ -258,21 +267,24 @@ class AsmCodeGen(Visitor):
             return
         varinfo = self.symbol_table.lookup(ident.token.value)
         assert varinfo is not None, "TypeChecker: Bug"
-        if isinstance(varinfo.vartype, SliceType):
-            self.emitter.emit(
-                f"PUSH_PTR {varinfo.offset:+d} ; ptr: {ident.token.value}"
-            )
-        elif not varinfo.vartype.is_slice:
-            self.emitter.emit(
-                f"PUSH_VAR {varinfo.offset:+d} ; var: {ident.token.value}"
-            )
-        else:
-            self.emitter.emit(
-                f"PUSH_VAR {varinfo.offset:+d} ; str_ptr: {ident.token.value}"
-            )
-            self.emitter.emit(
-                f"PUSH_VAR {varinfo.offset - 8:+d} ; str_len: {ident.token.value}"
-            )
+        match varinfo.vartype:
+            case SliceType():
+                self.emitter.emit(
+                    f"PUSH_PTR {varinfo.offset:+d} ; ptr: {ident.token.value}"
+                )
+            case PrimitiveType():
+                self.emitter.emit(
+                    f"PUSH_VAR {varinfo.offset:+d} ; var: {ident.token.value}"
+                )
+            case StringType_() | ArrayType():
+                self.emitter.emit(
+                    f"PUSH_VAR {varinfo.offset:+d} ; str_ptr: {ident.token.value}"
+                )
+                self.emitter.emit(
+                    f"PUSH_VAR {varinfo.offset - 8:+d} ; str_len: {ident.token.value}"
+                )
+            case x:
+                assert False, f"unreachable: {x.name}"
 
     def visit_fncall(self, fncall: FnCall) -> None:
         fninfo = self.function_table.lookup(fncall.name.value)
@@ -281,50 +293,55 @@ class AsmCodeGen(Visitor):
         regs_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
         reg_i = 0
 
-        if isinstance(fninfo.return_type, ArrayType):
+        if is_array(fninfo.return_type):
             self.emitter.emit(f"RESERVE_SPACE {fninfo.return_type.total_size}")
             self.emitter.emit("lea rdi, [rsp]")
-            reg_i += 1
+            self.emitter.emit(f"mov rsi, {fninfo.return_type.length}")
+            reg_i += 2
             self.symbol_table.reserve(fninfo.return_type.total_size)
 
         self.emitter.emit(f"; {fninfo.name} function args")
         for fn_arg, expr_arg in zip(fninfo.args, fncall.args):
             expr_arg.accept(self)
-            if isinstance(fn_arg.vartype, SliceType) or not fn_arg.vartype.is_slice:
-                assert reg_i < len(regs_order), (
-                    "Currently can't handle more physcial args than 6"
-                )
-                self.emitter.emit(f"pop {regs_order[reg_i]}")
-                reg_i += 1
-            else:
-                assert reg_i + 1 < len(regs_order), (
-                    "Currently can't handle more physcial args than 6"
-                )
-                self.emitter.emit(f"pop {regs_order[reg_i + 1]} ; str_len")
-                self.emitter.emit(f"pop {regs_order[reg_i]} ; str_ptr")
-                reg_i += 2
+            match fn_arg.vartype:
+                case SliceType() | PrimitiveType():
+                    assert reg_i < len(regs_order), (
+                        "Currently can't handle more physcial args than 6"
+                    )
+                    self.emitter.emit(f"pop {regs_order[reg_i]}")
+                    reg_i += 1
+                case StringType_() | ArrayType():
+                    assert reg_i + 1 < len(regs_order), (
+                        "Currently can't handle more physcial args than 6"
+                    )
+                    self.emitter.emit(f"pop {regs_order[reg_i + 1]} ; str_len")
+                    self.emitter.emit(f"pop {regs_order[reg_i]} ; str_ptr")
+                    reg_i += 2
+                case x:
+                    assert False, f"unreachable: {x.name}"
 
         self.emitter.emit(
             f"call {fninfo.callname} ; return_type: {fninfo.return_type.name}"
         )
-        if fninfo.return_type == VoidType:
-            return
-        if not fninfo.return_type.is_slice:
-            self.emitter.emit("push rax ; return value from fn call")
-        else:
-            self.emitter.emit("push rax ; return ptr from fn call")
-            self.emitter.emit("push rdi ; return len from fn call")
+        match fninfo.return_type:
+            case StringType_() | ArrayType():
+                self.emitter.emit("push rax ; return ptr from fn call")
+                self.emitter.emit("push rdi ; return len from fn call")
+            case PrimitiveType() | SliceType():
+                self.emitter.emit("push rax ; return value from fn call")
+            case x:
+                assert False, f"unreachable: {x.name}"
 
     def visit_methodcall(self, methodcall: MethodCall) -> None:
         varinfo = self.symbol_table.lookup(methodcall.target.value)
         assert varinfo is not None, "TypeChecker: Bug"
-        assert isinstance(varinfo.vartype, SliceType), "TypeChecker: Bug"
+        assert is_slice(varinfo.vartype), "TypeChecker: Bug"
 
         slice_method_entry = SLICE_METHODS.get(methodcall.method.value)
         assert slice_method_entry is not None, "TypeChecker: Bug"
 
         if slice_method_entry.field_access:
-            if self.current_fn_returntype is None:
+            if not self.is_inside_fn():
                 self.emitter.emit(
                     f"PUSH_STACK_STRUCT_FIELD {varinfo.offset}, {slice_method_entry.field_offset}"
                 )
@@ -342,19 +359,19 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(f"; {fninfo.name} method args")
         for fn_arg, expr_arg in zip(fninfo.args, methodcall.args):
             expr_arg.accept(self)
-            if not fn_arg.vartype.is_slice:
-                assert reg_i < len(regs_order), (
-                    "Currently can't handle more physcial args than 6"
-                )
-                self.emitter.emit(f"pop {regs_order[reg_i]}")
-                reg_i += 1
-            else:
+            if is_string(fn_arg.vartype):
                 assert reg_i + 1 < len(regs_order), (
                     "Currently can't handle more physcial args than 6"
                 )
                 self.emitter.emit(f"pop {regs_order[reg_i + 1]} ; str_len")
                 self.emitter.emit(f"pop {regs_order[reg_i]} ; str_ptr")
                 reg_i += 2
+            else:
+                assert reg_i < len(regs_order), (
+                    "Currently can't handle more physcial args than 6"
+                )
+                self.emitter.emit(f"pop {regs_order[reg_i]}")
+                reg_i += 1
 
         self.emitter.emit(f"lea rdi, [rbp{varinfo.offset:+d}] ; slice ptr")
 
@@ -379,20 +396,26 @@ class AsmCodeGen(Visitor):
         offset = self.symbol_table.define_on_stack(name.value, decl.vartype)
         self.emitter.emit(f"RESERVE_SPACE {decl.vartype.stack_size}")
 
-        if isinstance(decl.vartype, SliceType):
-            self.is_slice = True
         expr.accept(self)
 
-        if self.is_slice:  # SliceType
-            self.emitter.emit(f"STORE_VAR {offset - 16:+d} ; cap[Int]: {name.value}")
-            self.emitter.emit(f"STORE_VAR {offset - 8:+d} ; len[Int]: {name.value}")
-            self.emitter.emit(f"STORE_VAR {offset:+d} ; ptr[Int]: {name.value}")
-        elif not decl.vartype.is_slice:
-            self.emitter.emit(f"STORE_VAR {offset:+d} ; var[Int]: {name.value}")
-        else:
-            self.emitter.emit(f"STORE_VAR {offset - 8:+d} ; len[String]: {name.value}")
-            self.emitter.emit(f"STORE_VAR {offset:+d} ; ptr[String]: {name.value}")
-        self.is_slice = False
+        match decl.vartype:
+            case SliceType():
+                self.emitter.emit(
+                    f"STORE_VAR {offset - 16:+d} ; cap[Int]: {name.value}"
+                )
+                self.emitter.emit(f"STORE_VAR {offset - 8:+d} ; len[Int]: {name.value}")
+                self.emitter.emit(f"STORE_VAR {offset:+d} ; ptr[Int]: {name.value}")
+            case StringType_() | ArrayType():
+                self.emitter.emit(
+                    f"STORE_VAR {offset - 8:+d} ; len[{decl.vartype.name}]: {name.value}"
+                )
+                self.emitter.emit(
+                    f"STORE_VAR {offset:+d} ; ptr[{decl.vartype.name}]: {name.value}"
+                )
+            case PrimitiveType():
+                self.emitter.emit(f"STORE_VAR {offset:+d} ; var[Int]: {name.value}")
+            case x:
+                assert False, f"unreachable: {x.name}"
 
     def visit_assignment(self, assign: Assignment) -> None:
         name, expr = assign.name, assign.expr
@@ -400,18 +423,18 @@ class AsmCodeGen(Visitor):
 
         varinfo = self.symbol_table.lookup(name.value)
         assert varinfo is not None, "TypeChecker: Bug"
-        if not varinfo.vartype.is_slice:
-            self.emitter.emit(
-                f"STORE_VAR {varinfo.offset:+d} ; var[{varinfo.vartype.name}]: {name.value}"
-            )
-        else:
-            # TODO: Should array full assignments be handled here?
-            assert not isinstance(varinfo.vartype, ArrayType)
+        if is_string(varinfo.vartype):
             self.emitter.emit(
                 f"STORE_VAR {varinfo.offset - 8:+d} ; len[String]: {name.value}"
             )
             self.emitter.emit(
                 f"STORE_VAR {varinfo.offset:+d} ; ptr[String]: {name.value}"
+            )
+        else:
+            # TODO: Should array full assignments be handled here?
+            assert not is_array(varinfo.vartype)
+            self.emitter.emit(
+                f"STORE_VAR {varinfo.offset:+d} ; var[{varinfo.vartype.name}]: {name.value}"
             )
 
     def visit_binary(self, binary: Binary) -> None:
@@ -509,51 +532,76 @@ class AsmCodeGen(Visitor):
         self.emitter.emit("PUSH_ARGV_STRING")
 
     def visit_array_literal(self, array: ArrayLiteral) -> None:
+        assert array.vartype is not None
         # array declaration outside of a function -> .data static memory
-        if self.current_fn_returntype is None:
-            if self.is_slice:
-                assert isinstance(array.vartype, SliceType)
-
-                self.emitter.emit("PUSH_MEM_PTR")
-                self.emitter.emit("pop r10")
-
-                for i, item in enumerate(array.items):
-                    item.accept(self)
-                    if array.vartype.vartype in (IntType, BoolType):
-                        self.emitter.emit("pop rax")
-                        self.emitter.emit(f"mov [r10 + {i} * 8], rax")
-                    elif array.vartype.vartype == StringType:
-                        self.emitter.emit("pop rax ; str_len")
-                        self.emitter.emit(f"mov [r10 + {i * 2 + 1} * 8], rax")
-                        self.emitter.emit("pop rax ; str_ptr")
-                        self.emitter.emit(f"mov [r10 + {i * 2} * 8], rax")
-                    else:
-                        assert False, f"unreachable: {array.vartype.name}"
-
-                cap = calculate_slice_capacity(len(array.items))
-                self.emitter.emit(
-                    f"ADD_MEM_PTR {cap}, {array.vartype.vartype.stack_size}"
-                )
-
-                self.emitter.emit("push r10")
-                self.emitter.emit(f"push {len(array.items)}")
-                self.emitter.emit(f"push {cap}")
-                return
+        if self.is_inside_fn():
+            if is_slice(array.vartype):
+                self._emit_slice_in_fn(array)
             else:
-                if isinstance(array.items[0], StringLit):
-                    str_literals = extract_literals(array)
-                    arr: list[str] = []
-                    for s in str_literals:
-                        str_label, len_label = self.add_string(s)
-                        arr.append(str_label)
-                        arr.append(len_label)
-                    self.arrays.append(("slice", arr))
-                else:
-                    self.arrays.append(("primitive", extract_literals(array)))
-                array_label = make_array_label(len(self.arrays) - 1)
-                len_label = f"{array_label}_len"
-                self.emitter.emit(f"PUSH_SLICE {array_label}, {len_label}")
-                return
+                self._emit_array_in_fn(array)
+        else:
+            if is_slice(array.vartype):
+                self._emit_slice_global(array)
+            else:
+                self._emit_array_global(array)
+
+    def _emit_slice_global(self, array: ArrayLiteral) -> None:
+        assert array.vartype is not None
+        assert is_slice(array.vartype)
+
+        self.emitter.emit("PUSH_MEM_PTR")
+        self.emitter.emit("pop r10")
+
+        for i, item in enumerate(array.items):
+            item.accept(self)
+            if is_primitive(array.vartype.vartype):
+                self.emitter.emit("pop rax")
+                self.emitter.emit(f"mov [r10 + {i} * 8], rax")
+            elif is_string(array.vartype.vartype):
+                self.emitter.emit("pop rax ; str_len")
+                self.emitter.emit(f"mov [r10 + {i * 2 + 1} * 8], rax")
+                self.emitter.emit("pop rax ; str_ptr")
+                self.emitter.emit(f"mov [r10 + {i * 2} * 8], rax")
+            else:
+                assert False, f"unreachable: {array.vartype.name}"
+
+        cap = calculate_slice_capacity(len(array.items))
+        self.emitter.emit(f"ADD_MEM_PTR {cap}, {array.vartype.vartype.stack_size}")
+
+        self.emitter.emit("push r10")
+        self.emitter.emit(f"push {len(array.items)}")
+        self.emitter.emit(f"push {cap}")
+
+    def _emit_array_global(self, array: ArrayLiteral) -> None:
+        assert array.vartype is not None
+        assert len(array.items) > 0, "TypeChecker: Bug"
+        assert is_array(array.vartype)
+
+        if is_primitive(array.vartype.vartype):
+            self.arrays.append(("primitive", extract_literals(array)))
+        elif is_string(array.vartype.vartype):
+            str_literals = extract_literals(array)
+            arr: list[str] = []
+            for s in str_literals:
+                str_label, len_label = self.add_string(s)
+                arr.append(str_label)
+                arr.append(len_label)
+            self.arrays.append(("slice", arr))
+        else:
+            assert False, "unreachable"
+
+        array_label = make_array_label(len(self.arrays) - 1)
+        len_label = f"{array_label}_len"
+        self.emitter.emit(f"PUSH_SLICE {array_label}, {len_label}")
+
+    def _emit_slice_in_fn(self, array: ArrayLiteral) -> None:
+        assert array.vartype is not None
+        raise NotImplementedError
+
+    def _emit_array_in_fn(self, array: ArrayLiteral) -> None:
+        assert array.vartype is not None
+        assert self.current_fn_returntype is not None
+        assert is_array(self.current_fn_returntype)
         # array declaration inside a function -> ptr to space in rdi
         for i, item in enumerate(array.items):
             item.accept(self)
@@ -561,48 +609,48 @@ class AsmCodeGen(Visitor):
             self.emitter.emit(f"mov [rdi + {i * 8}], rax")
 
         self.emitter.emit("push rdi")
-        assert isinstance(self.current_fn_returntype, ArrayType)
         self.emitter.emit(f"PUSH_INT {self.current_fn_returntype.length}")
 
     def visit_indexing(self, subscript: Indexing) -> None:
         varinfo = self.symbol_table.lookup(subscript.name.value)
         assert varinfo is not None, "TypeChecker: Bug"
 
-        if isinstance(varinfo.vartype, ArrayType):
-            assert varinfo.vartype.vartype in (IntType, BoolType, StringType), (
-                "TypeChecker: Bug"
-            )
-
-            if not varinfo.vartype.vartype.is_slice:
+        match varinfo.vartype:
+            case ArrayType(vartype=vartype):
+                assert vartype in (IntType, BoolType, StringType), "TypeChecker: Bug"
+                match vartype:
+                    case StringType_():
+                        subscript.index.accept(self)
+                        self.emitter.emit(f"PUSH_INDEXED_SLICE {varinfo.offset:+d}")
+                    case PrimitiveType():
+                        subscript.index.accept(self)
+                        self.emitter.emit(f"PUSH_INDEXED_SCALAR {varinfo.offset:+d}")
+                    case x:
+                        assert False, f"unreachable: {x.name}"
+            case SliceType(vartype=vartype):
                 subscript.index.accept(self)
-                self.emitter.emit(f"PUSH_INDEXED_SCALAR {varinfo.offset:+d}")
-            else:
-                assert not isinstance(varinfo.vartype.vartype, ArrayType), (
-                    "Nested arrays are currently not supported"
-                )
+                self.emitter.emit("pop rcx")
+                if self.is_inside_fn():
+                    self.emitter.emit(f"PUSH_PTR_STRUCT_FIELD {varinfo.offset:+d}, 0")
+                else:
+                    self.emitter.emit(f"PUSH_STACK_STRUCT_FIELD {varinfo.offset:+d}, 0")
+                self.emitter.emit("pop rax")
+                match vartype:
+                    case StringType_():
+                        self.emitter.emit("shl rcx, 4")
+                        self.emitter.emit("push qword [rax + rcx]")
+                        self.emitter.emit("add rcx, 8")
+                        self.emitter.emit("push qword [rax + rcx]")
+                    case PrimitiveType():
+                        self.emitter.emit("shl rcx, 3")
+                        self.emitter.emit("push qword [rax + rcx]")
+                    case x:
+                        assert False, f"unreachable: {x.name}"
+            case StringType_():
                 subscript.index.accept(self)
-                self.emitter.emit(f"PUSH_INDEXED_SLICE {varinfo.offset:+d}")
-        elif isinstance(varinfo.vartype, SliceType):
-            subscript.index.accept(self)
-            self.emitter.emit("pop rcx")
-            if self.current_fn_returntype is None:
-                self.emitter.emit(f"PUSH_STACK_STRUCT_FIELD {varinfo.offset:+d}, 0")
-            else:
-                self.emitter.emit(f"PUSH_PTR_STRUCT_FIELD {varinfo.offset:+d}, 0")
-            self.emitter.emit("pop rax")
-            if varinfo.vartype.vartype.is_slice:
-                self.emitter.emit("shl rcx, 4")
-                self.emitter.emit("push qword [rax + rcx]")
-                self.emitter.emit("add rcx, 8")
-                self.emitter.emit("push qword [rax + rcx]")
-            else:
-                self.emitter.emit("shl rcx, 3")
-                self.emitter.emit("push qword [rax + rcx]")
-        elif varinfo.vartype == StringType:
-            subscript.index.accept(self)
-            self.emitter.emit(f"PUSH_STRING_ELEM {varinfo.offset:+d}")
-        else:
-            assert False, "TypeChecker: Bug"
+                self.emitter.emit(f"PUSH_STRING_ELEM {varinfo.offset:+d}")
+            case x:
+                assert False, "TypeChecker: Bug"
 
     def visit_booltrue(self, booltrue: BoolTrue) -> None:
         self.emitter.emit("PUSH_BOOL TRUE")
@@ -665,43 +713,54 @@ class AsmCodeGen(Visitor):
             reg_i = 0
 
             with self.new_scope(is_function=True):
-                if isinstance(fndef.ret_vartype, ArrayType):
+                if is_array(fndef.ret_vartype):
                     self.emitter.emit("RESERVE_SPACE 8 ; internal array ptr")
                     self.symbol_table.reserve(8)
-                    reg_i += 1
+                    self.emitter.emit("RESERVE_SPACE 8 ; internal array len")
+                    self.symbol_table.reserve(8)
+                    reg_i += 2
 
                 for param in fndef.params:
                     vartype = param.vartype
-                    if not isinstance(param.vartype, SliceType):
+                    if not is_slice(param.vartype):
                         self.emitter.emit(
                             f"RESERVE_SPACE {vartype.stack_size} ; param {param.name.value}"
                         )
                     offset = self.symbol_table.define_in_fn(param.name.value, vartype)
 
-                    if isinstance(param.vartype, SliceType):
-                        self.emitter.emit(f"RESERVE_SPACE 8 ; param {param.name.value}")
-                        assert reg_i <= 5, (
-                            "More than 6 registers used (strings take up 2)"
-                        )
-                        self.emitter.emit(f"mov [rbp{offset:+d}], {reg_order[reg_i]}")
-                        reg_i += 1
-                    elif not vartype.is_slice:
-                        assert reg_i <= 5, (
-                            "More than 6 registers used (strings take up 2)"
-                        )
-                        self.emitter.emit(f"mov [rbp{offset:+d}], {reg_order[reg_i]}")
-                        reg_i += 1
-                    else:
-                        assert reg_i + 1 <= 5, (
-                            "More than 6 registers used (strings take up 2)"
-                        )
-                        self.emitter.emit(
-                            f"mov [rbp{offset:+d}], {reg_order[reg_i]} ; store str_ptr"
-                        )
-                        self.emitter.emit(
-                            f"mov [rbp{offset - 8:+d}], {reg_order[reg_i + 1]} ; store str_len"
-                        )
-                        reg_i += 2
+                    match vartype:
+                        case SliceType():
+                            self.emitter.emit(
+                                f"RESERVE_SPACE 8 ; param {param.name.value}"
+                            )
+                            assert reg_i <= 5, (
+                                "More than 6 registers used (strings take up 2)"
+                            )
+                            self.emitter.emit(
+                                f"mov [rbp{offset:+d}], {reg_order[reg_i]}"
+                            )
+                            reg_i += 1
+                        case StringType_() | ArrayType():
+                            assert reg_i + 1 <= 5, (
+                                "More than 6 registers used (strings take up 2)"
+                            )
+                            self.emitter.emit(
+                                f"mov [rbp{offset:+d}], {reg_order[reg_i]} ; store str_ptr"
+                            )
+                            self.emitter.emit(
+                                f"mov [rbp{offset - 8:+d}], {reg_order[reg_i + 1]} ; store str_len"
+                            )
+                            reg_i += 2
+                        case PrimitiveType():
+                            assert reg_i <= 5, (
+                                "More than 6 registers used (strings take up 2)"
+                            )
+                            self.emitter.emit(
+                                f"mov [rbp{offset:+d}], {reg_order[reg_i]}"
+                            )
+                            reg_i += 1
+                        case x:
+                            assert False, f"unreachable: {x.name}"
 
                 self.emitter.emit("; fn body")
                 for stmt in fndef.body:
@@ -781,6 +840,9 @@ class AsmCodeGen(Visitor):
         lbl = f".and_end_{self.and_end_count}"
         self.and_end_count += 1
         return lbl
+
+    def is_inside_fn(self) -> bool:
+        return self.current_fn_returntype is not None
 
 
 def extract_literals(array: ArrayLiteral) -> list[str]:

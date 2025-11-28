@@ -43,6 +43,8 @@ from bbf.varinfo import (
     StringType,
     VarType,
     VoidType,
+    is_array,
+    is_slice,
 )
 
 
@@ -207,7 +209,7 @@ class TypeChecker(Visitor[VarType]):
             raise TypeCheckerError(
                 f"ERROR: {index_assign.target.position}: `{index_assign.target.value}` is not defined."
             )
-        if not (isinstance(vartype, ArrayType) or isinstance(vartype, SliceType)):
+        if not (is_array(vartype) or is_slice(vartype)):
             raise TypeCheckerError(
                 f"ERROR: {index_assign.target.position}: Cannot index `{index_assign.target.value}`: "
                 f"expected an array, but found `{vartype.name}`."
@@ -284,7 +286,7 @@ class TypeChecker(Visitor[VarType]):
             )
 
         method_token = methodcall.method
-        if not isinstance(vartype, SliceType):
+        if not is_slice(vartype):
             raise TypeCheckerError(
                 f"ERROR: {method_token.position}: "
                 f"There is no method `{method_token.value}` defined on type `{vartype.name}`"
@@ -325,7 +327,7 @@ class TypeChecker(Visitor[VarType]):
             raise TypeCheckerError(
                 f"ERROR: {decl.name.position}: `Void` is not allowed as variable type"
             )
-        if isinstance(decl.vartype, ArrayType) and decl.vartype.vartype == VoidType:
+        if is_array(decl.vartype) and decl.vartype.vartype == VoidType:
             raise TypeCheckerError(
                 f"ERROR: {decl.name.position}: `Void` is not allowed as array type"
             )
@@ -351,11 +353,7 @@ class TypeChecker(Visitor[VarType]):
                 f"Cannot assign to `{name}` because it is not defined."
             )
 
-        vartype = (
-            expected_type.vartype
-            if isinstance(expected_type, ArrayType)
-            else expected_type
-        )
+        vartype = expected_type.vartype if is_array(expected_type) else expected_type
         with self.expecting(vartype):
             actual_type = assign.expr.accept(self)
 
@@ -442,7 +440,7 @@ class TypeChecker(Visitor[VarType]):
     def visit_array_literal(self, array: ArrayLiteral) -> VarType:
         assert self.expected_vartype is not None
 
-        if isinstance(self.expected_vartype, ArrayType):
+        if is_array(self.expected_vartype):
             if len(array.items) == 0:
                 raise TypeCheckerError(
                     f"ERROR: {array.span.start}: "
@@ -453,7 +451,7 @@ class TypeChecker(Visitor[VarType]):
                     f"ERROR: {array.span.start}: Fixed-size array length mismatch: "
                     f"Expected {self.expected_vartype.length}, got {len(array.items)}"
                 )
-        elif isinstance(self.expected_vartype, SliceType):
+        elif is_slice(self.expected_vartype):
             pass
         else:
             assert False, f"unreachable: {self.expected_vartype.name}"
@@ -467,9 +465,9 @@ class TypeChecker(Visitor[VarType]):
                     f"Expected `{exp_item_vt.name}`, got `{item_vt.name}`"
                 )
         vartype = (
-            ArrayType(exp_item_vt, len(array.items))
-            if isinstance(self.expected_vartype, ArrayType)
-            else SliceType(exp_item_vt)
+            ArrayType(vartype=exp_item_vt, length=len(array.items), copy_by_value=False)
+            if is_array(self.expected_vartype)
+            else SliceType(vartype=exp_item_vt, copy_by_value=False)
         )
         array.vartype = vartype
         return vartype
@@ -488,7 +486,7 @@ class TypeChecker(Visitor[VarType]):
                 f"ERROR: {subscript.index.span.start}: Array Index must be an `Int`, but got `{index_vartype}`"
             )
 
-        if isinstance(vartype, ArrayType) or isinstance(vartype, SliceType):
+        if is_array(vartype) or is_slice(vartype):
             subscript.vartype = vartype.vartype
             return vartype.vartype
         elif vartype == StringType:
