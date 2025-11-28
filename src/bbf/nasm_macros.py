@@ -251,27 +251,37 @@ _macro_push_string_elem = """
 
 _macro_push_stack_struct_field = """
 %macro PUSH_STACK_STRUCT_FIELD 2
-    ; %1: struct ptr offset
+    ; %1: stack ptr offset
     ; %2: field offset
-    mov rax, [rbp + %1 - %2]
-    push rax
+    push qword [rbp + %1 - %2]
 %endmacro
 """
 
 _macro_push_ptr_struct_field = """
 %macro PUSH_PTR_STRUCT_FIELD 2
-    ; %1: struct ptr
+    ; %1: stack offset of struct ptr
     ; %2: field offset
-    mov rax, [%1 + %2]
-    push rax
+    mov rbx, [rbp + %1] ; struct ptr
+    sub rbx, %2         ; addr of field
+    push qword [rbx]
 %endmacro
 """
 
 _macro_store_ptr_struct_field = """
 %macro STORE_PTR_STRUCT_FIELD 3
-    ; %1: struct ptr
+    ; %1: stack offset of struct ptr
     ; %2: field offset
     ; %3: value
-    mov [%1 + %2], %3
+    mov rbx, [rbp + %1] ; struct ptr
+    sub rbx, %2         ; addr of field
+    mov qword [rbx], %3
+%endmacro
+"""
+
+_macro_push_ptr = """
+%macro PUSH_PTR 1
+    ; %1: stack offset
+    lea rax, [rbp + %1]
+    push rax
 %endmacro
 """

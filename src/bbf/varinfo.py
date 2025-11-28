@@ -13,6 +13,13 @@ class VarType(Protocol):
     def stack_size(self) -> int: ...
     @property
     def is_slice(self) -> bool: ...
+    @property
+    def copy_by_value(self) -> bool: ...
+    @property
+    def fn_param_size(self) -> int:
+        if self.copy_by_value:
+            return self.stack_size
+        return 8
 
     @staticmethod
     def from_token(token: Token) -> VarType:
@@ -45,6 +52,10 @@ class PrimitiveType(VarType):
     def is_slice(self) -> bool:
         return False
 
+    @property
+    def copy_by_value(self) -> bool:
+        return True
+
 
 @dataclass(frozen=True)
 class StringType_(VarType):
@@ -58,6 +69,10 @@ class StringType_(VarType):
 
     @property
     def is_slice(self) -> bool:
+        return True
+
+    @property
+    def copy_by_value(self) -> bool:
         return True
 
 
@@ -88,6 +103,10 @@ class ArrayType(VarType):
     def total_size(self) -> int:
         return self.vartype.stack_size * self.length
 
+    @property
+    def copy_by_value(self) -> bool:
+        return True
+
 
 @dataclass(frozen=True)
 class SliceType(VarType):
@@ -105,6 +124,10 @@ class SliceType(VarType):
     def is_slice(self) -> bool:
         return True
 
+    @property
+    def copy_by_value(self) -> bool:
+        return False
+
 
 @dataclass
 class VarInfo:
@@ -120,11 +143,18 @@ class SymbolTable:
         self.parent = parent
         self.reserved_space = 0
 
-    def define(self, name: str, vartype: VarType) -> int:
+    def define_on_stack(self, name: str, vartype: VarType) -> int:
         offset = self.next_offset
         self.offsets[name] = VarInfo(name, vartype, offset)
         self.next_offset -= vartype.stack_size
         self.reserved_space += vartype.stack_size
+        return offset
+
+    def define_in_fn(self, name: str, vartype: VarType) -> int:
+        offset = self.next_offset
+        self.offsets[name] = VarInfo(name, vartype, offset)
+        self.next_offset -= vartype.fn_param_size
+        self.reserved_space += vartype.fn_param_size
         return offset
 
     def lookup(self, name: str) -> VarInfo | None:

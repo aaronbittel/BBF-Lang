@@ -48,6 +48,14 @@ from bbf.varinfo import (
     VoidType,
 )
 
+"""
+NOTES:
+    - Strings are immutable. Stored as ptr + len on the stack. Passed to functions by
+      value (ptr + len)
+    - Slices are muatble. Stored as ptr + len + cap on the stack. Only the ptr to the
+      slice struct is copied to the function
+"""
+
 
 class AsmCodeGen(Visitor):
     def __init__(
@@ -109,7 +117,7 @@ class AsmCodeGen(Visitor):
         loop_ident, range_expr, block = stmt.loop_ident, stmt.range_expr, stmt.block
         with self.new_scope():
             # NOTE: loop var is a new variable scoped to the loop scope
-            loop_ident_offset = self.symbol_table.define(
+            loop_ident_offset = self.symbol_table.define_on_stack(
                 loop_ident.value, vartype=IntType
             )
             range_ident = self.symbol_table.lookup(loop_ident.value)
@@ -250,7 +258,11 @@ class AsmCodeGen(Visitor):
             return
         varinfo = self.symbol_table.lookup(ident.token.value)
         assert varinfo is not None, "TypeChecker: Bug"
-        if not varinfo.vartype.is_slice:
+        if isinstance(varinfo.vartype, SliceType):
+            self.emitter.emit(
+                f"PUSH_PTR {varinfo.offset:+d} ; ptr: {ident.token.value}"
+            )
+        elif not varinfo.vartype.is_slice:
             self.emitter.emit(
                 f"PUSH_VAR {varinfo.offset:+d} ; var: {ident.token.value}"
             )
@@ -278,7 +290,7 @@ class AsmCodeGen(Visitor):
         self.emitter.emit(f"; {fninfo.name} function args")
         for fn_arg, expr_arg in zip(fninfo.args, fncall.args):
             expr_arg.accept(self)
-            if not fn_arg.vartype.is_slice:
+            if isinstance(fn_arg.vartype, SliceType) or not fn_arg.vartype.is_slice:
                 assert reg_i < len(regs_order), (
                     "Currently can't handle more physcial args than 6"
                 )
@@ -312,9 +324,14 @@ class AsmCodeGen(Visitor):
         assert slice_method_entry is not None, "TypeChecker: Bug"
 
         if slice_method_entry.field_access:
-            self.emitter.emit(
-                f"PUSH_STACK_STRUCT_FIELD {varinfo.offset}, {slice_method_entry.field_offset}"
-            )
+            if self.current_fn_returntype is None:
+                self.emitter.emit(
+                    f"PUSH_STACK_STRUCT_FIELD {varinfo.offset}, {slice_method_entry.field_offset}"
+                )
+            else:
+                self.emitter.emit(
+                    f"PUSH_PTR_STRUCT_FIELD {varinfo.offset}, {slice_method_entry.field_offset}"
+                )
             return
 
         fninfo = slice_method_entry.factory(varinfo.vartype.vartype)
@@ -359,7 +376,7 @@ class AsmCodeGen(Visitor):
     def visit_declaration(self, decl: Declaration) -> None:
         name, expr = decl.name, decl.expr
 
-        offset = self.symbol_table.define(name.value, decl.vartype)
+        offset = self.symbol_table.define_on_stack(name.value, decl.vartype)
         self.emitter.emit(f"RESERVE_SPACE {decl.vartype.stack_size}")
 
         if isinstance(decl.vartype, SliceType):
@@ -568,8 +585,10 @@ class AsmCodeGen(Visitor):
         elif isinstance(varinfo.vartype, SliceType):
             subscript.index.accept(self)
             self.emitter.emit("pop rcx")
-            self.emitter.emit(f"lea rbx, [rbp + {varinfo.offset:+d}] ; data ptr")
-            self.emitter.emit("PUSH_PTR_STRUCT_FIELD rbx, 0")
+            if self.current_fn_returntype is None:
+                self.emitter.emit(f"PUSH_STACK_STRUCT_FIELD {varinfo.offset:+d}, 0")
+            else:
+                self.emitter.emit(f"PUSH_PTR_STRUCT_FIELD {varinfo.offset:+d}, 0")
             self.emitter.emit("pop rax")
             if varinfo.vartype.vartype.is_slice:
                 self.emitter.emit("shl rcx, 4")
@@ -653,12 +672,20 @@ class AsmCodeGen(Visitor):
 
                 for param in fndef.params:
                     vartype = param.vartype
-                    self.emitter.emit(
-                        f"RESERVE_SPACE {vartype.stack_size} ; param {param.name.value}"
-                    )
-                    offset = self.symbol_table.define(param.name.value, vartype)
+                    if not isinstance(param.vartype, SliceType):
+                        self.emitter.emit(
+                            f"RESERVE_SPACE {vartype.stack_size} ; param {param.name.value}"
+                        )
+                    offset = self.symbol_table.define_in_fn(param.name.value, vartype)
 
-                    if not vartype.is_slice:
+                    if isinstance(param.vartype, SliceType):
+                        self.emitter.emit(f"RESERVE_SPACE 8 ; param {param.name.value}")
+                        assert reg_i <= 5, (
+                            "More than 6 registers used (strings take up 2)"
+                        )
+                        self.emitter.emit(f"mov [rbp{offset:+d}], {reg_order[reg_i]}")
+                        reg_i += 1
+                    elif not vartype.is_slice:
                         assert reg_i <= 5, (
                             "More than 6 registers used (strings take up 2)"
                         )

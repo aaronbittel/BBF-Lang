@@ -242,46 +242,47 @@ __builtin_strcmp:
 _builtin_append_8 = """
 ; rdi: struct_ptr, rsi: int / bool
 __builtin_append_8:
+    FN_PROLOGUE
+
+    RESERVE_SPACE 8
+    mov [rbp-8], rdi
+
     mov r11, rsi
 
-    PUSH_PTR_STRUCT_FIELD rdi, -8
+    PUSH_PTR_STRUCT_FIELD -8, 8
     pop rsi
-    PUSH_PTR_STRUCT_FIELD rdi, -16
+    PUSH_PTR_STRUCT_FIELD -8, 16
     pop rdx
 
     cmp rsi, rdx
     jl .add
 
     push rdx ; save old_cap
-    push rdi ; save struct ptr
 
-    PUSH_PTR_STRUCT_FIELD rdi, 0
+    PUSH_PTR_STRUCT_FIELD -8, 0
     pop rdx ; old data ptr
 
     PUSH_MEM_PTR
     pop r8 ; new data ptr
-    STORE_PTR_STRUCT_FIELD rdi, 0, r8 ; save new data ptr into struct
+    STORE_PTR_STRUCT_FIELD -8, 0, r8 ; save new data ptr into struct
 
     mov rdi, r8
     call __builtin_copy_slice_8
 
-    pop rdi ; restore struct ptr
-
     pop rdx ; restore old_cap
     shl rdx, 1
-    STORE_PTR_STRUCT_FIELD rdi, -16, rdx
+    STORE_PTR_STRUCT_FIELD -8, 16, rdx
     ADD_MEM_PTR rdx, 8
 
 .add:
-    PUSH_PTR_STRUCT_FIELD rdi, 0
+    PUSH_PTR_STRUCT_FIELD -8, 0
     pop rax
     mov qword [rax + rsi * 8], r11
     inc rsi
-    STORE_PTR_STRUCT_FIELD rdi, -8, rsi
+    STORE_PTR_STRUCT_FIELD -8, 8, rsi
 
-    ret
+    FN_EPILOGUE
 
-; TODO: normally first return value would be in `rax`
 ; rdi: new_ptr, rsi: len, rdx: old_ptr
 __builtin_copy_slice_8:
     mov r9, rdi  ; r9:  new_ptr
@@ -305,36 +306,36 @@ __builtin_copy_slice_8:
 _builtin_append_16 = """
 ; rdi: struct_ptr, rsi: str_ptr, rdx: str_len
 __builtin_append_16:
+    FN_PROLOGUE
+    RESERVE_SPACE 8
+    mov [rbp-8], rdi
+
     push rdx ; save str_len
     mov r11, rsi
 
-    PUSH_PTR_STRUCT_FIELD rdi, -8
+    PUSH_PTR_STRUCT_FIELD -8, 8
     pop rsi ; struct len
-    PUSH_PTR_STRUCT_FIELD rdi, -16
+    PUSH_PTR_STRUCT_FIELD -8, 16
     pop r13 ; struct cap
 
     cmp rsi, r13
     jl .add
 
-    push rdi ; save struct ptr
-
-    PUSH_PTR_STRUCT_FIELD rdi, 0
+    PUSH_PTR_STRUCT_FIELD -8, 0
     pop rdx ; old data ptr
 
     PUSH_MEM_PTR
     pop r8 ; new data ptr
-    STORE_PTR_STRUCT_FIELD rdi, 0, r8 ; save new data ptr into struct
+    STORE_PTR_STRUCT_FIELD -8, 0, r8 ; save new data ptr into struct
 
     mov rdi, r8
     call __builtin_copy_slice_16
-
-    pop rdi ; restore struct ptr
 
     shl r13, 1
     ADD_MEM_PTR r13, 16
 
 .add:
-    PUSH_PTR_STRUCT_FIELD rdi, 0
+    PUSH_PTR_STRUCT_FIELD -8, 0
     pop rax
 
     mov r12, rsi
@@ -345,11 +346,10 @@ __builtin_append_16:
     mov qword [rax + r12], rdx
 
     inc rsi
-    STORE_PTR_STRUCT_FIELD rdi, -8, rsi
+    STORE_PTR_STRUCT_FIELD -8, 8, rsi
 
-    ret
+    FN_EPILOGUE
 
-; TODO: normally first return value would be in `rax`
 ; rdi: new_ptr, rsi: len, rdx: old_ptr
 __builtin_copy_slice_16:
     mov r9, rdi  ; r9:  new_ptr
