@@ -1,0 +1,8 @@
+Argv: 0
+
+Returncode: 1
+0
+Stdout: 15
+1 10 2 20 3 30 
+Stderr: 0
+

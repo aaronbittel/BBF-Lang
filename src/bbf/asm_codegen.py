@@ -219,7 +219,26 @@ class AsmCodeGen(Visitor):
                     self.emitter.emit("pop rdi")
                     self.emitter.emit("pop rax")
                 case SliceType():
-                    raise NotImplementedError
+                    # Slice Identifier pushes struct ptr
+                    # Slice ArrayLiteral pushes data ptr, len, cap
+                    # FIX: Improve this
+                    if isinstance(returnstmt.expr, Identifier):
+                        self.emitter.emit("pop rax")
+
+                        self.emitter.emit("mov rbx, rax")
+                        self.emitter.emit("sub rbx, 0")
+                        self.emitter.emit("push qword [rbx]")
+
+                        self.emitter.emit("mov rbx, rax")
+                        self.emitter.emit("sub rbx, 8")
+                        self.emitter.emit("push qword [rbx]")
+
+                        self.emitter.emit("mov rbx, rax")
+                        self.emitter.emit("sub rbx, 16")
+                        self.emitter.emit("push qword [rbx]")
+                    self.emitter.emit("pop rsi")
+                    self.emitter.emit("pop rdi")
+                    self.emitter.emit("pop rax")
                 case x:
                     assert False, f"unreachable: {x.name}"
         self.emitter.emit("jmp .epilogue")
@@ -327,8 +346,12 @@ class AsmCodeGen(Visitor):
             case StringType_() | ArrayType():
                 self.emitter.emit("push rax ; return ptr from fn call")
                 self.emitter.emit("push rdi ; return len from fn call")
-            case PrimitiveType() | SliceType():
+            case PrimitiveType():
                 self.emitter.emit("push rax ; return value from fn call")
+            case SliceType():
+                self.emitter.emit("push rax ; return ptr from fn call")
+                self.emitter.emit("push rdi ; return len from fn call")
+                self.emitter.emit("push rsi ; return cap from fn call")
             case x:
                 assert False, f"unreachable: {x.name}"
 
@@ -534,18 +557,15 @@ class AsmCodeGen(Visitor):
     def visit_array_literal(self, array: ArrayLiteral) -> None:
         assert array.vartype is not None
         # array declaration outside of a function -> .data static memory
+        if is_slice(array.vartype):
+            self._emit_slice(array)
+            return
         if self.is_inside_fn():
-            if is_slice(array.vartype):
-                self._emit_slice_in_fn(array)
-            else:
-                self._emit_array_in_fn(array)
+            self._emit_array_in_fn(array)
         else:
-            if is_slice(array.vartype):
-                self._emit_slice_global(array)
-            else:
-                self._emit_array_global(array)
+            self._emit_array_global(array)
 
-    def _emit_slice_global(self, array: ArrayLiteral) -> None:
+    def _emit_slice(self, array: ArrayLiteral) -> None:
         assert array.vartype is not None
         assert is_slice(array.vartype)
 
@@ -593,10 +613,6 @@ class AsmCodeGen(Visitor):
         array_label = make_array_label(len(self.arrays) - 1)
         len_label = f"{array_label}_len"
         self.emitter.emit(f"PUSH_SLICE {array_label}, {len_label}")
-
-    def _emit_slice_in_fn(self, array: ArrayLiteral) -> None:
-        assert array.vartype is not None
-        raise NotImplementedError
 
     def _emit_array_in_fn(self, array: ArrayLiteral) -> None:
         assert array.vartype is not None

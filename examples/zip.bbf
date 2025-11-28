@@ -1,0 +1,20 @@
+fn min(a: Int, b: Int) -> Int do
+    if a > b then return b else return a end
+end
+
+fn zip(a: [Int], b: [Int]) -> [Int] do
+    new: [Int] = []
+    for i in 0..min(a.len(), b.len()) do
+        new.append(a[i])
+        new.append(b[i])
+    end
+    return new
+end
+
+a: [Int] = [1, 2, 3]
+b: [Int] = [10, 20, 30, 40]
+res: [Int] = zip(a, b)
+
+for i in 0..res.len() do
+    stdout(itoa(res[i])) stdout(" ")
+end
