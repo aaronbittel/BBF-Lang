@@ -14,6 +14,7 @@ from bbf.nodes.expr import (
     Indexing,
     IntegerLit,
     MethodCall,
+    RangeIndexing,
     StringLit,
     Unary,
 )
@@ -186,6 +187,12 @@ class ASTPrinter(Visitor[None]):
         self.write(subscript.name.value)
         self.write("[")
         subscript.index.accept(self)
+        self.write("]")
+
+    def visit_range_indexing(self, range_index: RangeIndexing) -> None:
+        self.write(range_index.name.value)
+        self.write("[")
+        self._visit_range(range_index.range_expr)
         self.write("]")
 
     def visit_argv(self, argv: Argv) -> None:

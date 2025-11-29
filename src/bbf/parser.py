@@ -13,6 +13,7 @@ from bbf.nodes.expr import (
     Indexing,
     IntegerLit,
     MethodCall,
+    RangeIndexing,
     StringLit,
     Unary,
 )
@@ -439,12 +440,26 @@ class Parser:
             name, method_name, args, span=Span(name.position, end.position)
         )
 
-    def indexing(self) -> Indexing:
+    def indexing(self) -> Expr:
         name = self.consume(
             TokenType.Identifier, "Expected `Identifier` for array access"
         )
         self.consume(TokenType.OpenBracket, "Expected `[` for array access")
         expr = self.expr()
+        if self.check(TokenType.Dot):
+            self.consume(TokenType.Dot, "Expected `.` in range expression")
+            self.consume(TokenType.Dot, "Expected `.` in range expression")
+            inclusive = False
+            if self.check(TokenType.Equal):
+                self.advance()
+                inclusive = True
+            stop = self.expr()
+            range_expr = Range(expr, stop, inclusive)
+            self.previous()
+            end = self.consume(TokenType.CloseBracket, "Expected `]` in range indexing")
+            return RangeIndexing(
+                name, range_expr, span=Span(name.position, end.position)
+            )
         end = self.consume(TokenType.CloseBracket, "Expected `]` for array access")
         return Indexing(name, expr, span=Span(name.position, end.position))
 

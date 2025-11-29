@@ -21,6 +21,7 @@ from bbf.nodes.expr import (
     Indexing,
     IntegerLit,
     MethodCall,
+    RangeIndexing,
     StringLit,
     Unary,
 )
@@ -667,6 +668,27 @@ class AsmCodeGen(Visitor):
                 self.emitter.emit(f"PUSH_STRING_ELEM {varinfo.offset:+d}")
             case x:
                 assert False, "TypeChecker: Bug"
+
+    def visit_range_indexing(self, range_index: RangeIndexing) -> None:
+        # assert range_index.vartype is None
+        varinfo = self.symbol_table.lookup(range_index.name.value)
+        assert varinfo is not None, "TypeChecker: Bug"
+        match varinfo.vartype:
+            case StringType_():
+                self.emitter.emit(f"push qword [rbp{varinfo.offset}]")
+                self.emitter.emit("pop r11")
+                range_index.range_expr.start.accept(self)
+                self.emitter.emit("pop rcx")
+                self.emitter.emit("add r11, rcx")
+                self.emitter.emit("push r11")
+                range_index.range_expr.stop.accept(self)
+                self.emitter.emit("pop rdx")
+                self.emitter.emit("sub rdx, rcx")
+                if range_index.range_expr.inclusive:
+                    self.emitter.emit("inc rdx")
+                self.emitter.emit("push rdx")
+            case x:
+                assert False, f"unreachable: {x.name}"
 
     def visit_booltrue(self, booltrue: BoolTrue) -> None:
         self.emitter.emit("PUSH_BOOL TRUE")

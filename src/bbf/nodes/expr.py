@@ -117,6 +117,15 @@ class Indexing(Expr):
 
 
 @dataclass
+class RangeIndexing(Expr):
+    name: Token
+    range_expr: Range
+
+    def accept[T](self, visitor: Visitor[T]) -> T:
+        return visitor.visit_range_indexing(self)
+
+
+@dataclass
 class BoolTrue(Expr):
     token: Token
 
@@ -130,3 +139,10 @@ class BoolFalse(Expr):
 
     def accept[T](self, visitor: Visitor[T]) -> T:
         return visitor.visit_boolfalse(self)
+
+
+@dataclass
+class Range:
+    start: Expr
+    stop: Expr
+    inclusive: bool

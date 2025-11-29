@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Iterator
 
 from bbf.lexer import Token
-from bbf.nodes.expr import Expr
+from bbf.nodes.expr import Expr, Range
 from bbf.varinfo import VarType
 
 if TYPE_CHECKING:
@@ -110,10 +110,3 @@ class Block:
 
     def __iter__(self) -> Iterator[Stmt]:
         return iter(self.stmts)
-
-
-@dataclass
-class Range:
-    start: Expr
-    stop: Expr
-    inclusive: bool

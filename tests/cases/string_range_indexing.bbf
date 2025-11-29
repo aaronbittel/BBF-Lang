@@ -1,0 +1,5 @@
+str: String = "Hello, World!\n"
+hello: String = str[0..5]
+world: String = str[7..=12]
+stdout(hello) stdout("\n")
+stdout(world) stdout("\n")

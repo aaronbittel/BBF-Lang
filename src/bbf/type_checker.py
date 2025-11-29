@@ -19,6 +19,7 @@ from bbf.nodes.expr import (
     Indexing,
     IntegerLit,
     MethodCall,
+    RangeIndexing,
     StringLit,
     Unary,
 )
@@ -45,6 +46,7 @@ from bbf.varinfo import (
     VoidType,
     is_array,
     is_slice,
+    is_string,
 )
 
 
@@ -498,6 +500,21 @@ class TypeChecker(Visitor[VarType]):
                 f"`{name}` was defined as `{vartype.name}`. "
                 "It is only allowed for type `Array` and `String`."
             )
+
+    def visit_range_indexing(self, range_index: RangeIndexing) -> VarType:
+        vartype = self.scope.lookup(range_index.name.value)
+        if vartype is None:
+            raise TypeCheckerError(
+                f"ERROR: {range_index.name.position}: `{range_index.name.value}` is not defined."
+            )
+        if is_string(vartype):
+            range_index.vartype = StringType
+            return StringType
+
+        raise TypeCheckerError(
+            f"ERROR: {range_index.name.position}: "
+            f"Range indexing is not supported for `{vartype.name}`"
+        )
 
     def visit_argv(self, argv: Argv) -> VarType:
         argv.expr.accept(self)
