@@ -119,6 +119,9 @@ class AsmCodeGen(Visitor):
         self.user_fndefs.append(fndef)
 
     def visit_forstmt(self, stmt: ForStmt) -> None:
+        start_label = f".loop_{self.loop_count}_start"
+        end_label = f".loop_{self.loop_count}_end"
+        self.loop_count += 1
         loop_ident, range_expr, block = stmt.loop_ident, stmt.range_expr, stmt.block
         with self.new_scope():
             # NOTE: loop var is a new variable scoped to the loop scope
@@ -131,25 +134,24 @@ class AsmCodeGen(Visitor):
             range_expr.start.accept(self)
             self.emitter.emit(f"STORE_VAR {loop_ident_offset:+d} ; range_start[Int]")
             # TODO: move creating lables into function
-            self.emitter.emit(f".loop_{self.loop_count}_start:", indent=0)
+            self.emitter.emit(f"{start_label}:", indent=0)
             range_expr.stop.accept(self)
             self.emitter.emit("pop rax ; range end")
             self.emitter.emit(
                 f"cmp qword [rbp{range_ident.offset:+d}], rax ; check if condition"
             )
             if range_expr.inclusive:
-                self.emitter.emit(f"jg .loop_{self.loop_count}_end")
+                self.emitter.emit(f"jg {end_label}")
             else:
-                self.emitter.emit(f"jge .loop_{self.loop_count}_end")
+                self.emitter.emit(f"jge {end_label}")
 
             for s in block.stmts:
                 s.accept(self)
             self.emitter.emit(
                 f"inc qword [rbp{range_ident.offset:+d}] ; increment loop variable"
             )
-            self.emitter.emit(f"jmp .loop_{self.loop_count}_start")
-            self.emitter.emit(f".loop_{self.loop_count}_end:", indent=0)
-        self.loop_count += 1
+            self.emitter.emit(f"jmp {start_label}")
+            self.emitter.emit(f"{end_label}:", indent=0)
 
     def visit_doblock(self, doblock: DoBlock) -> None:
         with self.new_scope():

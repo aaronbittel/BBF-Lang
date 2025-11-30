@@ -1,0 +1,11 @@
+for y in 0..4 do
+    for x in 0..4 do
+        char: String = "-"
+        if y == x then char = "x" end
+        for z in 0..4 do
+            stdout(char) stdout(" ")
+        end
+        stdout("  ")
+    end
+    stdout("\n")
+end
