@@ -293,9 +293,14 @@ class AsmCodeGen(Visitor):
         )
         match varinfo.vartype:
             case SliceType():
-                self.emitter.emit(
-                    f"PUSH_PTR {varinfo.offset:+d} ; ptr: {ident.token.value}"
-                )
+                if varinfo.is_ptr:
+                    self.emitter.emit(
+                        f"push qword [rbp{varinfo.offset:+d}] ; push slice ptr"
+                    )
+                else:
+                    self.emitter.emit(
+                        f"PUSH_PTR {varinfo.offset:+d} ; ptr: {ident.token.value}"
+                    )
             case PrimitiveType():
                 self.emitter.emit(
                     f"PUSH_VAR {varinfo.offset:+d} ; var: {ident.token.value}"
@@ -318,7 +323,9 @@ class AsmCodeGen(Visitor):
         reg_i = 0
 
         if is_array(fninfo.return_type):
-            self.emitter.emit(f"RESERVE_SPACE {fninfo.return_type.total_size}")
+            self.emitter.emit(
+                f"RESERVE_SPACE {fninfo.return_type.total_size} ; array space"
+            )
             self.emitter.emit("lea rdi, [rsp]")
             self.emitter.emit(f"mov rsi, {fninfo.return_type.length}")
             reg_i += 2
@@ -430,7 +437,9 @@ class AsmCodeGen(Visitor):
         name, expr = decl.name, decl.expr
 
         offset = self.symbol_table.define_on_stack(name.value, decl.vartype)
-        self.emitter.emit(f"RESERVE_SPACE {decl.vartype.stack_size}")
+        self.emitter.emit(
+            f"RESERVE_SPACE {decl.vartype.stack_size} ; decl: {name.value}[{decl.vartype.name}]"
+        )
 
         expr.accept(self)
 
@@ -776,6 +785,7 @@ class AsmCodeGen(Visitor):
                         self.emitter.emit(
                             f"RESERVE_SPACE {vartype.stack_size} ; param {param.name.value}"
                         )
+
                     offset = self.symbol_table.define_in_fn(param.name.value, vartype)
 
                     match vartype:
@@ -790,6 +800,9 @@ class AsmCodeGen(Visitor):
                                 f"mov [rbp{offset:+d}], {reg_order[reg_i]}"
                             )
                             reg_i += 1
+                            varinfo = self.symbol_table.lookup(param.name.value)
+                            assert varinfo is not None
+                            varinfo.is_ptr = True
                         case StringType_() | ArrayType():
                             assert reg_i + 1 <= 5, (
                                 "More than 6 registers used (strings take up 2)"

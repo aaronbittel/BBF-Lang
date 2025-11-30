@@ -107,6 +107,7 @@ class VarInfo:
     name: str
     vartype: VarType
     offset: int
+    is_ptr: bool = False
 
 
 class SymbolTable:

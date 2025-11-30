@@ -1,0 +1,14 @@
+fn d(z: [Int]) -> Void do
+    exit( z[0] )
+end
+fn c(y: [Int]) -> Void do
+    d( y )
+end
+fn b(x: [Int]) -> Void do
+    c( x )
+end
+fn a(w: [Int]) -> Void do
+    b( w )
+end
+v: [Int] = [ 10 ]
+a( v )
