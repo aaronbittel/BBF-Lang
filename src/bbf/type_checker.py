@@ -5,7 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Generator
 
-from bbf.functions import BUILTIN_FNS, SLICE_METHODS, FnInfo
+from bbf.functions import BUILTIN_FNS, SLICE_METHODS, STRING_METHODS, FnInfo
 from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
@@ -19,6 +19,7 @@ from bbf.nodes.expr import (
     Indexing,
     IntegerLit,
     MethodCall,
+    Range,
     RangeIndexing,
     StringLit,
     Unary,
@@ -42,6 +43,7 @@ from bbf.varinfo import (
     IntType,
     SliceType,
     StringType,
+    StringType_,
     VarType,
     VoidType,
     is_array,
@@ -115,20 +117,7 @@ class TypeChecker(Visitor[VarType]):
 
     def visit_forstmt(self, forstmt: ForStmt) -> VarType:
         rangeexpr = forstmt.range_expr
-        start_type = rangeexpr.start.accept(self)
-        if start_type != IntType:
-            # TODO: add precise position information
-            raise TypeCheckerError(
-                f"ERROR: {forstmt.range_expr.start.span.start}: "
-                f"for-loop start expression must be Int, but got `{start_type.name}`"
-            )
-        stop_type = rangeexpr.stop.accept(self)
-        if stop_type != IntType:
-            # TODO: add precise position information
-            raise TypeCheckerError(
-                f"ERROR: {forstmt.range_expr.stop.span.start}: "
-                f"for-loop stop expression must be Int, but got `{stop_type.name}`"
-            )
+        self._visit_range_expr(rangeexpr)
 
         with self.new_scope():
             # because start and end type are `Int`, loop_ident can also be defined
@@ -138,6 +127,22 @@ class TypeChecker(Visitor[VarType]):
                 stmt.accept(self)
 
         return VoidType
+
+    def _visit_range_expr(self, rangeexpr: Range) -> None:
+        start_type = rangeexpr.start.accept(self)
+        if start_type != IntType:
+            # TODO: add precise position information
+            raise TypeCheckerError(
+                f"ERROR: {rangeexpr.start.span.start}: "
+                f"range start expression must be Int, but got `{start_type.name}`"
+            )
+        stop_type = rangeexpr.stop.accept(self)
+        if stop_type != IntType:
+            # TODO: add precise position information
+            raise TypeCheckerError(
+                f"ERROR: {rangeexpr.stop.span.start}: "
+                f"range stop expression must be Int, but got `{stop_type.name}`"
+            )
 
     @contextmanager
     def new_scope(self) -> Generator[None, None, None]:
@@ -288,19 +293,26 @@ class TypeChecker(Visitor[VarType]):
             )
 
         method_token = methodcall.method
-        if not is_slice(vartype):
-            raise TypeCheckerError(
-                f"ERROR: {method_token.position}: "
-                f"There is no method `{method_token.value}` defined on type `{vartype.name}`"
-            )
-        slice_method_entry = SLICE_METHODS.get(method_token.value)
-        if slice_method_entry is None:
+
+        match vartype:
+            case SliceType():
+                method_entry = SLICE_METHODS.get(method_token.value)
+                fn_vartype = vartype.vartype
+            case StringType_():
+                method_entry = STRING_METHODS.get(method_token.value)
+                fn_vartype = vartype
+            case x:
+                raise TypeCheckerError(
+                    f"ERROR: {method_token.position}: "
+                    f"There is no method `{method_token.value}` defined on type `{x.name}`"
+                )
+        if method_entry is None:
             raise TypeCheckerError(
                 f"ERROR: {method_token.position}: "
                 f"There is no method `{method_token.value}` defined on type `{vartype.name}`"
             )
 
-        fninfo = slice_method_entry.factory(vartype.vartype)
+        fninfo = method_entry.factory(fn_vartype)
 
         if len(fninfo.args) != len(methodcall.args):
             raise TypeCheckerError(
@@ -507,6 +519,8 @@ class TypeChecker(Visitor[VarType]):
             raise TypeCheckerError(
                 f"ERROR: {range_index.name.position}: `{range_index.name.value}` is not defined."
             )
+        self._visit_range_expr(range_index.range_expr)
+
         if is_string(vartype):
             range_index.vartype = StringType
             return StringType

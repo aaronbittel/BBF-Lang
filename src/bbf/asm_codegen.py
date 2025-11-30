@@ -6,7 +6,7 @@ from contextlib import contextmanager
 import bbf.builtins as bbf_builtins
 import bbf.nasm_macros as macros
 from bbf.emitter import Emitter
-from bbf.functions import SLICE_METHODS, FnInfo, FunctionTable
+from bbf.functions import SLICE_METHODS, STRING_METHODS, FnInfo, FunctionTable
 from bbf.lexer import TokenType
 from bbf.nodes.expr import (
     Argv,
@@ -286,7 +286,9 @@ class AsmCodeGen(Visitor):
             self.emitter.emit("PUSH_ARGC")
             return
         varinfo = self.symbol_table.lookup(ident.token.value)
-        assert varinfo is not None, "TypeChecker: Bug"
+        assert varinfo is not None, (
+            f"TypeChecker(Bug):{ident.token.position}: {ident.token.value}"
+        )
         match varinfo.vartype:
             case SliceType():
                 self.emitter.emit(
@@ -359,23 +361,31 @@ class AsmCodeGen(Visitor):
     def visit_methodcall(self, methodcall: MethodCall) -> None:
         varinfo = self.symbol_table.lookup(methodcall.target.value)
         assert varinfo is not None, "TypeChecker: Bug"
-        assert is_slice(varinfo.vartype), "TypeChecker: Bug"
 
-        slice_method_entry = SLICE_METHODS.get(methodcall.method.value)
-        assert slice_method_entry is not None, "TypeChecker: Bug"
-
-        if slice_method_entry.field_access:
-            if not self.is_inside_fn():
+        match varinfo.vartype:
+            case SliceType():
+                method_entry = SLICE_METHODS[methodcall.method.value]
+            case StringType_():
+                method_entry = STRING_METHODS[methodcall.method.value]
                 self.emitter.emit(
-                    f"PUSH_STACK_STRUCT_FIELD {varinfo.offset}, {slice_method_entry.field_offset}"
+                    f"PUSH_STACK_STRUCT_FIELD {varinfo.offset}, {method_entry.field_offset}"
+                )
+                return
+            case x:
+                assert False, f"unreachable: {x.name}"
+
+        if method_entry.field_access:
+            if self.is_inside_fn():
+                self.emitter.emit(
+                    f"PUSH_PTR_STRUCT_FIELD {varinfo.offset}, {method_entry.field_offset}"
                 )
             else:
                 self.emitter.emit(
-                    f"PUSH_PTR_STRUCT_FIELD {varinfo.offset}, {slice_method_entry.field_offset}"
+                    f"PUSH_STACK_STRUCT_FIELD {varinfo.offset}, {method_entry.field_offset}"
                 )
             return
 
-        fninfo = slice_method_entry.factory(varinfo.vartype.vartype)
+        fninfo = method_entry.factory(varinfo.vartype.vartype)
 
         regs_order = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
         reg_i = 1

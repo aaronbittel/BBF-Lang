@@ -63,14 +63,20 @@ def make_cap_method(elem_type: VarType) -> FnInfo:
 @dataclass(frozen=True)
 class SliceMethod:
     factory: Callable[..., FnInfo]
-    field_access: bool = True
-    field_offset: int = 0
+    field_access: bool
+    field_offset: int
 
 
-SLICE_METHODS: dict[str, SliceMethod] = {
-    "append": SliceMethod(factory=make_append_method, field_access=False),
+SLICE_METHODS = {
+    "append": SliceMethod(
+        factory=make_append_method, field_access=False, field_offset=-999
+    ),
     "len": SliceMethod(factory=make_len_method, field_access=True, field_offset=8),
     "cap": SliceMethod(factory=make_cap_method, field_access=True, field_offset=16),
+}
+
+STRING_METHODS = {
+    "len": SliceMethod(factory=make_len_method, field_access=True, field_offset=8),
 }
 
 
