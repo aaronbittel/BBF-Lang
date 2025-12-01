@@ -1,0 +1,70 @@
+fn split(str: String, delim: String) -> [String] do
+    parts: [String] = []
+    start: Int = 0
+    d_i: Int = 0
+    for i in 0..str.len() do
+        if str[i] == delim[d_i] then
+            d_i = d_i + 1
+        else
+            d_i = 0
+        end
+        if d_i >= delim.len() then
+            parts.append(str[start..i-(delim.len()-1)])
+            start = i + 1
+            d_i = 0
+        end
+    end
+    parts.append(str[start..str.len()])
+    return parts
+end
+
+fn part1(lines: [String]) -> Int do
+    result: Int = 50
+    zero_count: Int = 0
+
+    for i in 0..lines.len()-1 do
+        line: String = lines[i]
+        dir: String = line[0]
+        num: Int = atoi(line[1..line.len()])
+        if dir == "L" then result = result - num else result = result + num end
+        result = result % 100
+        if result < 0 then result = result + 100 end
+        if result == 0 then zero_count = zero_count + 1 end
+    end
+
+    return zero_count
+end
+
+fn part2(lines: [String]) -> Int do
+    result: Int = 50
+    zero_count: Int = 0
+
+    for i in 0..lines.len()-1 do
+        line: String = lines[i]
+        dir: String = line[0]
+        num: Int = atoi(line[1..line.len()])
+
+        for i in 0..num do
+            if dir == "L" then result = result - 1 else result = result + 1 end
+            if result == 100 then result = 0 end
+            if result == -1 then result = 99 end
+            if result == 0 then zero_count = zero_count + 1 end
+        end
+    end
+
+    return zero_count
+end
+
+if argc == 1 then
+    stderr("Usage: ") stderr(argv[0]) stderr(" <input-file>\n")
+    exit(1)
+end
+
+content: String = read_entire_file(argv[1])
+lines: [String] = split(content, "\n")
+
+part1_solution: Int = part1(lines)
+stdout("Part 1: ") stdout(itoa(part1_solution)) stdout("\n")
+
+part2_solution: Int = part2(lines)
+stdout("Part 2: ") stdout(itoa(part2_solution)) stdout("\n")

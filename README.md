@@ -5,6 +5,9 @@ main goal of this project is to learn compiler design and have fun experimenting
 language features. One personal goal is to solve some of the [Advent of Code
 2025](https://adventofcode.com/) challenges using BBF—let's see how far I can get!
 
+Note: I've solved Advent of Code 2025 Day 1 using BBF. The solution is available in the
+file [`./examples/aoc-2025-day1.bbf`](https://github.com/aaronbittel/BBF-Lang/blob/main/examples/aoc-2025-day1.bbf).
+
 
 ## Requirements
 - `Python 3.12`
