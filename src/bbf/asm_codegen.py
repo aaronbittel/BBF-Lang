@@ -264,6 +264,8 @@ class AsmCodeGen(Visitor):
         index_assign.value.accept(self)
         self.emitter.emit("pop r9 ; new value")
         self.emitter.emit(f"mov rax, [rbp{varinfo.offset}]")
+        if varinfo.is_ptr:
+            self.emitter.emit("mov rax, [rax]")
         self.emitter.emit("imul rcx, 8")
         self.emitter.emit("add rax, rcx")
         self.emitter.emit("mov qword [rax], r9")

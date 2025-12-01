@@ -332,6 +332,7 @@ __builtin_append_16:
     call __builtin_copy_slice_16
 
     shl r13, 1
+    STORE_PTR_STRUCT_FIELD -8, 16, r13
     ADD_MEM_PTR r13, 16
 
 .add:

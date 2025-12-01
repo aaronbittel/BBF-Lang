@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Calculation of slice capacity and mem ptr offset
 - Nested for loops label name conflict
 - Differentiate between slice ptr and value
+- Correct capacity for string slices when reallocating
 
 ## 0.4.2 - 2025-11-26
 
