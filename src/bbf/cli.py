@@ -14,7 +14,6 @@ class TypedNamespace:
     step: Step = Step.All
     run: list[str] = field(default_factory=list)
     quiet: bool = True
-    typecheck: bool = True
     output: Path = BIN_DIR
     verbose: bool = False
     buffer_size: int = GLOBAL_BUFFER_CAPACITY
@@ -26,7 +25,6 @@ class TypedNamespace:
             args.step,
             args.run,
             args.quiet,
-            args.typecheck,
             args.output,
             args.verbose,
             args.buffer_size,
@@ -68,13 +66,6 @@ def parse_cli_args() -> TypedNamespace:
         "-q",
         action="store_true",
         help="Quiet mode. Don't print any info about compilation phases.",
-    )
-    parser.add_argument(
-        "--no-type-check",
-        "-ntc",
-        action="store_false",
-        dest="typecheck",
-        help="Disable type checking during compilation.",
     )
     parser.add_argument(
         "--output",

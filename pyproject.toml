@@ -1,6 +1,6 @@
 [project]
 name = "bbf"
-version = "0.5.4"
+version = "0.6.0"
 description = "Compiler for BBF-Lang, a compiled statically-typed language written in Python."
 readme = "README.md"
 license = "MIT"

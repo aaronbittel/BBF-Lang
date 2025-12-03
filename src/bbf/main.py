@@ -20,12 +20,11 @@ def main() -> None:
         prog.accept(ASTPrinter())
         sys.exit(0)
 
-    if args.typecheck or args.step == Step.TypeCheck:
-        prog.accept(TypeChecker())
+    prog.accept(TypeChecker())
+    if args.step == Step.TypeCheck:
         if not args.quiet:
             print(blue("[INFO]"), f"Successfully type checked `{args.filepath}`")
-        if args.step == Step.TypeCheck:
-            sys.exit(0)
+        sys.exit(0)
 
     exe_path = args.output / args.filepath.stem if args.output.is_dir() else args.output
     generate_exe(
