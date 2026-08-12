@@ -8,19 +8,16 @@ language features. One personal goal is to solve some of the [Advent of Code
 Note: I've solved Advent of Code 2025 Day 1 using BBF. The solution is available in the
 file [`./examples/aoc-2025-day1.bbf`](https://github.com/aaronbittel/BBF-Lang/blob/main/examples/aoc-2025-day1.bbf).
 
-
 ## Requirements
 - `Python 3.12`
 - `nasm` (Netwide Assembler)
 - `ld` (GNU Linker)
-
 
 ## Installation
 ```bash
 git clone https://github.com/aaronbittel/BBF-Lang.git
 cd BBF-Lang
 ```
-
 
 ## Usage
 ```bash
@@ -37,8 +34,55 @@ uv run bbf file.bbf --run arg1 args2
 # Prints the tokens of `file.bbf` and exits with 0.
 uv run bbf file.bbf --step lexer
 ```
+
 - All available steps are: `lexer`, `parser`, `typecheck` and `output`
 
+## Testing
+
+The test suite uses snapshots to verify the compiler pipeline. Test cases are `.bbf`
+programs in `tests/cases/`, with expected results stored as snapshots in
+`tests/snapshots/`.
+
+Each test can verify multiple stages of compilation:
+
+- `.tok.snap` — lexer output
+- `.ast.snap` — parsed AST
+- `.tc.snap` — type-checking result
+- `.out.snap` — compiled program output, exit code, and arguments
+
+### Running Tests
+
+Run the complete test suite with:
+
+```bash
+make test
+```
+
+This runs all snapshot tests through the compiler pipeline.
+
+Individual stages can also be run directly:
+
+```bash
+uv run snapshot.py run lexer
+uv run snapshot.py run parser
+uv run snapshot.py run typecheck
+uv run snapshot.py run output
+```
+
+To record snapshots for tests that do not have them yet:
+
+```bash
+uv run snapshot.py record
+```
+
+To update existing snapshots:
+
+```bash
+uv run snapshot.py update
+```
+
+When a snapshot differs from the current output, the test fails and an .actual file is
+generated next to the expected snapshot for comparison.
 
 ## Syntax / Language Features
 
@@ -54,6 +98,7 @@ available.
 x: Int = 12
 str: String = "Hello, World!\n"
 ```
+
 - Variables can be redeclared with a new type or value:
 
 ```elixir
@@ -63,18 +108,21 @@ x: String = "New Type"    # (new variable of type String)
 ```
 
 ### Variable Assignment
+
 ```elixir
 x: Int = 12
 x = 24
 ```
 
 ### Arrays
+
 ```python
 x: Int[4] = [1, 2, 3, 4]
 y: Int = x[1]
 ```
 
 ### Slices
+
 ```python
 x: [Int] = [1, 2, 3]
 x.append(4)
@@ -82,6 +130,7 @@ y: Int = x[3] # y == 4
 ```
 
 ### If
+
 ```elixir
 if argc > 1 then
     stdout(argv[1]) stdout("\n")
@@ -91,21 +140,23 @@ else
     stderr("I MESSED UP\n")
 end
 ```
+
 - `argc` is a global variable that tracks the number of command-line arguments.
-- `argv[i]` is currently a special syntax / from of an expression that returns the
-string of that `argv`. Arrays or other indexing of variables is currently not supported.
 
 ### For
+
 ```elixir
 for i in 1..10 do
     stdout(itoa(i)) stdout("\n")
 end
 ```
+
 - Loop over a range (`start`..`stop`) by default stop is exclusive
 - Inclusive ranges can be specified with `1..=10`
 - Both `start` and `stop` can be expressions that evaluate to an Int
 
 ### Functions
+
 ```elixir
 fn repeat(x: Int, y: String) -> Void do
     for i in 1..=x do
@@ -114,6 +165,7 @@ fn repeat(x: Int, y: String) -> Void do
     return # optional in this case
 end
 ```
+
 - Functions can return `Void` or any supported type.
 
 ### Memory Allocation
@@ -123,12 +175,14 @@ end
 - Currently, only slices use this buffer for storing their elements.
 
 ### Comments
+
 ```python
 # all comments are single line comments starting with `#`
 x: Int = 12 # they can also be inline
 ```
 
 ### VarTypes
+
 - `Int`: 64bit integer
 - `String`: Strings are represented internally as a struct with length and pointer. Not
 null-terminated.
@@ -144,6 +198,7 @@ Represented as ptr + len + cap.
 - `Void`: Only used in return type annotations. `x: Void = 1` is not supported
 
 ### Builtin Functions
+
 - `exit(exitcode: Int) -> Void`: Exit program with exitcode
 - `atoi(str: String) -> Int`: Convert String to Int
 - `itoa(x: Int) -> String`: Convert Int to String
@@ -152,6 +207,7 @@ Represented as ptr + len + cap.
 - `stderr(str: String) -> Void`: Print str to stderr
 
 ### Builtin Slice Methods
+
 - `append(x: Int) -> Void`: Append x to end of slice, automatically reallocates if len
 would be > capacity
 - `len() -> Int`: Return the length of the slice
@@ -168,6 +224,7 @@ uv run bbf examples/isprime.bbf --run <argv>
 ```
 
 ## Useful Ressources
+
 - [Tsoding
 Porth](https://www.youtube.com/watch?v=-gIWxGQkIJo&list=PLpM-Dvs8t0VbMZA7wW9aR3EtBqe2kinu4): Assembly & Snapshot testing
 - [intectum
@@ -186,7 +243,6 @@ Grammar Definition, Parsing Expressions, Visitor Pattern
 - [X86 Instruction Reference](https://www.felixcloutier.com/x86/)
 - [Linux Syscalls
 Reference](https://chromium.googlesource.com/chromiumos/docs/+/master/constants/syscalls.md)
-
 
 ## Project Name
 
