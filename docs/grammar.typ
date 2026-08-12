@@ -1,4 +1,4 @@
-#set page(margin: 1cm, fill: rgb("#B0B0B0"))
+#set page(margin: 1cm)
 #show math.equation: set block(breakable: true)
 
 #align(center)[= Grammar for BBFLang]

@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Changed
 
+## 0.6.1 - 2026-08-12
+
+### Added
+
+- GitHub Actions workflow for automatically building and publishing the grammar PDF for
+  releases.
+
 ## 0.6.0 - 2026-08-12
 
 ### Changed

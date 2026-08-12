@@ -1,0 +1,31 @@
+name: Build Grammar PDF
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Typst
+        uses: typst-community/setup-typst@v4
+
+      - name: Build PDF
+        run: typst compile docs/grammar.typ docs/grammar.pdf
+
+      - name: Create release and upload PDF
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            docs/grammar.pdf \
+            --generate-notes
