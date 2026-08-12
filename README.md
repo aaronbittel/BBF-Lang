@@ -87,10 +87,10 @@ generated next to the expected snapshot for comparison.
 ## Syntax / Language Features
 
 - The full language
-[`grammar`](https://github.com/aaronbittel/BBF-Lang/blob/main/docs/grammar.typ) is
-available.
+  [`grammar`](https://github.com/aaronbittel/BBF-Lang/releases/latest/download/grammar.pdf)
+  is available.
     - If you have [typst](https://github.com/typst/typst) installed you can generate the
-    pdf using: `typst compile docs/grammar.typ`
+      pdf using: `typst compile docs/grammar.typ`
 
 ### Variable Declaration
 
